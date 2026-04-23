@@ -1,0 +1,48 @@
+diff --git a/dist/auth-options.js b/dist/auth-options.js
+index 3f4f6ff8c0f25210930d7934a8a9f29da8cc3425..1b67f02ecc231be2054d30b5ce6fbf9e9e323724 100644
+--- a/dist/auth-options.js
++++ b/dist/auth-options.js
+@@ -35,6 +35,7 @@ export const options = {
+         }),
+         oidcProvider({
+             loginPage: "/login",
++            __skipDeprecationWarning: true,
+         }),
+         bearer(),
+         oneTimeToken(),
+diff --git a/dist/client/adapter.js b/dist/client/adapter.js
+index e6a1a1d5dd7ec1342f2f60dba2e239f1de3d4082..3f7684e74f199c9093cf20434951309cd8a1000f 100644
+--- a/dist/client/adapter.js
++++ b/dist/client/adapter.js
+@@ -47,13 +47,12 @@ const parseWhere = (where) => {
+     }
+     const whereArray = Array.isArray(where) ? where : [where];
+     return whereArray.map((w) => {
+-        if (w.value instanceof Date) {
+-            return {
+-                ...w,
+-                value: w.value.getTime(),
+-            };
+-        }
+-        return w;
++        // Strip extra fields (e.g. "mode") not in the Convex validator
++        const { connector, field, operator, value, join } = w;
++        const cleaned = { field, value: value instanceof Date ? value.getTime() : value };
++        if (connector) cleaned.connector = connector;
++        if (operator) cleaned.operator = operator;
++        return cleaned;
+     });
+ };
+ const getDocId = (doc) => {
+diff --git a/dist/plugins/convex/index.js b/dist/plugins/convex/index.js
+index af68d52858e50bb081a64990aa84214910af4e51..65bf6a376b243f1a6fb82745635ea800a8d54795 100644
+--- a/dist/plugins/convex/index.js
++++ b/dist/plugins/convex/index.js
+@@ -43,6 +43,7 @@ export const convex = (opts) => {
+     const jwtExpirationSeconds = opts.jwt?.expirationSeconds ?? opts.jwtExpirationSeconds ?? 60 * 15;
+     const oidcProvider = oidcProviderPlugin({
+         loginPage: "/not-used",
++        __skipDeprecationWarning: true,
+         metadata: {
+             issuer: `${process.env.CONVEX_SITE_URL}`,
+             jwks_uri: `${process.env.CONVEX_SITE_URL}${opts.options?.basePath ?? "/api/auth"}/convex/jwks`,

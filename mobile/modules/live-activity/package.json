@@ -1,0 +1,8 @@
+{
+  "name": "pushr-live-activity",
+  "version": "0.1.0",
+  "description": "iOS Live Activity / Dynamic Island module for pushr",
+  "main": "index.ts",
+  "types": "index.ts",
+  "private": true
+}

@@ -1,0 +1,15 @@
+node_modules
+.env
+.env.local
+.env.*.local
+dist
+.DS_Store
+bun.lock
+convex/_generated
+
+# Expo
+mobile/.expo
+mobile/dist
+mobile/web-build
+mobile/ios
+mobile/android
