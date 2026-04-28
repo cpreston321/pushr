@@ -103,6 +103,30 @@ export const remove = mutation({
 });
 
 /**
+ * Register/refresh the APNs push-to-start token for Live Activities.
+ * The mobile client reports this from `Activity<PushrActivityAttributes>
+ * .pushToStartTokenUpdates`. Token can change over time; we store the most
+ * recent value.
+ */
+export const registerLiveActivityPushToStartToken = mutation({
+  args: {
+    deviceId: v.id("devices"),
+    token: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const ownerId = await requireAuth(ctx);
+    const device = await ctx.db.get(args.deviceId);
+    if (!device || device.ownerId !== ownerId) {
+      throw new ConvexError("Device not found");
+    }
+    await ctx.db.patch(args.deviceId, {
+      liveActivityPushToStartToken: args.token,
+      liveActivityPushToStartAt: Date.now(),
+    });
+  },
+});
+
+/**
  * Called by the Expo Push action when a token is rejected with
  * DeviceNotRegistered so we stop attempting delivery.
  */

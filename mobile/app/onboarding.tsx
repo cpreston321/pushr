@@ -48,7 +48,7 @@ type Step = {
 };
 
 export default function Onboarding() {
-  const { colors } = useTheme();
+  const { colors, tintBg } = useTheme();
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
   const [page, setPage] = useState(0);
@@ -208,7 +208,7 @@ export default function Onboarding() {
                   width: 88,
                   height: 88,
                   borderRadius: 44,
-                  backgroundColor: (s.tint ?? colors.accent) + "22",
+                  backgroundColor: tintBg(s.tint ?? colors.accent),
                   alignItems: "center",
                   justifyContent: "center",
                   alignSelf: "flex-start",
@@ -341,7 +341,7 @@ function StatusPanel({
   error: string | null;
   onRetry: () => void;
 }) {
-  const { colors } = useTheme();
+  const { colors, tintBg } = useTheme();
   if (status === "idle") return null;
   const tint =
     status === "granted"
@@ -371,7 +371,7 @@ function StatusPanel({
         padding: spacing.md,
         borderRadius: radius.lg,
         borderCurve: "continuous",
-        backgroundColor: tint + "18",
+        backgroundColor: tintBg(tint, "18"),
       }}
     >
       <SymbolView name={icon} size={22} tintColor={tint} />
@@ -463,7 +463,7 @@ function StepFooter({
 }
 
 function ThemePicker() {
-  const { colors, isDark } = useTheme();
+  const { colors, isDark, tintBg } = useTheme();
   const { mode, setMode, accentKey, setAccent } = useThemePreferences();
 
   const modes: { value: ThemeMode; label: string; icon: SFSymbol }[] = [
@@ -489,8 +489,8 @@ function ThemePicker() {
                 aspectRatio: 1.1,
                 borderRadius: radius.md,
                 borderCurve: "continuous",
-                backgroundColor: selected ? colors.accent + "22" : colors.fill,
-                borderWidth: selected ? 1.5 : 0,
+                backgroundColor: selected ? tintBg(colors.accent) : colors.fill,
+                borderWidth: 1.5,
                 borderColor: selected ? colors.accent : "transparent",
                 alignItems: "center",
                 justifyContent: "center",

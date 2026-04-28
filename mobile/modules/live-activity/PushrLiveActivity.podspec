@@ -7,10 +7,12 @@ Pod::Spec.new do |s|
   s.version        = package['version']
   s.summary        = package['description']
   s.description    = package['description']
-  s.license        = 'MIT'
+  s.license        = 'ISC'
   s.author         = ''
   s.homepage       = 'https://pushr.sh'
-  s.platforms      = { :ios => '16.2' }
+  # Match the main app's deployment target; ActivityKit usage is guarded by
+  # `@available(iOS 16.2, *)` inside Swift so iOS 15.x builds still link.
+  s.platforms      = { :ios => '15.1' }
   s.source         = { git: '' }
   s.static_framework = true
 

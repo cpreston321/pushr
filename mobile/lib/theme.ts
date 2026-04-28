@@ -12,7 +12,7 @@ import * as SecureStore from "expo-secure-store";
 
 /**
  * iOS system colors + iOS-native grouped list tokens. Accent is user-selectable
- * from a small palette of presets, defaulting to system indigo.
+ * from a small palette of presets, defaulting to system blue.
  */
 export type Palette = {
   background: string;
@@ -55,7 +55,7 @@ export const ACCENT_ORDER: AccentKey[] = [
   "indigo",
 ];
 
-const DEFAULT_ACCENT: AccentKey = "indigo";
+const DEFAULT_ACCENT: AccentKey = "blue";
 const STORAGE_KEY_MODE = "pushr.themeMode";
 const STORAGE_KEY_ACCENT = "pushr.accentKey";
 
@@ -66,16 +66,16 @@ const basePalettes: { light: Palette; dark: Palette } = {
     cell: "#FFFFFF",
     cellHighlight: "#E5E5EA",
     label: "#000000",
-    secondaryLabel: "rgba(60,60,67,0.6)",
-    tertiaryLabel: "rgba(60,60,67,0.3)",
-    separator: "rgba(60,60,67,0.29)",
+    secondaryLabel: "rgba(60,60,67,0.65)",
+    tertiaryLabel: "rgba(60,60,67,0.45)",
+    separator: "rgba(60,60,67,0.4)",
     accent: ACCENT_PRESETS[DEFAULT_ACCENT].light,
     accentContrast: "#FFFFFF",
     destructive: "#FF3B30",
-    success: "#34C759",
-    warning: "#FF9500",
-    fill: "rgba(120,120,128,0.12)",
-    placeholder: "rgba(60,60,67,0.3)",
+    success: "#248A3D",
+    warning: "#C76C00",
+    fill: "rgba(120,120,128,0.2)",
+    placeholder: "rgba(60,60,67,0.45)",
   },
   dark: {
     background: "#000000",
@@ -191,5 +191,14 @@ export function useTheme() {
   const base = isDark ? basePalettes.dark : basePalettes.light;
   const accent = ACCENT_PRESETS[accentKey][isDark ? "dark" : "light"];
   const colors: Palette = { ...base, accent };
-  return { isDark, colors, spacing, radius, type, mode, accentKey };
+
+  // Soft tinted background helper. Dark mode keeps the original alpha; light
+  // mode roughly doubles it so tints on white surfaces don't look washed out.
+  const tintBg = (hex: string, alpha: string = "22"): string => {
+    if (isDark) return hex + alpha;
+    const boosted = Math.min(255, parseInt(alpha, 16) * 2);
+    return hex + boosted.toString(16).padStart(2, "0").toUpperCase();
+  };
+
+  return { isDark, colors, spacing, radius, type, mode, accentKey, tintBg };
 }

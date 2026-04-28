@@ -37,6 +37,30 @@ that live beyond the app's runtime.
 }
 ```
 
+```json
+{
+  "title": "Deploy #42",
+  "body": "Building on staging",
+  "priority": "normal",
+  "liveActivity": {
+    "action": "start",
+    "activityId": "deploy-42",
+    "attributes": {
+      "name": "ci.example.com",
+      "logoUrl": "https://..."
+    },
+    "state": {
+      "title": "Deploy #42",
+      "status": "Running tests",
+      "progress": 0.35,
+      "icon": "hammer.fill"
+    },
+    "staleDate": 1712200000000,
+    "relevanceScore": 0.8
+  }
+}
+```
+
 Subsequent updates:
 
 ```json
@@ -107,6 +131,55 @@ If you'd rather automate this, swap `plugin.js` for one that uses
 `prebuild`. Keep the manual steps documented either way — pbxproj munging
 is fragile and users end up here when it breaks.
 
+## Server-driven via APNs (push-to-start)
+
+Live Activities can start/update/end even when the app is terminated. pushr
+sends payloads directly to APNs with `apns-push-type: liveactivity` and uses
+two token types reported by the device:
+
+1. **Push-to-start token** — one per device. Needed to create an activity
+   when the app is not running (iOS 17.2+).
+2. **Per-activity update token** — one per running activity. Needed to
+   update / end an activity once started.
+
+The mobile client enrolls for both streams on startup
+(`useLiveActivityTokens`) and calls `devices.registerLiveActivityPushToStartToken`
+and `liveActivities.registerUpdateToken` as tokens arrive. The server side
+picks them up in `convex/apns.ts` (Node action using HTTP/2 + ES256 JWT).
+
+### Required environment variables
+
+Set these on the Convex deployment (`bunx convex env set <KEY> <VALUE>`):
+
+| Name | Value |
+| --- | --- |
+| `APNS_AUTH_KEY` | Full contents of your `.p8` file, including `-----BEGIN PRIVATE KEY-----` headers. Put the literal file contents; newline-escaping (`\n`) is also accepted. |
+| `APNS_KEY_ID` | 10-character key id from Apple Developer → Keys. |
+| `APNS_TEAM_ID` | 10-character Team ID (Apple Developer → Membership). |
+| `APNS_BUNDLE_ID` | Main app bundle id (e.g. `dev.cpreston.pushr`). Live-activity topic is derived as `${APNS_BUNDLE_ID}.push-type.liveactivity`. |
+| `APNS_ENVIRONMENT` | `production` for TestFlight/App Store builds, `sandbox` for Xcode-installed debug builds. Defaults to `sandbox`. |
+
+Example `convex env set` for the auth key (reads from a local p8):
+
+```bash
+bunx convex env set APNS_AUTH_KEY -- "$(cat ~/Downloads/AuthKey_ABC1234567.p8)"
+bunx convex env set APNS_KEY_ID ABC1234567
+bunx convex env set APNS_TEAM_ID 39MSHURBYT
+bunx convex env set APNS_BUNDLE_ID dev.cpreston.pushr
+bunx convex env set APNS_ENVIRONMENT sandbox
+```
+
+### Behavior when tokens are missing
+
+- Missing `APNS_AUTH_KEY`: `apns.dispatch` logs a warning and no-ops. Regular
+  notifications still flow via Expo Push; only the Live Activity lifecycle
+  is disabled.
+- No push-to-start token registered for the owner: `start` actions log a
+  warning and do nothing. The device has to run once with the
+  `useLiveActivityTokens` hook mounted to enroll.
+- No update token for an activity: `update`/`end` actions log and no-op.
+  The device likely crashed or ended the activity locally.
+
 ## Behavior notes
 
 - **ContentState shape** is fixed (`title`, `status`, `progress`, `icon`).
@@ -132,6 +205,23 @@ is fragile and users end up here when it breaks.
   receive the push and start an activity. To support that, wire up
   `PushToStartTokenUpdates` in the module and send an APNs
   `push-type: liveactivity` frame from pushr — not implemented yet.
+
+## Testing end-to-end
+
+`scripts/test-live-activity.sh` walks an activity through start → two updates
+→ end. Set `PUSHR_URL` and `PUSHR_TOKEN`, launch the app into the
+foreground, then:
+
+```bash
+scripts/test-live-activity.sh                      # full lifecycle with 5s steps
+scripts/test-live-activity.sh start --progress 0.1
+scripts/test-live-activity.sh update --progress 0.6 --status "Halfway"
+scripts/test-live-activity.sh end
+```
+
+Override `ACT_ID=my-id` to reuse a single activity across multiple invocations;
+override `STEP_DELAY=2` for faster walkthroughs. Non-202 responses dump the
+Convex error body to stderr.
 
 ## Tracking
 

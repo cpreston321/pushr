@@ -1,4 +1,7 @@
-import { requireOptionalNativeModule } from "expo-modules-core";
+import {
+  requireOptionalNativeModule,
+  type EventSubscription,
+} from "expo-modules-core";
 import { Platform } from "react-native";
 
 /**
@@ -45,12 +48,33 @@ export type EndOptions = {
   dismissalPolicy?: "default" | "immediate" | { after: number };
 };
 
+export type PushToStartTokenEvent = { token: string };
+export type ActivityUpdateTokenEvent = {
+  activityId: string;
+  nativeActivityId: string;
+  token: string;
+};
+
+type NativeEvents = {
+  onPushToStartToken: (e: PushToStartTokenEvent) => void;
+  onActivityUpdateToken: (e: ActivityUpdateTokenEvent) => void;
+};
+
 type NativeModule = {
   areActivitiesEnabled(): Promise<boolean>;
-  start(options: StartOptions): Promise<{ ok: boolean; reason?: string }>;
+  enablePushUpdates(): Promise<boolean>;
+  start(options: StartOptions): Promise<{ ok: boolean; reason?: string; nativeId?: string }>;
   update(options: UpdateOptions): Promise<{ ok: boolean; reason?: string }>;
   end(options: EndOptions): Promise<{ ok: boolean; reason?: string }>;
   listActive(): Promise<string[]>;
+  getLastPushToStartToken(): Promise<string | null>;
+  getActivityUpdateTokens(): Promise<
+    Array<{ activityId: string; nativeActivityId: string; token: string }>
+  >;
+  addListener<E extends keyof NativeEvents>(
+    eventName: E,
+    listener: NativeEvents[E],
+  ): EventSubscription;
 };
 
 const native =
@@ -88,6 +112,47 @@ export const LiveActivity = {
     if (!native) return [];
     try {
       return await native.listActive();
+    } catch {
+      return [];
+    }
+  },
+  /**
+   * Kick off the ActivityKit token streams so the JS layer can forward
+   * tokens to the backend. Safe to call repeatedly — the native side
+   * de-dupes. Returns true if observers were (or already are) running.
+   */
+  async enablePushUpdates(): Promise<boolean> {
+    if (!native) return false;
+    try {
+      return await native.enablePushUpdates();
+    } catch {
+      return false;
+    }
+  },
+  onPushToStartToken(
+    handler: (e: PushToStartTokenEvent) => void,
+  ): EventSubscription {
+    if (!native) return { remove() {} } as EventSubscription;
+    return native.addListener("onPushToStartToken", handler);
+  },
+  onActivityUpdateToken(
+    handler: (e: ActivityUpdateTokenEvent) => void,
+  ): EventSubscription {
+    if (!native) return { remove() {} } as EventSubscription;
+    return native.addListener("onActivityUpdateToken", handler);
+  },
+  async getLastPushToStartToken(): Promise<string | null> {
+    if (!native) return null;
+    try {
+      return await native.getLastPushToStartToken();
+    } catch {
+      return null;
+    }
+  },
+  async getActivityUpdateTokens(): Promise<ActivityUpdateTokenEvent[]> {
+    if (!native) return [];
+    try {
+      return await native.getActivityUpdateTokens();
     } catch {
       return [];
     }

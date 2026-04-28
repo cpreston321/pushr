@@ -65,6 +65,12 @@ export default defineSchema({
     createdAt: v.number(),
     // Set if Expo returns DeviceNotRegistered so we stop trying
     invalidatedAt: v.optional(v.number()),
+    // APNs push-to-start token for PushrActivityAttributes. Used to start
+    // Live Activities when the app is terminated — see convex/apns.ts.
+    // Reported by the mobile client after enrolling
+    // `Activity<PushrActivityAttributes>.pushToStartTokenUpdates`.
+    liveActivityPushToStartToken: v.optional(v.string()),
+    liveActivityPushToStartAt: v.optional(v.number()),
   })
     .index("by_owner", ["ownerId"])
     .index("by_token", ["expoPushToken"]),
@@ -315,7 +321,19 @@ export default defineSchema({
     // debugging surface when an activity is stuck.
     lastState: v.optional(v.any()),
     lastAttributes: v.optional(v.any()),
+    // ActivityKit-assigned UUID for this activity, reported by the device
+    // after `Activity.request`. Used to correlate update-token callbacks.
+    nativeActivityId: v.optional(v.string()),
+    // Per-activity APNs update token (iOS 16.2+). Required to push updates
+    // and ends once the activity is running. Reported by the device via
+    // `activity.pushTokenUpdates` after the push-to-start handshake.
+    pushUpdateToken: v.optional(v.string()),
+    pushUpdateTokenAt: v.optional(v.number()),
+    // Which device originally started the activity — for observability and
+    // because update tokens are per-device.
+    deviceId: v.optional(v.id("devices")),
   })
     .index("by_owner_activity", ["ownerId", "activityId"])
-    .index("by_owner_started", ["ownerId", "startedAt"]),
+    .index("by_owner_started", ["ownerId", "startedAt"])
+    .index("by_native_activity_id", ["nativeActivityId"]),
 });

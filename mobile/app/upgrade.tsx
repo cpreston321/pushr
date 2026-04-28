@@ -52,7 +52,7 @@ const PERKS: { icon: SFSymbol; title: string; body: string }[] = [
 ];
 
 export default function Upgrade() {
-  const { colors } = useTheme();
+  const { colors, tintBg } = useTheme();
   const insets = useSafeAreaInsets();
   const plan = useQuery(api.tiers.getMyPlan);
   const grantPro = useMutation(api.tiers.grantProToMe);
@@ -155,7 +155,7 @@ export default function Upgrade() {
                     width: 36,
                     height: 36,
                     borderRadius: 18,
-                    backgroundColor: colors.accent + "22",
+                    backgroundColor: tintBg(colors.accent),
                     alignItems: "center",
                     justifyContent: "center",
                   }}
@@ -204,7 +204,7 @@ export default function Upgrade() {
               {cycle === "yearly" && (
                 <View
                   style={{
-                    backgroundColor: colors.success + "22",
+                    backgroundColor: tintBg(colors.success),
                     paddingHorizontal: 10,
                     paddingVertical: 4,
                     borderRadius: 10,
@@ -230,7 +230,7 @@ export default function Upgrade() {
                 padding: spacing.md,
                 borderRadius: radius.md,
                 borderCurve: "continuous",
-                backgroundColor: colors.success + "18",
+                backgroundColor: tintBg(colors.success, "18"),
                 flexDirection: "row",
                 alignItems: "center",
                 gap: spacing.sm,

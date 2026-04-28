@@ -51,7 +51,7 @@ async function applyLiveActivity(la: LiveActivityPayload): Promise<void> {
       });
     }
   } catch {
-    // Swallow — Live Activity failures shouldn't crash the response handler.
+    // Live Activity failures shouldn't crash the response handler.
   }
 }
 

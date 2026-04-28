@@ -84,6 +84,9 @@ Drive lockscreen and Dynamic Island progress from `/notify`:
 must be reused for updates. See [docs/LIVE_ACTIVITIES.md](docs/LIVE_ACTIVITIES.md)
 for the Xcode one-time setup and the field-by-field contract.
 
+Test end-to-end with `scripts/test-live-activity.sh` — set `PUSHR_URL` and
+`PUSHR_TOKEN`, bring the app to the foreground, run the script.
+
 ### Interactive actions
 
 Ship up to 4 action buttons with each notification. Three kinds:

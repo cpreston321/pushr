@@ -14,7 +14,7 @@ import { showActionSheet } from "@/lib/actionSheet";
 import { registerForPushAsync } from "@/lib/push";
 
 export default function Devices() {
-  const { colors } = useTheme();
+  const { colors, tintBg } = useTheme();
   const devices = useQuery(api.devices.listMine) as Doc<"devices">[] | undefined;
   const register = useMutation(api.devices.register);
   const setEnabled = useMutation(api.devices.setEnabled);
@@ -149,7 +149,7 @@ export default function Devices() {
                     width: 40,
                     height: 40,
                     borderRadius: 20,
-                    backgroundColor: isCurrent ? colors.accent + "22" : colors.fill,
+                    backgroundColor: isCurrent ? tintBg(colors.accent) : colors.fill,
                     alignItems: "center",
                     justifyContent: "center",
                   }}
@@ -207,7 +207,7 @@ function StatusCard({
   error: string | null;
   onRetry: () => void;
 }) {
-  const { colors } = useTheme();
+  const { colors, tintBg } = useTheme();
 
   const configs = {
     idle: { icon: "hourglass", title: "Ready", body: "Tap register to enable pushes." },
@@ -236,7 +236,7 @@ function StatusCard({
           height: 40,
           borderRadius: 12,
           borderCurve: "continuous",
-          backgroundColor: tint + "22",
+          backgroundColor: tintBg(tint),
           alignItems: "center",
           justifyContent: "center",
         }}

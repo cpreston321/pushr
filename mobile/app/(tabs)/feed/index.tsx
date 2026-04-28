@@ -24,7 +24,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { SymbolView } from "expo-symbols";
 import { BlurView } from "expo-blur";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenHeader, ScreenBody } from "@/components/ScreenHeader";
 import { ScreenTransition } from "@/components/ScreenTransition";
@@ -148,13 +148,18 @@ export default function Feed() {
   const pendingAckCount =
     items?.filter((i) => i.ack && !i.acknowledgedAt).length ?? 0;
 
+  const entries = useMemo(
+    () => groupFeedItems(filtered ?? undefined),
+    [filtered],
+  );
+
   return (
     <ScreenTransition style={{ backgroundColor: colors.background }}>
       {header}
       <ScreenBody>
         <FlatList
-          data={filtered}
-          keyExtractor={(i) => i._id}
+          data={entries}
+          keyExtractor={(e) => (e.kind === "group" ? `g:${e.activityId}` : e.item._id)}
           contentContainerStyle={{ paddingTop: spacing.md, paddingBottom: 160 }}
           ListHeaderComponent={
             <FeedToolbar
@@ -191,21 +196,45 @@ export default function Feed() {
               tintColor={colors.secondaryLabel}
             />
           }
-          renderItem={({ item, index }) => (
-            <FeedRow
-              item={item}
-              isFirst={index === 0}
-              isLast={index === (filtered?.length ?? 0) - 1}
-              onOpen={() => {
-                if (!item.readAt) markRead({ id: item._id });
-                if (item.url) Linking.openURL(item.url).catch(() => {});
-              }}
-              onDelete={() => {
-                haptic.warning();
-                deleteOne({ id: item._id });
-              }}
-            />
-          )}
+          renderItem={({ item: entry, index }) => {
+            const isFirst = index === 0;
+            const isLast = index === entries.length - 1;
+            if (entry.kind === "group") {
+              return (
+                <FeedGroupRow
+                  group={entry}
+                  isFirst={isFirst}
+                  isLast={isLast}
+                  onOpenItem={(item) => {
+                    if (!item.readAt) markRead({ id: item._id });
+                    if (item.url) Linking.openURL(item.url).catch(() => {});
+                  }}
+                  onDeleteGroup={() => {
+                    haptic.warning();
+                    for (const it of entry.all) {
+                      void deleteOne({ id: it._id });
+                    }
+                  }}
+                />
+              );
+            }
+            return (
+              <FeedRow
+                item={entry.item}
+                isFirst={isFirst}
+                isLast={isLast}
+                onOpen={() => {
+                  if (!entry.item.readAt) markRead({ id: entry.item._id });
+                  if (entry.item.url)
+                    Linking.openURL(entry.item.url).catch(() => {});
+                }}
+                onDelete={() => {
+                  haptic.warning();
+                  deleteOne({ id: entry.item._id });
+                }}
+              />
+            );
+          }}
         />
       </ScreenBody>
       <FloatingBar
@@ -315,6 +344,7 @@ function BarAction({
   disabled?: boolean;
   badge?: number;
 }) {
+  const { tintBg } = useTheme();
   return (
     <Pressable
       onPress={onPress}
@@ -326,7 +356,7 @@ function BarAction({
         paddingHorizontal: 14,
         paddingVertical: 10,
         borderRadius: 22,
-        backgroundColor: pressed ? color + "22" : "transparent",
+        backgroundColor: pressed ? tintBg(color) : "transparent",
         opacity: disabled ? 0.45 : 1,
       })}
     >
@@ -375,7 +405,7 @@ function FeedToolbar({
   onFilterChange: (id: string | null) => void;
   pendingAckCount: number;
 }) {
-  const { colors } = useTheme();
+  const { colors, tintBg } = useTheme();
   return (
     <View
       style={{
@@ -392,7 +422,7 @@ function FeedToolbar({
             paddingVertical: spacing.sm,
             borderRadius: 10,
             borderCurve: "continuous",
-            backgroundColor: colors.destructive + "1F",
+            backgroundColor: tintBg(colors.destructive, "1F"),
             flexDirection: "row",
             alignItems: "center",
             gap: spacing.sm,
@@ -562,6 +592,356 @@ function EmptyState() {
 
 type FeedItem = FunctionReturnType<typeof api.notifications.listMine>[number];
 
+type FeedEntry =
+  | { kind: "single"; item: FeedItem }
+  | {
+      kind: "group";
+      activityId: string;
+      latest: FeedItem;
+      all: FeedItem[];
+    };
+
+/**
+ * Collapse consecutive `liveActivity` notifications that share the same
+ * `activityId` into a single group. Items arrive newest-first, so
+ * `latest` is the head of each group and `all` is every event (start +
+ * updates + end) for that activity in reverse chronological order.
+ */
+function groupFeedItems(items?: FeedItem[]): FeedEntry[] {
+  if (!items) return [];
+  const out: FeedEntry[] = [];
+  const indexByActivity = new Map<string, number>();
+  for (const item of items) {
+    const activityId = item.liveActivity?.activityId;
+    if (!activityId) {
+      out.push({ kind: "single", item });
+      continue;
+    }
+    const existingIdx = indexByActivity.get(activityId);
+    if (existingIdx !== undefined) {
+      const existing = out[existingIdx];
+      if (existing.kind === "group") {
+        existing.all.push(item);
+      }
+      continue;
+    }
+    out.push({ kind: "group", activityId, latest: item, all: [item] });
+    indexByActivity.set(activityId, out.length - 1);
+  }
+  return out;
+}
+
+function FeedGroupRow({
+  group,
+  isFirst,
+  isLast,
+  onOpenItem,
+  onDeleteGroup,
+}: {
+  group: Extract<FeedEntry, { kind: "group" }>;
+  isFirst: boolean;
+  isLast: boolean;
+  onOpenItem: (item: FeedItem) => void;
+  onDeleteGroup: () => void;
+}) {
+  const { colors } = useTheme();
+  const [expanded, setExpanded] = useState(false);
+  const latest = group.latest;
+  const anyEnded = group.all.some((i) => i.liveActivity?.action === "end");
+  const eventCount = group.all.length;
+
+  const header = (
+    <Pressable
+      onPress={() => {
+        haptic.selection();
+        setExpanded((e) => !e);
+      }}
+      style={({ pressed }) => ({
+        backgroundColor: pressed ? colors.cellHighlight : colors.cell,
+        paddingLeft: spacing.md,
+        paddingRight: spacing.lg,
+        paddingVertical: spacing.md,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: spacing.md,
+        minHeight: 72,
+        opacity: anyEnded ? 0.85 : 1,
+      })}
+    >
+      <View>
+        <Avatar
+          url={latest.sourceAppLogoUrl}
+          name={latest.sourceAppName}
+          size={40}
+        />
+        {!latest.readAt && !anyEnded && (
+          <View
+            style={{
+              position: "absolute",
+              left: -2,
+              top: -2,
+              width: 12,
+              height: 12,
+              borderRadius: 6,
+              backgroundColor: colors.accent,
+              borderWidth: 2,
+              borderColor: colors.cell,
+            }}
+          />
+        )}
+      </View>
+      <View style={{ flex: 1 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "baseline",
+          }}
+        >
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+              flex: 1,
+            }}
+          >
+            <Text
+              style={{ ...type.footnote, color: colors.secondaryLabel }}
+              numberOfLines={1}
+            >
+              {latest.sourceAppName}
+            </Text>
+            {latest.liveActivity && (
+              <LiveActivityBadge action={latest.liveActivity.action} />
+            )}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 3,
+                paddingHorizontal: 6,
+                paddingVertical: 2,
+                borderRadius: 6,
+                backgroundColor: colors.fill,
+              }}
+            >
+              <Text
+                style={{
+                  ...type.caption2,
+                  color: colors.secondaryLabel,
+                  fontWeight: "600",
+                }}
+              >
+                {eventCount} event{eventCount === 1 ? "" : "s"}
+              </Text>
+            </View>
+          </View>
+          <Text style={{ ...type.caption1, color: colors.tertiaryLabel }}>
+            {formatRelative(latest.createdAt)}
+          </Text>
+        </View>
+        <Text
+          style={{ ...type.headline, color: colors.label, marginTop: 1 }}
+          numberOfLines={1}
+        >
+          {latest.title}
+        </Text>
+        {latest.liveActivity ? (
+          <LiveActivityBody state={latest.liveActivity.state} />
+        ) : (
+          <Text
+            style={{
+              ...type.subhead,
+              color: colors.secondaryLabel,
+              marginTop: 1,
+            }}
+            numberOfLines={2}
+          >
+            {latest.body}
+          </Text>
+        )}
+      </View>
+      <SymbolView
+        name={expanded ? "chevron.up" : "chevron.down"}
+        size={13}
+        tintColor={colors.tertiaryLabel}
+      />
+    </Pressable>
+  );
+
+  const expandedList = expanded && (
+    <View
+      style={{
+        backgroundColor: colors.fill,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
+        gap: spacing.sm,
+      }}
+    >
+      {[...group.all].reverse().map((item) => (
+        <Pressable
+          key={item._id}
+          onPress={() => {
+            haptic.selection();
+            onOpenItem(item);
+          }}
+          style={({ pressed }) => ({
+            flexDirection: "row",
+            alignItems: "center",
+            gap: spacing.sm,
+            paddingVertical: 6,
+            paddingHorizontal: 6,
+            borderRadius: 8,
+            backgroundColor: pressed ? colors.cellHighlight : "transparent",
+            opacity: item.liveActivity?.action === "end" ? 0.7 : 1,
+          })}
+        >
+          <ActionBadge action={item.liveActivity?.action} />
+          {item.liveActivity?.state.icon && (
+            <SymbolView
+              name={item.liveActivity.state.icon as any}
+              size={14}
+              tintColor={colors.secondaryLabel}
+            />
+          )}
+          <Text
+            style={{
+              ...type.footnote,
+              color: colors.label,
+              flex: 1,
+            }}
+            numberOfLines={1}
+          >
+            {item.liveActivity?.state.status ??
+              item.liveActivity?.state.title ??
+              item.body}
+          </Text>
+          {typeof item.liveActivity?.state.progress === "number" && (
+            <Text
+              style={{
+                ...type.caption1,
+                color: colors.tertiaryLabel,
+                fontVariant: ["tabular-nums"],
+              }}
+            >
+              {Math.round(
+                Math.max(0, Math.min(1, item.liveActivity.state.progress)) *
+                  100,
+              )}
+              %
+            </Text>
+          )}
+          <Text
+            style={{
+              ...type.caption2,
+              color: colors.tertiaryLabel,
+              fontVariant: ["tabular-nums"],
+              minWidth: 34,
+              textAlign: "right",
+            }}
+          >
+            {formatRelative(item.createdAt)}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+
+  return (
+    <View
+      style={{
+        marginHorizontal: spacing.lg,
+        borderTopLeftRadius: isFirst ? radius.lg : 0,
+        borderTopRightRadius: isFirst ? radius.lg : 0,
+        borderBottomLeftRadius: isLast ? radius.lg : 0,
+        borderBottomRightRadius: isLast ? radius.lg : 0,
+        overflow: "hidden",
+        backgroundColor: colors.cell,
+        borderCurve: "continuous",
+      }}
+    >
+      <ReanimatedSwipeable
+        friction={1.6}
+        overshootFriction={8}
+        rightThreshold={FULL_SWIPE_THRESHOLD}
+        renderRightActions={(progress) => (
+          <SwipeAction
+            progress={progress}
+            tint={colors.destructive}
+            label="Delete all"
+            icon="trash.fill"
+            side="right"
+            onPress={onDeleteGroup}
+          />
+        )}
+        onSwipeableWillOpen={(direction) => {
+          if (direction === "right") onDeleteGroup();
+        }}
+      >
+        <View>
+          {header}
+          {expandedList}
+        </View>
+      </ReanimatedSwipeable>
+      {!isLast && (
+        <View
+          style={{
+            height: 0.5,
+            backgroundColor: colors.separator,
+            marginLeft: 64,
+          }}
+        />
+      )}
+    </View>
+  );
+}
+
+function ActionBadge({
+  action,
+}: {
+  action?: "start" | "update" | "end";
+}) {
+  const { colors, tintBg } = useTheme();
+  const spec = (() => {
+    switch (action) {
+      case "start":
+        return { label: "START", color: colors.accent };
+      case "end":
+        return { label: "END", color: colors.success };
+      case "update":
+      default:
+        return { label: "UPDATE", color: colors.warning };
+    }
+  })();
+  return (
+    <View
+      style={{
+        minWidth: 56,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 5,
+        alignItems: "center",
+        backgroundColor: tintBg(spec.color),
+      }}
+    >
+      <Text
+        numberOfLines={1}
+        allowFontScaling={false}
+        style={{
+          fontSize: 10,
+          lineHeight: 13,
+          color: spec.color,
+          fontWeight: "700",
+          letterSpacing: 0.3,
+        }}
+      >
+        {spec.label}
+      </Text>
+    </View>
+  );
+}
+
 function FeedRow({
   item,
   isFirst,
@@ -575,7 +955,7 @@ function FeedRow({
   onOpen: () => void;
   onDelete: () => void;
 }) {
-  const { colors } = useTheme();
+  const { colors, tintBg } = useTheme();
   const unread = !item.readAt;
 
   const row = (
@@ -625,12 +1005,24 @@ function FeedRow({
             alignItems: "baseline",
           }}
         >
-          <Text
-            style={{ ...type.footnote, color: colors.secondaryLabel }}
-            numberOfLines={1}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+              flex: 1,
+            }}
           >
-            {item.sourceAppName}
-          </Text>
+            <Text
+              style={{ ...type.footnote, color: colors.secondaryLabel }}
+              numberOfLines={1}
+            >
+              {item.sourceAppName}
+            </Text>
+            {item.liveActivity && (
+              <LiveActivityBadge action={item.liveActivity.action} />
+            )}
+          </View>
           <Text style={{ ...type.caption1, color: colors.tertiaryLabel }}>
             {formatRelative(item.createdAt)}
           </Text>
@@ -641,16 +1033,20 @@ function FeedRow({
         >
           {item.title}
         </Text>
-        <Text
-          style={{
-            ...type.subhead,
-            color: colors.secondaryLabel,
-            marginTop: 1,
-          }}
-          numberOfLines={2}
-        >
-          {item.body}
-        </Text>
+        {item.liveActivity ? (
+          <LiveActivityBody state={item.liveActivity.state} />
+        ) : (
+          <Text
+            style={{
+              ...type.subhead,
+              color: colors.secondaryLabel,
+              marginTop: 1,
+            }}
+            numberOfLines={2}
+          >
+            {item.body}
+          </Text>
+        )}
         {item.ack && !item.acknowledgedAt && (
           <View
             style={{
@@ -662,7 +1058,7 @@ function FeedRow({
               paddingHorizontal: 8,
               paddingVertical: 3,
               borderRadius: 10,
-              backgroundColor: colors.destructive + "22",
+              backgroundColor: tintBg(colors.destructive),
             }}
           >
             <SymbolView
@@ -893,6 +1289,129 @@ function ActionButtonsBar({
           </Pressable>
         );
       })}
+    </View>
+  );
+}
+
+function LiveActivityBadge({
+  action,
+}: {
+  action: "start" | "update" | "end";
+}) {
+  const { colors, tintBg } = useTheme();
+  const ended = action === "end";
+  const label = ended ? "Activity ended" : "Live Activity";
+  const tint = ended ? colors.tertiaryLabel : colors.accent;
+  const bg = ended ? colors.fill : tintBg(colors.accent, "1F");
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 3,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 6,
+        backgroundColor: bg,
+      }}
+    >
+      <View
+        style={{
+          width: 5,
+          height: 5,
+          borderRadius: 2.5,
+          backgroundColor: tint,
+          opacity: ended ? 0.6 : 1,
+        }}
+      />
+      <Text
+        style={{
+          ...type.caption2,
+          color: tint,
+          fontWeight: "700",
+          letterSpacing: 0.2,
+        }}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+function LiveActivityBody({
+  state,
+}: {
+  state: {
+    title?: string;
+    status?: string;
+    progress?: number;
+    icon?: string;
+  };
+}) {
+  const { colors } = useTheme();
+  const hasProgress = typeof state.progress === "number";
+  const pct = hasProgress ? Math.max(0, Math.min(1, state.progress!)) : 0;
+  return (
+    <View style={{ marginTop: 4, gap: 6 }}>
+      {(state.icon || state.status) && (
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          {state.icon && (
+            <SymbolView
+              name={state.icon as any}
+              size={13}
+              tintColor={colors.secondaryLabel}
+            />
+          )}
+          {state.status && (
+            <Text
+              style={{
+                ...type.subhead,
+                color: colors.secondaryLabel,
+                flex: 1,
+              }}
+              numberOfLines={1}
+            >
+              {state.status}
+            </Text>
+          )}
+          {hasProgress && (
+            <Text
+              style={{
+                ...type.caption1,
+                color: colors.tertiaryLabel,
+                fontVariant: ["tabular-nums"],
+              }}
+            >
+              {Math.round(pct * 100)}%
+            </Text>
+          )}
+        </View>
+      )}
+      {hasProgress && (
+        <View
+          style={{
+            height: 4,
+            borderRadius: 2,
+            backgroundColor: colors.fill,
+            overflow: "hidden",
+          }}
+        >
+          <View
+            style={{
+              width: `${pct * 100}%`,
+              height: 4,
+              backgroundColor: colors.accent,
+              borderRadius: 2,
+            }}
+          />
+        </View>
+      )}
     </View>
   );
 }

@@ -81,9 +81,9 @@ export default function ServerConfig() {
       if (!healthRes.ok) {
         throw new Error(`Site URL returned ${healthRes.status}`);
       }
-      const body = (await healthRes.json().catch(() => null)) as
-        | { ok?: boolean }
-        | null;
+      const body = (await healthRes.json().catch(() => null)) as {
+        ok?: boolean;
+      } | null;
       if (!body?.ok) {
         throw new Error(
           "Site URL responded, but /healthz didn't return { ok: true } — is this really a pushr deployment?",
@@ -143,13 +143,8 @@ export default function ServerConfig() {
     }
   }
 
-  const testable =
-    /^https?:\/\//.test(convexUrl.trim()) &&
-    /^https?:\/\//.test(siteUrl.trim()) &&
-    test.kind !== "testing";
-
   return (
-    <Sheet title="Backend">
+    <Sheet>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -164,88 +159,69 @@ export default function ServerConfig() {
           }}
           keyboardShouldPersistTaps="handled"
         >
-        <Text style={{ ...type.subhead, color: colors.secondaryLabel }}>
-          Choose which Convex deployment this app talks to.
-        </Text>
-
-        <Section title="pushr cloud">
-          <Text style={{ ...type.footnote, color: colors.secondaryLabel }}>
-            The hosted deployment maintained by the project author. Easiest — no
-            setup needed.
-            {defaults.convexUrl ? ` (${safeHost(defaults.convexUrl)})` : ""}
-          </Text>
-          <Button
-            title={
-              current && !current.custom ? "Currently in use" : "Use pushr cloud"
-            }
-            variant="secondary"
-            onPress={useDefault}
-            loading={busy && !convexUrl}
-            disabled={!!(current && !current.custom)}
-          />
-        </Section>
-
-        <Section title="Custom Convex Deployment">
-          <Text style={{ ...type.footnote, color: colors.secondaryLabel }}>
-            Point at your own Convex deployment. Both URLs come from the Convex
-            dashboard — .cloud for the client, .site for auth.
-          </Text>
-          <Input
-            label="Convex URL"
-            placeholder="https://example-name-123.convex.cloud"
-            value={convexUrl}
-            onChangeText={(v) => onChangeUrls(v, siteUrl)}
-            autoCapitalize="none"
-            keyboardType="url"
-          />
-          <Input
-            label="Site URL"
-            placeholder="https://example-name-123.convex.site"
-            value={siteUrl}
-            onChangeText={(v) => onChangeUrls(convexUrl, v)}
-            autoCapitalize="none"
-            keyboardType="url"
-          />
-
-          <TestPanel state={test} />
-
-          <View style={{ flexDirection: "row", gap: spacing.sm }}>
-            <View style={{ flex: 1 }}>
-              <Button
-                title={
-                  test.kind === "testing"
-                    ? "Testing…"
-                    : test.kind === "ok"
-                      ? "Retest"
-                      : "Test connection"
-                }
-                variant="secondary"
-                onPress={runTest}
-                disabled={!testable}
-                loading={test.kind === "testing"}
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Button
-                title="Save & sign out"
-                onPress={saveCustom}
-                disabled={test.kind !== "ok" || busy}
-                loading={busy}
-              />
-            </View>
-          </View>
-          {test.kind !== "ok" && (
-            <Text
-              style={{
-                ...type.caption1,
-                color: colors.tertiaryLabel,
-                textAlign: "center",
-              }}
-            >
-              Test the connection before saving.
+          <View style={{ gap: spacing.xs, marginBottom: spacing.xs }}>
+            <Text style={{ ...type.title2, color: colors.label }}>Backend</Text>
+            <Text style={{ ...type.subhead, color: colors.secondaryLabel }}>
+              Choose which Convex deployment this app talks to.
             </Text>
-          )}
-        </Section>
+          </View>
+
+          <Section title="pushr cloud">
+            <Text style={{ ...type.footnote, color: colors.secondaryLabel }}>
+              The hosted deployment maintained by the project author. Easiest —
+              no setup needed.
+            </Text>
+            <Button
+              title={
+                current && !current.custom
+                  ? "Currently in use"
+                  : "Use pushr cloud"
+              }
+              variant="secondary"
+              onPress={useDefault}
+              loading={busy && !convexUrl}
+              disabled={!!(current && !current.custom)}
+            />
+          </Section>
+
+          <Section title="Custom Convex Deployment" badge="Coming Soon">
+            <Text style={{ ...type.footnote, color: colors.secondaryLabel }}>
+              Point at your own Convex deployment. Both URLs come from the
+              Convex dashboard — .cloud for the client, .site for auth.
+            </Text>
+            <Input
+              label="Convex URL"
+              placeholder="https://example-name-123.convex.cloud"
+              value={convexUrl}
+              onChangeText={(v) => onChangeUrls(v, siteUrl)}
+              autoCapitalize="none"
+              keyboardType="url"
+              editable={false}
+            />
+            <Input
+              label="Site URL"
+              placeholder="https://example-name-123.convex.site"
+              value={siteUrl}
+              onChangeText={(v) => onChangeUrls(convexUrl, v)}
+              autoCapitalize="none"
+              keyboardType="url"
+              editable={false}
+            />
+
+            <View style={{ flexDirection: "row", gap: spacing.sm }}>
+              <View style={{ flex: 1 }}>
+                <Button
+                  title="Test connection"
+                  variant="secondary"
+                  onPress={runTest}
+                  disabled
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Button title="Save & sign out" onPress={saveCustom} disabled />
+              </View>
+            </View>
+          </Section>
         </ScrollView>
       </KeyboardAvoidingView>
     </Sheet>
@@ -254,9 +230,11 @@ export default function ServerConfig() {
 
 function Section({
   title,
+  badge,
   children,
 }: {
   title: string;
+  badge?: string;
   children: React.ReactNode;
 }) {
   const { colors } = useTheme();
@@ -270,14 +248,44 @@ function Section({
         gap: spacing.md,
       }}
     >
-      <Text style={{ ...type.headline, color: colors.label }}>{title}</Text>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: spacing.sm,
+        }}
+      >
+        <Text style={{ ...type.headline, color: colors.label }}>{title}</Text>
+        {badge && (
+          <View
+            style={{
+              paddingHorizontal: spacing.sm,
+              paddingVertical: 2,
+              borderRadius: radius.sm,
+              borderCurve: "continuous",
+              backgroundColor: colors.fill,
+            }}
+          >
+            <Text
+              style={{
+                ...type.caption2,
+                color: colors.secondaryLabel,
+                fontWeight: "600",
+                textTransform: "uppercase",
+              }}
+            >
+              {badge}
+            </Text>
+          </View>
+        )}
+      </View>
       {children}
     </View>
   );
 }
 
 function TestPanel({ state }: { state: TestState }) {
-  const { colors } = useTheme();
+  const { colors, tintBg } = useTheme();
   if (state.kind === "idle") return null;
 
   const cfg: { icon: SFSymbol; tint: string; label: string; detail?: string } =
@@ -312,7 +320,7 @@ function TestPanel({ state }: { state: TestState }) {
         padding: spacing.md,
         borderRadius: radius.md,
         borderCurve: "continuous",
-        backgroundColor: cfg.tint + "18",
+        backgroundColor: tintBg(cfg.tint, "18"),
       }}
     >
       <SymbolView name={cfg.icon} size={18} tintColor={cfg.tint} />

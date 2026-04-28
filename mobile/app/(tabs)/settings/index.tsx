@@ -285,7 +285,7 @@ function ModeCard({
   selected: boolean;
   onPress: () => void;
 }) {
-  const { colors } = useTheme();
+  const { colors, tintBg } = useTheme();
   return (
     <Pressable
       onPress={onPress}
@@ -294,8 +294,8 @@ function ModeCard({
         aspectRatio: 1.0,
         borderRadius: radius.md,
         borderCurve: "continuous",
-        backgroundColor: selected ? colors.accent + "22" : colors.fill,
-        borderWidth: selected ? 1.5 : 0,
+        backgroundColor: selected ? tintBg(colors.accent) : colors.fill,
+        borderWidth: 1.5,
         borderColor: selected ? colors.accent : "transparent",
         alignItems: "center",
         justifyContent: "center",
@@ -372,7 +372,7 @@ function TintedRow({
   destructive?: boolean;
   onPress?: () => void;
 }) {
-  const { colors } = useTheme();
+  const { colors, tintBg } = useTheme();
   return (
     <ListRow
       title={title}
@@ -392,7 +392,7 @@ function TintedRow({
             width: 32,
             height: 32,
             borderRadius: 16,
-            backgroundColor: tint + "22",
+            backgroundColor: tintBg(tint),
             alignItems: "center",
             justifyContent: "center",
           }}
@@ -419,7 +419,7 @@ function SoundRow({
   value: string;
   onPress: () => void;
 }) {
-  const { colors } = useTheme();
+  const { colors, tintBg } = useTheme();
   return (
     <ListRow
       title={title}
@@ -437,7 +437,7 @@ function SoundRow({
             width: 32,
             height: 32,
             borderRadius: 16,
-            backgroundColor: tint + "22",
+            backgroundColor: tintBg(tint),
             alignItems: "center",
             justifyContent: "center",
           }}
@@ -450,7 +450,7 @@ function SoundRow({
 }
 
 function PlanCard() {
-  const { colors } = useTheme();
+  const { colors, tintBg } = useTheme();
   const plan = useQuery(api.tiers.getMyPlan);
 
   const pct =
@@ -481,7 +481,7 @@ function PlanCard() {
             width: 40,
             height: 40,
             borderRadius: 20,
-            backgroundColor: tint + "22",
+            backgroundColor: tintBg(tint),
             alignItems: "center",
             justifyContent: "center",
           }}

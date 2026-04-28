@@ -181,10 +181,21 @@ async function dispatchNotification(
       await ctx.scheduler.runAt(args.deliverAt, internal.expoPush.deliver, {
         notificationId,
       });
+      if (args.liveActivity) {
+        await ctx.scheduler.runAt(args.deliverAt, internal.apns.dispatch, {
+          notificationId,
+        });
+      }
     } else {
       await pushPool.enqueueAction(ctx, internal.expoPush.deliver, {
         notificationId,
       });
+      if (args.liveActivity) {
+        // APNs Live Activity — sent directly, not via Expo Push.
+        await ctx.scheduler.runAfter(0, internal.apns.dispatch, {
+          notificationId,
+        });
+      }
     }
 
     if (args.ack) {

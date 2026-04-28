@@ -9,6 +9,9 @@ import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
 import { convex, authClient, initBackend } from "@/lib/backend";
 import { ThemePreferencesProvider, useTheme } from "@/lib/theme";
 import { useNotificationResponses } from "@/lib/useNotificationResponses";
+import { useLiveActivityTokens } from "@/lib/useLiveActivityTokens";
+import { useConvexAuth, useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
 import { useBadgeSync } from "@/lib/useBadgeSync";
 
 export default function RootLayout() {
@@ -71,6 +74,13 @@ function ThemedRoot() {
 function AppShell({ isDark, bg }: { isDark: boolean; bg: string }) {
   useNotificationResponses();
   useBadgeSync();
+  // Auth-gated queries: a fresh-install device hits the auth flow, but the
+  // root layout still mounts. Skip Convex calls until the session is live so
+  // we don't surface "Not authenticated" errors before login.
+  const { isAuthenticated } = useConvexAuth();
+  const devices = useQuery(api.devices.listMine, isAuthenticated ? {} : "skip");
+  const currentDeviceId = devices?.find((d) => d.enabled && !d.invalidatedAt)?._id;
+  useLiveActivityTokens(isAuthenticated ? currentDeviceId : undefined);
   return (
     <>
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: bg } }}>

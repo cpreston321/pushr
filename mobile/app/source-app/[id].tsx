@@ -418,7 +418,7 @@ function DetailRow({
   destructive?: boolean;
   badge?: string;
 }) {
-  const { colors } = useTheme();
+  const { colors, tintBg } = useTheme();
   const titleColor = destructive ? colors.destructive : colors.label;
 
   const content = (
@@ -437,7 +437,7 @@ function DetailRow({
           width: 32,
           height: 32,
           borderRadius: 16,
-          backgroundColor: tint + "22",
+          backgroundColor: tintBg(tint),
           alignItems: "center",
           justifyContent: "center",
         }}

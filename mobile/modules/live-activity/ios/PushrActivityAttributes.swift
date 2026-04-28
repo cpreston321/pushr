@@ -32,10 +32,19 @@ public struct PushrActivityAttributes: ActivityAttributes {
 
     public var name: String?
     public var logoUrl: String?
+    /// The caller-provided activity id. Carried in Attributes so it
+    /// survives server-initiated push-to-start: the backend puts the
+    /// caller id into the APNs payload's `attributes.callerId` field and
+    /// the Widget creates the activity with it; our observer then reads
+    /// `activity.attributes.callerId` to correlate with backend records.
+    public var callerId: String?
 
-    public init(name: String? = nil, logoUrl: String? = nil) {
+    public init(name: String? = nil,
+                logoUrl: String? = nil,
+                callerId: String? = nil) {
         self.name = name
         self.logoUrl = logoUrl
+        self.callerId = callerId
     }
 }
 #endif

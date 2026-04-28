@@ -26,6 +26,16 @@ type ExpoMessage = {
   // iOS: the notification category id — maps to the actions the mobile app
   // registers with `Notifications.setNotificationCategoryAsync`.
   categoryId?: string;
+  // iOS: flip `mutable-content: 1` in the APNs payload so our NSE runs.
+  // Expo sets this automatically when richContent.image is present; we set
+  // it explicitly to guarantee the NSE fires even for pushes without a
+  // logo or attachment (it can still rewrite subtitle / title).
+  mutableContent?: boolean;
+  // iOS: flip `content-available: 1` so iOS briefly wakes the main app in
+  // the background when the push arrives. Used for Live Activity flows so
+  // the activity observer can register the per-activity push-update token
+  // even if the app was terminated when the push-to-start landed.
+  _contentAvailable?: boolean;
 };
 
 const CATEGORY_ID = "pushr.default";
@@ -79,9 +89,10 @@ export const deliver = internalAction({
       return;
     }
 
-    const devices = await ctx.runQuery(internal.expoPushHelpers.activeDevicesForOwner, {
-      ownerId: notif.ownerId,
-    });
+    const devices = await ctx.runQuery(
+      internal.expoPushHelpers.activeDevicesForOwner,
+      { ownerId: notif.ownerId },
+    );
     if (devices.length === 0) {
       await ctx.runMutation(internal.notifications.recordDelivery, {
         id: notificationId,
@@ -137,7 +148,10 @@ export const deliver = internalAction({
       action: notif.action,
       actions: actionSlots,
       ackRequired: notif.ack !== undefined && notif.acknowledgedAt === undefined,
-      liveActivity: notif.liveActivity,
+      // `liveActivity` is intentionally NOT included in the Expo push data.
+      // Live Activity lifecycle is driven by the APNs direct-path action
+      // (see convex/apns.ts) so the activity can start/update/end even
+      // when the app is terminated.
     };
 
     // Insert per-device delivery rows BEFORE hitting Expo so we can correlate
@@ -158,6 +172,12 @@ export const deliver = internalAction({
     // `image` to /notify. Result: NSE always runs, attachment only shows
     // when requested.
     const richImage = notif.image ?? logoUrl;
+    const wakeApp = notif.liveActivity !== undefined;
+    if (wakeApp) {
+      console.log(
+        `[expo] live activity flow — setting _contentAvailable=true on ${devices.length} message(s)`,
+      );
+    }
     const messages: ExpoMessage[] = devices.map((d) => ({
       to: d.expoPushToken,
       title: notif.title,
@@ -168,6 +188,11 @@ export const deliver = internalAction({
       channelId: "default",
       categoryId,
       richContent: richImage ? { image: richImage } : undefined,
+      mutableContent: true,
+      // Wake the main app in the background for Live Activity flows so the
+      // ActivityKit observer can emit the per-activity update token even
+      // when the app was terminated at start-push time.
+      _contentAvailable: wakeApp ? true : undefined,
     }));
 
     const tickets = await sendToExpo(messages);
