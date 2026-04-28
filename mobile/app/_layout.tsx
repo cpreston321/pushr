@@ -90,11 +90,19 @@ function AppShell({ isDark, bg }: { isDark: boolean; bg: string }) {
         <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
         <Stack.Screen
           name="source-app/[id]"
-          options={{ presentation: "formSheet", sheetAllowedDetents: [1.0] }}
+          options={{
+            presentation: "formSheet",
+            sheetAllowedDetents: [1.0],
+            sheetGrabberVisible: true,
+          }}
         />
         <Stack.Screen
           name="server-config"
-          options={{ presentation: "formSheet", sheetAllowedDetents: [0.7, 1.0] }}
+          options={{
+            presentation: "formSheet",
+            sheetAllowedDetents: [0.7, 1.0],
+            sheetGrabberVisible: true,
+          }}
         />
         <Stack.Screen
           name="upgrade"

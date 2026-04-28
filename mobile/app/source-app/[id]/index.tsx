@@ -18,7 +18,6 @@ import type { Doc, Id } from "../../../../convex/_generated/dataModel";
 
 type SharingData = NonNullable<FunctionReturnType<typeof api.sharing.listMembers>>;
 import { Avatar } from "@/components/Avatar";
-import { Sheet } from "@/components/Sheet";
 import { useTheme, spacing, radius, type } from "@/lib/theme";
 import { haptic } from "@/lib/haptics";
 import { showActionSheet } from "@/lib/actionSheet";
@@ -219,16 +218,15 @@ export default function SourceAppDetail() {
   }
 
   return (
-    <Sheet>
-      <ScrollView
-        contentInsetAdjustmentBehavior="never"
-        contentContainerStyle={{
-          paddingHorizontal: spacing.lg,
-          paddingTop: spacing.md,
-          paddingBottom: 40,
-          gap: spacing.lg,
-        }}
-      >
+    <ScrollView
+      contentInsetAdjustmentBehavior="never"
+      contentContainerStyle={{
+        paddingHorizontal: spacing.lg,
+        paddingTop: spacing.lg,
+        paddingBottom: 40,
+        gap: spacing.lg,
+      }}
+    >
         <View
           style={{
             flexDirection: "row",
@@ -412,8 +410,7 @@ export default function SourceAppDetail() {
             />
           </DetailSection>
         )}
-      </ScrollView>
-    </Sheet>
+    </ScrollView>
   );
 }
 
