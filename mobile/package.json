@@ -8,6 +8,8 @@
     "ios": "expo run:ios",
     "ios:dev": "expo prebuild --platform ios --clean && expo run:ios",
     "ios:device": "bun run expo run:ios --device '00008150-000E20E63A88401C'",
+    "build:ios": "bunx eas-cli@latest build --platform ios --profile production --local",
+    "submit:ios": "open -a Transporter",
     "web": "expo start --web",
     "lint": "expo lint"
   },
@@ -55,7 +57,6 @@
   "devDependencies": {
     "@expo/config-plugins": "~55.0.8",
     "@types/react": "~19.2.14",
-    "eas-cli": "^18.8.1",
     "eslint": "^10.2.1",
     "eslint-config-expo": "~55.0.0",
     "typescript": "~5.9.3"

@@ -1,11 +1,5 @@
 import { useState } from "react";
-import {
-  Alert,
-  KeyboardAvoidingView,
-  ScrollView,
-  Text,
-  View,
-} from "react-native";
+import { Alert, ScrollView, Text, View } from "react-native";
 import { router } from "expo-router";
 import { SymbolView, type SFSymbol } from "expo-symbols";
 import {
@@ -142,21 +136,18 @@ export default function ServerConfig() {
   }
 
   return (
-    <KeyboardAvoidingView
+    <ScrollView
       style={{ flex: 1, backgroundColor: colors.sheet }}
-      behavior={process.env.EXPO_OS === "ios" ? "padding" : undefined}
+      contentInsetAdjustmentBehavior="never"
+      contentContainerStyle={{
+        padding: spacing.lg,
+        paddingTop: spacing.xl,
+        gap: spacing.lg,
+        paddingBottom: 60,
+      }}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="interactive"
     >
-      <ScrollView
-        style={{ flex: 1 }}
-        contentInsetAdjustmentBehavior="never"
-        contentContainerStyle={{
-          padding: spacing.lg,
-          paddingTop: spacing.xl,
-          gap: spacing.lg,
-          paddingBottom: 60,
-        }}
-        keyboardShouldPersistTaps="handled"
-      >
           <View style={{ gap: spacing.xs, marginBottom: spacing.xs }}>
             <Text style={{ ...type.title2, color: colors.label }}>Backend</Text>
             <Text style={{ ...type.subhead, color: colors.secondaryLabel }}>
@@ -220,8 +211,7 @@ export default function ServerConfig() {
               </View>
             </View>
           </Section>
-      </ScrollView>
-    </KeyboardAvoidingView>
+    </ScrollView>
   );
 }
 
