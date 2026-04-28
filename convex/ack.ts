@@ -2,6 +2,7 @@ import { v, ConvexError } from "convex/values";
 import { mutation, internalAction, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { requireAuth } from "./lib/auth";
+import { getSourceAppRole } from "./lib/sharing";
 import { pushPool } from "./lib/workpools";
 
 /**
@@ -29,11 +30,11 @@ export const acknowledge = mutation({
     deviceId: v.optional(v.id("devices")),
   },
   handler: async (ctx, args) => {
-    const ownerId = await requireAuth(ctx);
+    const userId = await requireAuth(ctx);
     const row = await ctx.db.get(args.id);
-    if (!row || row.ownerId !== ownerId) {
-      throw new ConvexError("Notification not found");
-    }
+    if (!row) throw new ConvexError("Notification not found");
+    const access = await getSourceAppRole(ctx, row.sourceAppId, userId);
+    if (!access) throw new ConvexError("Notification not found");
     if (row.acknowledgedAt) return;
     await ctx.db.patch(args.id, {
       acknowledgedAt: Date.now(),

@@ -11,8 +11,13 @@ import * as Clipboard from "expo-clipboard";
 import { router, useLocalSearchParams } from "expo-router";
 import { useMutation, useQuery } from "convex/react";
 import { SymbolView, type SFSymbol } from "expo-symbols";
+import type { FunctionReturnType } from "convex/server";
 import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
+
+type SharingData = NonNullable<FunctionReturnType<typeof api.sharing.listMembers>>;
+type SharingMember = SharingData["members"][number];
+type SharingInvite = SharingData["invites"][number];
 import { Avatar } from "@/components/Avatar";
 import { Sheet } from "@/components/Sheet";
 import { useTheme, spacing, radius, type } from "@/lib/theme";
@@ -21,7 +26,8 @@ import { showActionSheet } from "@/lib/actionSheet";
 import { pickAndUploadLogo } from "@/lib/uploadLogo";
 import { forgetToken, recallToken } from "@/lib/tokenStore";
 
-type AppRow = Doc<"sourceApps"> & { logoUrl: string | null };
+type Role = "owner" | "editor" | "viewer";
+type AppRow = Doc<"sourceApps"> & { logoUrl: string | null; role: Role };
 
 export default function SourceAppDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -30,6 +36,9 @@ export default function SourceAppDetail() {
   const plan = useQuery(api.tiers.getMyPlan);
   const isPro = plan?.tier === "pro";
   const app = apps?.find((a) => a._id === (id as Id<"sourceApps">));
+  const role = app?.role;
+  const isOwner = role === "owner";
+  const canEdit = role === "owner" || role === "editor";
 
   const setEnabled = useMutation(api.sourceApps.setEnabled);
   const setMute = useMutation(api.sourceApps.setMute);
@@ -39,6 +48,7 @@ export default function SourceAppDetail() {
   const setLogo = useMutation(api.sourceApps.setLogo);
   const removeLogo = useMutation(api.sourceApps.removeLogo);
   const generateUploadUrl = useMutation(api.sourceApps.generateLogoUploadUrl);
+  const leaveApp = useMutation(api.sharing.leaveApp);
 
   if (apps === undefined) {
     return <View style={{ flex: 1, backgroundColor: colors.grouped }} />;
@@ -166,6 +176,27 @@ export default function SourceAppDetail() {
     ]);
   }
 
+  function confirmLeave() {
+    if (!app) return;
+    haptic.warning();
+    Alert.alert(
+      "Leave app?",
+      `You'll stop receiving pushes from ${app.name}. The owner can re-invite you later.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Leave",
+          style: "destructive",
+          onPress: async () => {
+            haptic.success();
+            await leaveApp({ sourceAppId: app._id });
+            router.back();
+          },
+        },
+      ],
+    );
+  }
+
   async function copyCurl() {
     if (!app) return;
     await Clipboard.setStringAsync(curlExample(app.name));
@@ -207,12 +238,21 @@ export default function SourceAppDetail() {
         >
           <Avatar url={app.logoUrl} name={app.name} size={56} />
           <View style={{ flex: 1, gap: 2 }}>
-            <Text
-              style={{ ...type.title3, color: colors.label }}
-              numberOfLines={1}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: spacing.xs,
+              }}
             >
-              {app.name}
-            </Text>
+              <Text
+                style={{ ...type.title3, color: colors.label, flexShrink: 1 }}
+                numberOfLines={1}
+              >
+                {app.name}
+              </Text>
+              {!isOwner && <RoleBadge role={role!} />}
+            </View>
             {!!app.description && (
               <Text
                 style={{ ...type.subhead, color: colors.secondaryLabel }}
@@ -221,16 +261,18 @@ export default function SourceAppDetail() {
                 {app.description}
               </Text>
             )}
-            <Text
-              style={{
-                ...type.caption1,
-                color: colors.tertiaryLabel,
-                fontFamily: "Menlo",
-                marginTop: 2,
-              }}
-            >
-              {app.tokenPrefix}
-            </Text>
+            {isOwner && (
+              <Text
+                style={{
+                  ...type.caption1,
+                  color: colors.tertiaryLabel,
+                  fontFamily: "Menlo",
+                  marginTop: 2,
+                }}
+              >
+                {app.tokenPrefix}
+              </Text>
+            )}
           </View>
         </View>
 
@@ -248,6 +290,7 @@ export default function SourceAppDetail() {
               <Switch
                 style={{ alignSelf: "center" }}
                 value={app.enabled}
+                disabled={!canEdit}
                 onValueChange={(v) => {
                   setEnabled({ id: app._id, enabled: v });
                 }}
@@ -263,14 +306,18 @@ export default function SourceAppDetail() {
                 ? app.mutedUntil
                   ? `Muted until ${new Date(app.mutedUntil).toLocaleString()}`
                   : "Muted"
-                : "Silence pushes for a while"
+                : canEdit
+                  ? "Silence pushes for a while"
+                  : "Owner or editor required"
             }
             onPress={
-              muted
-                ? () => setMute({ id: app._id, until: null })
-                : openMutePresets
+              !canEdit
+                ? undefined
+                : muted
+                  ? () => setMute({ id: app._id, until: null })
+                  : openMutePresets
             }
-            chevron={!muted}
+            chevron={canEdit && !muted}
           />
           <DetailRow
             icon="clock.badge.fill"
@@ -278,74 +325,319 @@ export default function SourceAppDetail() {
             title="Quiet hours"
             subtitle={isPro ? (quiet ?? "Not set") : "Pro plan"}
             onPress={
-              isPro
-                ? openQuietHours
-                : () => {
-                    haptic.light();
-                    router.push("/upgrade");
-                  }
+              !canEdit
+                ? undefined
+                : isPro
+                  ? openQuietHours
+                  : () => {
+                      haptic.light();
+                      router.push("/upgrade");
+                    }
             }
-            chevron
+            chevron={canEdit}
             badge={isPro ? undefined : "PRO"}
           />
         </DetailSection>
 
-        <DetailSection title="Identity">
-          <DetailRow
-            icon="photo.fill"
-            tint={colors.accent}
-            title={app.logoUrl ? "Change logo" : "Add logo"}
-            onPress={changeLogo}
-            chevron
-          />
-          {app.logoUrl && (
+        {canEdit && (
+          <DetailSection title="Identity">
             <DetailRow
-              icon="trash"
+              icon="photo.fill"
+              tint={colors.accent}
+              title={app.logoUrl ? "Change logo" : "Add logo"}
+              onPress={changeLogo}
+              chevron
+            />
+            {app.logoUrl && (
+              <DetailRow
+                icon="trash"
+                tint={colors.destructive}
+                title="Remove logo"
+                onPress={() => removeLogo({ id: app._id })}
+                destructive
+              />
+            )}
+            <DetailRow
+              icon="pencil"
+              tint={colors.accent}
+              title="Rename"
+              onPress={promptRename}
+              chevron
+            />
+          </DetailSection>
+        )}
+
+        <SharingSection sourceAppId={app._id} appName={app.name} />
+
+        {isOwner && (
+          <DetailSection title="Integration">
+            <DetailRow
+              icon="terminal.fill"
+              tint={colors.accent}
+              title="Copy curl example"
+              subtitle="Paste into any shell to send a test push"
+              onPress={copyCurl}
+            />
+            <DetailRow
+              icon="key.fill"
+              tint={colors.accent}
+              title="Copy token"
+              subtitle="Only on the device the app was created on"
+              onPress={copySavedToken}
+            />
+          </DetailSection>
+        )}
+
+        {isOwner ? (
+          <DetailSection title="Danger">
+            <DetailRow
+              icon="xmark.octagon.fill"
               tint={colors.destructive}
-              title="Remove logo"
-              onPress={() => removeLogo({ id: app._id })}
+              title="Revoke token"
+              subtitle="Permanently disables this app"
+              onPress={confirmRevoke}
               destructive
             />
-          )}
-          <DetailRow
-            icon="pencil"
-            tint={colors.accent}
-            title="Rename"
-            onPress={promptRename}
-            chevron
-          />
-        </DetailSection>
-
-        <DetailSection title="Integration">
-          <DetailRow
-            icon="terminal.fill"
-            tint={colors.accent}
-            title="Copy curl example"
-            subtitle="Paste into any shell to send a test push"
-            onPress={copyCurl}
-          />
-          <DetailRow
-            icon="key.fill"
-            tint={colors.accent}
-            title="Copy token"
-            subtitle="Only on the device the app was created on"
-            onPress={copySavedToken}
-          />
-        </DetailSection>
-
-        <DetailSection title="Danger">
-          <DetailRow
-            icon="xmark.octagon.fill"
-            tint={colors.destructive}
-            title="Revoke token"
-            subtitle="Permanently disables this app"
-            onPress={confirmRevoke}
-            destructive
-          />
-        </DetailSection>
+          </DetailSection>
+        ) : (
+          <DetailSection title="Membership">
+            <DetailRow
+              icon="rectangle.portrait.and.arrow.right"
+              tint={colors.destructive}
+              title="Leave app"
+              subtitle="Stop receiving pushes from this app"
+              onPress={confirmLeave}
+              destructive
+            />
+          </DetailSection>
+        )}
       </ScrollView>
     </Sheet>
   );
+}
+
+function SharingSection({
+  sourceAppId,
+  appName,
+}: {
+  sourceAppId: Id<"sourceApps">;
+  appName: string;
+}) {
+  const { colors } = useTheme();
+  const data = useQuery(api.sharing.listMembers, { sourceAppId });
+  const inviteByEmail = useMutation(api.sharing.inviteByEmail);
+  const cancelInvite = useMutation(api.sharing.cancelInvite);
+  const removeMember = useMutation(api.sharing.removeMember);
+  const setMemberRole = useMutation(api.sharing.setMemberRole);
+
+  if (!data) {
+    return (
+      <DetailSection title="Sharing">
+        <DetailRow
+          icon="person.2.fill"
+          tint={colors.accent}
+          title="Loading…"
+        />
+      </DetailSection>
+    );
+  }
+
+  const isOwner = data.myRole === "owner";
+
+  function promptInvite() {
+    haptic.light();
+    Alert.prompt(
+      `Invite to ${appName}`,
+      "They'll receive pushes from this app on their devices and see the feed.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Send invite",
+          onPress: async (value?: string) => {
+            const email = value?.trim();
+            if (!email) return;
+            try {
+              const result = await inviteByEmail({
+                sourceAppId,
+                email,
+                role: "editor",
+              });
+              haptic.success();
+              if ("alreadyMember" in result && result.alreadyMember) {
+                Alert.alert(
+                  "Already a member",
+                  `${email} already has access to ${appName}.`,
+                );
+              } else if ("refreshed" in result && result.refreshed) {
+                Alert.alert(
+                  "Invite refreshed",
+                  `Updated the existing invite for ${email}.`,
+                );
+              }
+            } catch (err: any) {
+              haptic.error();
+              Alert.alert(
+                "Couldn't send invite",
+                err?.data?.message ?? err?.message ?? "Please try again.",
+              );
+            }
+          },
+        },
+      ],
+      "plain-text",
+      "",
+      "email-address",
+    );
+  }
+
+  function memberMenu(member: SharingMember) {
+    if (!isOwner || member.isMe) return;
+    haptic.light();
+    showActionSheet({
+      title: member.email ?? member.userId,
+      options: [
+        {
+          label: member.role === "editor" ? "Demote to viewer" : "Promote to editor",
+          onPress: async () => {
+            haptic.success();
+            await setMemberRole({
+              sourceAppId,
+              memberId: member._id,
+              role: member.role === "editor" ? "viewer" : "editor",
+            });
+          },
+        },
+        {
+          label: "Remove from app",
+          destructive: true,
+          onPress: () => {
+            Alert.alert(
+              "Remove member?",
+              `${member.email ?? "This user"} will stop receiving pushes from ${appName}.`,
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Remove",
+                  style: "destructive",
+                  onPress: async () => {
+                    haptic.error();
+                    await removeMember({
+                      sourceAppId,
+                      memberId: member._id,
+                    });
+                  },
+                },
+              ],
+            );
+          },
+        },
+      ],
+    });
+  }
+
+  function inviteMenu(invite: SharingInvite) {
+    if (!isOwner) return;
+    haptic.light();
+    showActionSheet({
+      title: invite.email,
+      options: [
+        {
+          label: "Cancel invite",
+          destructive: true,
+          onPress: async () => {
+            haptic.error();
+            await cancelInvite({ inviteId: invite._id });
+          },
+        },
+      ],
+    });
+  }
+
+  const limit = data.sharedUsersLimit;
+  const used = data.sharedUsersUsed;
+  const atLimit = limit !== null && used >= limit;
+  const inviteSubtitle = atLimit
+    ? `${labelForLimit(limit)} reached on Free plan — upgrade for more`
+    : limit !== null
+      ? `${used} of ${limit} on Free plan`
+      : "Members receive pushes too";
+
+  return (
+    <DetailSection title="Sharing">
+      {isOwner && (
+        <DetailRow
+          icon={atLimit ? "sparkles" : "person.crop.circle.badge.plus"}
+          tint={atLimit ? colors.warning : colors.accent}
+          title={atLimit ? "Upgrade to invite more" : "Invite by email"}
+          subtitle={inviteSubtitle}
+          onPress={atLimit ? () => router.push("/upgrade") : promptInvite}
+          chevron
+          badge={atLimit ? "PRO" : undefined}
+        />
+      )}
+      {data.members.map((m) => (
+        <DetailRow
+          key={m._id}
+          icon="person.fill"
+          tint={colors.secondaryLabel}
+          title={m.email ?? "Member"}
+          subtitle={m.isMe ? "You" : labelForRole(m.role)}
+          trailing={<RoleBadge role={m.role} />}
+          onPress={isOwner && !m.isMe ? () => memberMenu(m) : undefined}
+        />
+      ))}
+      {data.invites.map((i) => (
+        <DetailRow
+          key={i._id}
+          icon="envelope.fill"
+          tint={colors.warning}
+          title={i.email}
+          subtitle={`Invited as ${labelForRole(i.role)} · pending`}
+          onPress={isOwner ? () => inviteMenu(i) : undefined}
+        />
+      ))}
+      {!isOwner && data.members.length === 0 && data.invites.length === 0 && (
+        <DetailRow
+          icon="person.2"
+          tint={colors.tertiaryLabel}
+          title="No other members"
+        />
+      )}
+    </DetailSection>
+  );
+}
+
+function labelForLimit(limit: number): string {
+  return limit === 1 ? "1-user limit" : `${limit}-user limit`;
+}
+
+function RoleBadge({ role }: { role: Role }) {
+  const { colors, tintBg } = useTheme();
+  const label = role === "owner" ? "Owner" : role === "editor" ? "Editor" : "Viewer";
+  const tint =
+    role === "owner"
+      ? colors.accent
+      : role === "editor"
+        ? colors.success
+        : colors.secondaryLabel;
+  return (
+    <View
+      style={{
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+        backgroundColor: tintBg(tint),
+      }}
+    >
+      <Text style={{ ...type.caption2, color: tint, fontWeight: "600" }}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+function labelForRole(role: Role): string {
+  return role === "owner" ? "Owner" : role === "editor" ? "Editor" : "Viewer";
 }
 
 function DetailSection({
@@ -357,6 +649,7 @@ function DetailSection({
 }) {
   const { colors } = useTheme();
   const rows = React.Children.toArray(children).filter(React.isValidElement);
+  if (rows.length === 0) return null;
   return (
     <View style={{ gap: spacing.xs }}>
       <Text

@@ -263,6 +263,7 @@ export const dispatch = internalAction({
     }
     const ctxData: {
       ownerId: string;
+      sourceAppId: import("./_generated/dataModel").Id<"sourceApps">;
       liveActivity?: {
         action: "start" | "update" | "end";
         activityId: string;
@@ -280,12 +281,13 @@ export const dispatch = internalAction({
 
     if (la.action === "start") {
       const tokens: Array<{ deviceId: string; pushToStartToken: string }> =
-        await ctx.runQuery(internal.apnsHelpers.getPushToStartTokensForOwner, {
-          ownerId: ctxData.ownerId,
-        });
+        await ctx.runQuery(
+          internal.apnsHelpers.getPushToStartTokensForSourceApp,
+          { sourceAppId: ctxData.sourceAppId },
+        );
       if (tokens.length === 0) {
         console.warn(
-          `[apns] no push-to-start tokens registered for owner ${ctxData.ownerId} — activity cannot start remotely`,
+          `[apns] no push-to-start tokens registered for source app ${ctxData.sourceAppId} — activity cannot start remotely`,
         );
         return;
       }

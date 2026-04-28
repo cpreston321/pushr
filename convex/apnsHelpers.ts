@@ -15,6 +15,7 @@ export const getDispatchContext = internalQuery({
     if (!row) throw new ConvexError("notification not found");
     return {
       ownerId: row.ownerId,
+      sourceAppId: row.sourceAppId,
       liveActivity: row.liveActivity,
       alert:
         row.title && row.body
@@ -48,6 +49,54 @@ export const getPushToStartTokensForOwner = internalQuery({
         deviceId: d._id,
         pushToStartToken: d.liveActivityPushToStartToken as string,
       }));
+  },
+});
+
+/**
+ * Push-to-start tokens for every device of every user with access to a
+ * source app (owner + accepted members). Used by `apns.dispatch` so a
+ * Live Activity start fans out to all members.
+ */
+export const getPushToStartTokensForSourceApp = internalQuery({
+  args: { sourceAppId: v.id("sourceApps") },
+  returns: v.array(
+    v.object({
+      deviceId: v.id("devices"),
+      pushToStartToken: v.string(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const app = await ctx.db.get(args.sourceAppId);
+    if (!app) return [];
+    const memberRows = await ctx.db
+      .query("sourceAppMembers")
+      .withIndex("by_app", (q) => q.eq("sourceAppId", args.sourceAppId))
+      .collect();
+    const userIds = new Set<string>([app.ownerId]);
+    for (const m of memberRows) {
+      if (m.acceptedAt) userIds.add(m.userId);
+    }
+    const out: Array<{ deviceId: Id<"devices">; pushToStartToken: string }> = [];
+    for (const uid of userIds) {
+      const devices = await ctx.db
+        .query("devices")
+        .withIndex("by_owner", (q) => q.eq("ownerId", uid))
+        .collect();
+      for (const d of devices) {
+        if (
+          d.liveActivityPushToStartToken === undefined ||
+          !d.enabled ||
+          d.invalidatedAt
+        ) {
+          continue;
+        }
+        out.push({
+          deviceId: d._id,
+          pushToStartToken: d.liveActivityPushToStartToken,
+        });
+      }
+    }
+    return out;
   },
 });
 

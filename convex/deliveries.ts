@@ -1,6 +1,7 @@
 import { v, ConvexError } from "convex/values";
 import { query, internalMutation, internalQuery } from "./_generated/server";
 import { requireAuth } from "./lib/auth";
+import { getSourceAppRole } from "./lib/sharing";
 import type { Id, Doc } from "./_generated/dataModel";
 
 /**
@@ -19,18 +20,22 @@ import type { Id, Doc } from "./_generated/dataModel";
 export const insertPending = internalMutation({
   args: {
     notificationId: v.id("notifications"),
-    ownerId: v.string(),
-    deviceIds: v.array(v.id("devices")),
+    deviceOwners: v.array(
+      v.object({
+        deviceId: v.id("devices"),
+        ownerId: v.string(),
+      }),
+    ),
   },
   returns: v.array(v.id("deliveries")),
   handler: async (ctx, args) => {
     const now = Date.now();
     const ids: Id<"deliveries">[] = [];
-    for (const deviceId of args.deviceIds) {
+    for (const { deviceId, ownerId } of args.deviceOwners) {
       const id = await ctx.db.insert("deliveries", {
         notificationId: args.notificationId,
         deviceId,
-        ownerId: args.ownerId,
+        ownerId,
         status: "pending",
         attempts: 1,
         firstAttemptAt: now,
@@ -147,11 +152,11 @@ export const queuedForNotification = internalQuery({
 export const listForNotification = query({
   args: { notificationId: v.id("notifications") },
   handler: async (ctx, args) => {
-    const ownerId = await requireAuth(ctx);
+    const userId = await requireAuth(ctx);
     const notif = await ctx.db.get(args.notificationId);
-    if (!notif || notif.ownerId !== ownerId) {
-      throw new ConvexError("Notification not found");
-    }
+    if (!notif) throw new ConvexError("Notification not found");
+    const access = await getSourceAppRole(ctx, notif.sourceAppId, userId);
+    if (!access) throw new ConvexError("Notification not found");
     const rows = await ctx.db
       .query("deliveries")
       .withIndex("by_notification", (q) =>

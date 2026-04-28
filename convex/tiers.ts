@@ -15,11 +15,15 @@ export const TIER_LIMITS = {
     pushesPerMonth: 100,
     sourceApps: 1,
     historyDays: 7,
+    // Max number of other users you can share each source app with — counts
+    // accepted members + outstanding pending invites combined.
+    sharedUsersPerApp: 1,
   },
   pro: {
     pushesPerMonth: 10_000,
     sourceApps: Number.POSITIVE_INFINITY,
     historyDays: 90,
+    sharedUsersPerApp: Number.POSITIVE_INFINITY,
   },
 } as const;
 
@@ -117,6 +121,9 @@ export const getMyPlan = query({
         ? limits.sourceApps
         : null,
       sourceAppCount,
+      sharedUsersPerAppLimit: Number.isFinite(limits.sharedUsersPerApp)
+        ? limits.sharedUsersPerApp
+        : null,
       historyDays: limits.historyDays,
       proUntil: row?.proUntil ?? null,
     };

@@ -90,8 +90,8 @@ export const deliver = internalAction({
     }
 
     const devices = await ctx.runQuery(
-      internal.expoPushHelpers.activeDevicesForOwner,
-      { ownerId: notif.ownerId },
+      internal.expoPushHelpers.activeDevicesForSourceApp,
+      { sourceAppId: notif.sourceAppId },
     );
     if (devices.length === 0) {
       await ctx.runMutation(internal.notifications.recordDelivery, {
@@ -156,12 +156,16 @@ export const deliver = internalAction({
 
     // Insert per-device delivery rows BEFORE hitting Expo so we can correlate
     // each ticket back to a device. `deliveryIds[i]` maps to `devices[i]`.
+    // Each delivery row is stamped with its device's owner so members'
+    // deliveries are scoped to them, not the source-app's bill-payer.
     const deliveryIds: Id<"deliveries">[] = await ctx.runMutation(
       internal.deliveries.insertPending,
       {
         notificationId,
-        ownerId: notif.ownerId,
-        deviceIds: devices.map((d) => d._id),
+        deviceOwners: devices.map((d) => ({
+          deviceId: d._id,
+          ownerId: d.ownerId,
+        })),
       },
     );
 

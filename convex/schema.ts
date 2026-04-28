@@ -14,6 +14,55 @@ export default defineSchema({
    * on behalf of a user (e.g. "peptide", "homelab", "ci"). Each has its own
    * bearer token. We store only the sha256 hash.
    */
+  /**
+   * Membership rows that grant another user access to a source app. The
+   * primary `ownerId` on the source app is the bill-payer and the only role
+   * that can revoke / delete / transfer / invite. Editors can change settings
+   * and receive pushes; viewers only see the feed and receive pushes.
+   *
+   * `acceptedAt` distinguishes a pending row (created when an email is
+   * matched at sign-in or accept) from an accepted membership. Pending rows
+   * are not currently used — invites live in their own table — but the
+   * field is reserved so we can support direct-link grants without an
+   * intermediate invite if needed.
+   */
+  sourceAppMembers: defineTable({
+    sourceAppId: v.id("sourceApps"),
+    userId: v.string(), // BA user subject of the member
+    role: v.union(v.literal("editor"), v.literal("viewer")),
+    invitedBy: v.string(), // BA subject of the inviter
+    // Snapshot of the member's email at accept time, for display on the
+    // sharing screen. Source of truth still lives in the BA user table.
+    email: v.optional(v.string()),
+    acceptedAt: v.optional(v.number()),
+  })
+    .index("by_app", ["sourceAppId"])
+    .index("by_user", ["userId"])
+    .index("by_app_user", ["sourceAppId", "userId"]),
+
+  /**
+   * Email-keyed invite for someone who may or may not have a pushr account
+   * yet. When the recipient signs in (or is already signed in), the mobile
+   * app surfaces invites via `sharing.listMyPendingInvites` looking up
+   * `email` against `identity.email`. Accepting the invite materializes a
+   * `sourceAppMembers` row.
+   */
+  sourceAppInvites: defineTable({
+    sourceAppId: v.id("sourceApps"),
+    email: v.string(), // lowercased
+    role: v.union(v.literal("editor"), v.literal("viewer")),
+    invitedBy: v.string(),
+    invitedByEmail: v.optional(v.string()),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+    acceptedAt: v.optional(v.number()),
+    declinedAt: v.optional(v.number()),
+    canceledAt: v.optional(v.number()),
+  })
+    .index("by_email", ["email"])
+    .index("by_app", ["sourceAppId"])
+    .index("by_app_email", ["sourceAppId", "email"]),
+
   sourceApps: defineTable({
     ownerId: v.string(), // BA user subject
     name: v.string(),

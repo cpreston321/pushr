@@ -7,6 +7,7 @@ import {
 } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { requireAuth } from "./lib/auth";
+import { getSourceAppRole } from "./lib/sharing";
 import { resolveActionIdentifier, type NotifAction } from "./lib/actionsLayout";
 import type { Id, Doc } from "./_generated/dataModel";
 
@@ -54,6 +55,7 @@ export const invoke = action({
       action: NotifAction | null;
       webhookSecret: string | null;
       ownerId: string;
+      callerId: string;
     } = await ctx.runQuery(internal.actions.resolveForInvoke, {
       notificationId: args.notificationId,
       actionIdentifier: args.actionIdentifier,
@@ -63,11 +65,13 @@ export const invoke = action({
     }
     const act = resolved.action;
 
+    // Record the event under the user who took the action — for shared
+    // apps this is the member, not the source-app's bill-payer.
     const eventId: Id<"actionEvents"> = await ctx.runMutation(
       internal.actions.recordEventInternal,
       {
         notificationId: args.notificationId,
-        ownerId: resolved.ownerId,
+        ownerId: resolved.callerId,
         actionId: act.id,
         actionKind: act.kind,
         deviceId: args.deviceId,
@@ -151,10 +155,13 @@ export const resolveForInvoke = internalQuery({
     actionIdentifier: v.string(),
   },
   handler: async (ctx, args) => {
+    const callerId = await requireAuth(ctx);
     const notif = await ctx.db.get(args.notificationId);
     if (!notif) {
       throw new ConvexError("Notification not found");
     }
+    const access = await getSourceAppRole(ctx, notif.sourceAppId, callerId);
+    if (!access) throw new ConvexError("Notification not found");
     let action: NotifAction | null = null;
     if (notif.actions && notif.actions.length > 0) {
       action = resolveActionIdentifier(
@@ -181,10 +188,14 @@ export const resolveForInvoke = internalQuery({
 
     let webhookSecret: string | null = null;
     if (action && (action.kind === "callback" || action.kind === "reply")) {
-      const app = await ctx.db.get(notif.sourceAppId);
-      webhookSecret = app?.webhookSecret ?? null;
+      webhookSecret = access.app.webhookSecret ?? null;
     }
-    return { action, webhookSecret, ownerId: notif.ownerId };
+    return {
+      action,
+      webhookSecret,
+      ownerId: notif.ownerId,
+      callerId,
+    };
   },
 });
 
@@ -236,11 +247,11 @@ export const updateEventCallbackInternal = internalMutation({
 export const listForNotification = query({
   args: { notificationId: v.id("notifications") },
   handler: async (ctx, args) => {
-    const ownerId = await requireAuth(ctx);
+    const userId = await requireAuth(ctx);
     const notif = await ctx.db.get(args.notificationId);
-    if (!notif || notif.ownerId !== ownerId) {
-      throw new ConvexError("Notification not found");
-    }
+    if (!notif) throw new ConvexError("Notification not found");
+    const access = await getSourceAppRole(ctx, notif.sourceAppId, userId);
+    if (!access) throw new ConvexError("Notification not found");
     const rows: Doc<"actionEvents">[] = await ctx.db
       .query("actionEvents")
       .withIndex("by_notification", (q) =>

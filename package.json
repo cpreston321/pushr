@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "workspaces": ["mobile"],
   "scripts": {
     "dev": "bunx convex dev",
     "deploy": "bunx convex deploy",

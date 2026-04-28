@@ -22,6 +22,22 @@ export async function requireAuth(
   return userId;
 }
 
+/**
+ * Like requireAuth but also returns the user's email (lowercased) when
+ * available. Used for matching email-keyed invites.
+ */
+export async function requireAuthIdentity(
+  ctx: Pick<QueryCtx | MutationCtx | ActionCtx, "auth">,
+): Promise<{ userId: string; email: string | null }> {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) throw new ConvexError("Not authenticated");
+  const email =
+    typeof identity.email === "string" && identity.email.length > 0
+      ? identity.email.toLowerCase()
+      : null;
+  return { userId: identity.subject, email };
+}
+
 export type PushrUserId = string;
 
 // Re-exports for type unification across files

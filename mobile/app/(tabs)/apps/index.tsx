@@ -28,7 +28,10 @@ import { showActionSheet } from "@/lib/actionSheet";
 import { pickAndUploadLogo } from "@/lib/uploadLogo";
 import { forgetToken, recallToken, rememberToken } from "@/lib/tokenStore";
 
-type AppRow = Doc<"sourceApps"> & { logoUrl: string | null };
+type AppRow = Doc<"sourceApps"> & {
+  logoUrl: string | null;
+  role: "owner" | "editor" | "viewer";
+};
 
 const SITE_URL = process.env.EXPO_PUBLIC_CONVEX_SITE_URL ?? "";
 
@@ -89,6 +92,7 @@ function formatMuteRemaining(until: number): string {
 export default function Apps() {
   const { colors } = useTheme();
   const apps = useQuery(api.sourceApps.listMine) as AppRow[] | undefined;
+  const pendingInvites = useQuery(api.sharing.listMyPendingInvites);
 
   const create = useMutation(api.sourceApps.create);
   const setEnabled = useMutation(api.sourceApps.setEnabled);
@@ -99,6 +103,8 @@ export default function Apps() {
   const generateUploadUrl = useMutation(api.sourceApps.generateLogoUploadUrl);
   const setLogo = useMutation(api.sourceApps.setLogo);
   const removeLogo = useMutation(api.sourceApps.removeLogo);
+  const acceptInvite = useMutation(api.sharing.acceptInvite);
+  const declineInvite = useMutation(api.sharing.declineInvite);
 
   const plan = useQuery(api.tiers.getMyPlan);
   const atLimit =
@@ -250,34 +256,58 @@ export default function Apps() {
     );
   }
 
+  const invitesBanner =
+    pendingInvites && pendingInvites.length > 0 ? (
+      <InvitesBanner
+        invites={pendingInvites}
+        onAccept={async (id) => {
+          haptic.success();
+          await acceptInvite({ inviteId: id });
+        }}
+        onDecline={async (id) => {
+          haptic.warning();
+          await declineInvite({ inviteId: id });
+        }}
+      />
+    ) : null;
+
   if (apps.length === 0) {
     return (
       <ScreenTransition style={{ backgroundColor: colors.background }}>
         {header}
         <ScreenBody>
-          <View
-            style={{
-              flex: 1,
-              alignItems: "center",
-              justifyContent: "center",
-              padding: spacing.xxl,
-              gap: spacing.md,
+          <ScrollView
+            contentContainerStyle={{
+              flexGrow: 1,
+              paddingTop: spacing.xl,
+              paddingBottom: 120,
             }}
           >
-            <SymbolView name="app.badge" size={48} tintColor={colors.tertiaryLabel} />
-            <Text style={{ ...type.title3, color: colors.label }}>No source apps</Text>
-            <Text
+            {invitesBanner}
+            <View
               style={{
-                ...type.subhead,
-                color: colors.secondaryLabel,
-                textAlign: "center",
-                marginBottom: spacing.lg,
+                flex: 1,
+                alignItems: "center",
+                justifyContent: "center",
+                padding: spacing.xxl,
+                gap: spacing.md,
               }}
             >
-              Create one for each project or service that should be able to send you pushes.
-            </Text>
-            <Button title="Create source app" onPress={() => setShowCreate(true)} />
-          </View>
+              <SymbolView name="app.badge" size={48} tintColor={colors.tertiaryLabel} />
+              <Text style={{ ...type.title3, color: colors.label }}>No source apps</Text>
+              <Text
+                style={{
+                  ...type.subhead,
+                  color: colors.secondaryLabel,
+                  textAlign: "center",
+                  marginBottom: spacing.lg,
+                }}
+              >
+                Create one for each project or service that should be able to send you pushes.
+              </Text>
+              <Button title="Create source app" onPress={() => setShowCreate(true)} />
+            </View>
+          </ScrollView>
         </ScreenBody>
         {modals}
       </ScreenTransition>
@@ -292,6 +322,7 @@ export default function Apps() {
           data={apps}
           keyExtractor={(a) => a._id}
           contentContainerStyle={{ paddingTop: spacing.xl, paddingBottom: 120 }}
+          ListHeaderComponent={invitesBanner}
           renderItem={({ item, index }) => {
             const isFirst = index === 0;
             const isLast = index === apps.length - 1;
@@ -387,8 +418,10 @@ export default function Apps() {
                           : "Never used"}
                       </Text>
                     </View>
+                    {item.role !== "owner" && <RoleBadge role={item.role} />}
                     <Switch
                       value={item.enabled}
+                      disabled={item.role === "viewer"}
                       onValueChange={(v) => {
                         haptic.light();
                         setEnabled({ id: item._id, enabled: v });
@@ -684,6 +717,156 @@ function TokenModal({
         />
       </ScrollView>
     </Modal>
+  );
+}
+
+type PendingInvite = {
+  _id: Id<"sourceAppInvites">;
+  sourceAppId: Id<"sourceApps">;
+  sourceAppName: string;
+  sourceAppLogoUrl: string | null;
+  role: "editor" | "viewer";
+  invitedByEmail: string | null;
+};
+
+function InvitesBanner({
+  invites,
+  onAccept,
+  onDecline,
+}: {
+  invites: PendingInvite[];
+  onAccept: (id: Id<"sourceAppInvites">) => Promise<void>;
+  onDecline: (id: Id<"sourceAppInvites">) => Promise<void>;
+}) {
+  const { colors, tintBg } = useTheme();
+  return (
+    <View
+      style={{
+        marginHorizontal: spacing.lg,
+        marginBottom: spacing.lg,
+        backgroundColor: colors.cell,
+        borderRadius: radius.lg,
+        borderCurve: "continuous",
+        overflow: "hidden",
+      }}
+    >
+      <View
+        style={{
+          paddingHorizontal: spacing.lg,
+          paddingVertical: spacing.sm,
+          backgroundColor: tintBg(colors.accent),
+        }}
+      >
+        <Text style={{ ...type.footnote, color: colors.accent, fontWeight: "600" }}>
+          {invites.length === 1
+            ? "You have 1 invitation"
+            : `You have ${invites.length} invitations`}
+        </Text>
+      </View>
+      {invites.map((invite, i) => (
+        <View key={invite._id}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: spacing.md,
+              padding: spacing.lg,
+            }}
+          >
+            <Avatar
+              url={invite.sourceAppLogoUrl}
+              name={invite.sourceAppName}
+              size={40}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={{ ...type.body, color: colors.label }} numberOfLines={1}>
+                {invite.sourceAppName}
+              </Text>
+              <Text
+                style={{ ...type.footnote, color: colors.secondaryLabel, marginTop: 1 }}
+                numberOfLines={1}
+              >
+                {invite.invitedByEmail
+                  ? `${invite.invitedByEmail} invited you as ${invite.role}`
+                  : `Invited as ${invite.role}`}
+              </Text>
+            </View>
+          </View>
+          <View
+            style={{
+              flexDirection: "row",
+              gap: spacing.sm,
+              paddingHorizontal: spacing.lg,
+              paddingBottom: spacing.lg,
+            }}
+          >
+            <Pressable
+              onPress={() => onAccept(invite._id)}
+              style={({ pressed }) => ({
+                flex: 1,
+                backgroundColor: pressed ? tintBg(colors.accent) : colors.accent,
+                paddingVertical: spacing.md,
+                borderRadius: radius.md,
+                borderCurve: "continuous",
+                alignItems: "center",
+              })}
+            >
+              <Text style={{ ...type.callout, color: colors.accentContrast, fontWeight: "600" }}>
+                Accept
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => onDecline(invite._id)}
+              style={({ pressed }) => ({
+                flex: 1,
+                backgroundColor: pressed ? colors.cellHighlight : colors.fill,
+                paddingVertical: spacing.md,
+                borderRadius: radius.md,
+                borderCurve: "continuous",
+                alignItems: "center",
+              })}
+            >
+              <Text style={{ ...type.callout, color: colors.label }}>Decline</Text>
+            </Pressable>
+          </View>
+          {i < invites.length - 1 && (
+            <View
+              style={{
+                height: 0.5,
+                backgroundColor: colors.separator,
+                marginHorizontal: spacing.lg,
+              }}
+            />
+          )}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function RoleBadge({ role }: { role: "owner" | "editor" | "viewer" }) {
+  const { colors, tintBg } = useTheme();
+  const label = role === "owner" ? "Owner" : role === "editor" ? "Editor" : "Viewer";
+  const tint =
+    role === "owner"
+      ? colors.accent
+      : role === "editor"
+        ? colors.success
+        : colors.secondaryLabel;
+  return (
+    <View
+      style={{
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+        backgroundColor: tintBg(tint),
+        marginRight: spacing.xs,
+      }}
+    >
+      <Text style={{ ...type.caption2, color: tint, fontWeight: "600" }}>
+        {label}
+      </Text>
+    </View>
   );
 }
 
