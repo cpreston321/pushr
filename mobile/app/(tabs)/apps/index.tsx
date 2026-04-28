@@ -2,8 +2,10 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import type { Doc, Id } from "../../../../convex/_generated/dataModel";
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
   Pressable,
   ScrollView,
@@ -11,12 +13,14 @@ import {
   Text,
   View,
 } from "react-native";
+import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 import ReanimatedSwipeable from "react-native-gesture-handler/ReanimatedSwipeable";
 import { Image } from "expo-image";
 import { SymbolView } from "expo-symbols";
 import React, { useState } from "react";
 import { router } from "expo-router";
 import * as Clipboard from "expo-clipboard";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenHeader, ScreenBody } from "@/components/ScreenHeader";
 import { ScreenTransition } from "@/components/ScreenTransition";
 import { Avatar } from "@/components/Avatar";
@@ -25,6 +29,7 @@ import { Input } from "@/components/Input";
 import { useTheme, spacing, radius, type } from "@/lib/theme";
 import { haptic } from "@/lib/haptics";
 import { showActionSheet } from "@/lib/actionSheet";
+import { promptText } from "@/lib/prompt";
 import { pickAndUploadLogo } from "@/lib/uploadLogo";
 import { forgetToken, recallToken, rememberToken } from "@/lib/tokenStore";
 
@@ -91,6 +96,8 @@ function formatMuteRemaining(until: number): string {
 
 export default function Apps() {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const bottomPad = Math.max(120, insets.bottom + spacing.xxl + 60);
   const apps = useQuery(api.sourceApps.listMine) as AppRow[] | undefined;
   const pendingInvites = useQuery(api.sharing.listMyPendingInvites);
 
@@ -176,25 +183,14 @@ export default function Apps() {
     router.push(`/source-app/${item._id}`);
   }
 
-  function promptRename(item: AppRow) {
-    Alert.prompt(
-      "Rename app",
-      undefined,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Save",
-          onPress: (value?: string) => {
-            const next = value?.trim();
-            if (!next || next === item.name) return;
-            haptic.success();
-            rename({ id: item._id, name: next, description: item.description });
-          },
-        },
-      ],
-      "plain-text",
-      item.name,
-    );
+  async function promptRename(item: AppRow) {
+    const next = await promptText({
+      title: "Rename app",
+      defaultValue: item.name,
+    });
+    if (!next || next === item.name) return;
+    haptic.success();
+    rename({ id: item._id, name: next, description: item.description });
   }
 
   const header = (
@@ -204,6 +200,8 @@ export default function Apps() {
       accessory={
         atLimit ? (
           <Pressable
+            accessibilityLabel="Upgrade to add more apps"
+            accessibilityRole="button"
             onPress={() => {
               haptic.light();
               router.push("/upgrade");
@@ -214,6 +212,8 @@ export default function Apps() {
           </Pressable>
         ) : (
           <Pressable
+            accessibilityLabel="Create source app"
+            accessibilityRole="button"
             onPress={() => {
               haptic.light();
               setShowCreate(true);
@@ -249,7 +249,16 @@ export default function Apps() {
       <ScreenTransition style={{ backgroundColor: colors.background }}>
         {header}
         <ScreenBody>
-          <View />
+          <View
+            style={{
+              flex: 1,
+              alignItems: "center",
+              justifyContent: "center",
+              paddingTop: spacing.xxl,
+            }}
+          >
+            <ActivityIndicator color={colors.accent} />
+          </View>
         </ScreenBody>
         {modals}
       </ScreenTransition>
@@ -277,10 +286,11 @@ export default function Apps() {
         {header}
         <ScreenBody>
           <ScrollView
+            contentInsetAdjustmentBehavior="automatic"
             contentContainerStyle={{
               flexGrow: 1,
               paddingTop: spacing.xl,
-              paddingBottom: 120,
+              paddingBottom: bottomPad,
             }}
           >
             {invitesBanner}
@@ -321,7 +331,8 @@ export default function Apps() {
         <FlatList
           data={apps}
           keyExtractor={(a) => a._id}
-          contentContainerStyle={{ paddingTop: spacing.xl, paddingBottom: 120 }}
+          contentInsetAdjustmentBehavior="automatic"
+          contentContainerStyle={{ paddingTop: spacing.xl, paddingBottom: bottomPad }}
           ListHeaderComponent={invitesBanner}
           renderItem={({ item, index }) => {
             const isFirst = index === 0;
@@ -529,7 +540,14 @@ function CreateModal({
       presentationStyle="formSheet"
       onDismiss={reset}
     >
-      <View style={{ flex: 1, backgroundColor: colors.grouped, padding: spacing.xl, gap: spacing.lg }}>
+      <KeyboardAvoidingView
+        behavior={process.env.EXPO_OS === "ios" ? "padding" : undefined}
+        style={{ flex: 1, backgroundColor: colors.grouped }}
+      >
+      <ScrollView
+        contentContainerStyle={{ padding: spacing.xl, gap: spacing.lg, flexGrow: 1 }}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
           <Text style={{ ...type.title2, color: colors.label }}>New source app</Text>
           <Pressable
@@ -595,7 +613,8 @@ function CreateModal({
 
         <View style={{ flex: 1 }} />
         <Button title="Create" onPress={submit} disabled={!name.trim()} loading={submitting} />
-      </View>
+      </ScrollView>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -740,7 +759,10 @@ function InvitesBanner({
 }) {
   const { colors, tintBg } = useTheme();
   return (
-    <View
+    <Animated.View
+      entering={FadeIn}
+      exiting={FadeOut}
+      layout={LinearTransition}
       style={{
         marginHorizontal: spacing.lg,
         marginBottom: spacing.lg,
@@ -764,7 +786,12 @@ function InvitesBanner({
         </Text>
       </View>
       {invites.map((invite, i) => (
-        <View key={invite._id}>
+        <Animated.View
+          key={invite._id}
+          entering={FadeIn}
+          exiting={FadeOut}
+          layout={LinearTransition}
+        >
           <View
             style={{
               flexDirection: "row",
@@ -785,6 +812,7 @@ function InvitesBanner({
               <Text
                 style={{ ...type.footnote, color: colors.secondaryLabel, marginTop: 1 }}
                 numberOfLines={1}
+                selectable
               >
                 {invite.invitedByEmail
                   ? `${invite.invitedByEmail} invited you as ${invite.role}`
@@ -838,9 +866,9 @@ function InvitesBanner({
               }}
             />
           )}
-        </View>
+        </Animated.View>
       ))}
-    </View>
+    </Animated.View>
   );
 }
 

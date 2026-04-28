@@ -1,7 +1,6 @@
 import { useState } from "react";
 import {
   Alert,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -95,6 +94,8 @@ export default function Upgrade() {
     <View style={{ flex: 1, backgroundColor: colors.grouped }}>
       {/* Close button overlays the hero */}
       <Pressable
+        accessibilityLabel="Close"
+        accessibilityRole="button"
         onPress={() => {
           haptic.light();
           router.back();
@@ -134,11 +135,7 @@ export default function Upgrade() {
               paddingVertical: spacing.md,
               paddingHorizontal: spacing.lg,
               gap: spacing.md,
-              shadowColor: "#000",
-              shadowOpacity: 0.18,
-              shadowOffset: { width: 0, height: 6 },
-              shadowRadius: 14,
-              elevation: 6,
+              boxShadow: "0px 6px 14px rgba(0, 0, 0, 0.18)",
             }}
           >
             {PERKS.map((p) => (
@@ -405,7 +402,7 @@ function CycleToggle({
           <Pressable
             key={c}
             onPress={() => {
-              if (Platform.OS === "ios") haptic.selection();
+              if (process.env.EXPO_OS === "ios") haptic.selection();
               onChange(c);
             }}
             style={{
@@ -413,10 +410,7 @@ function CycleToggle({
               paddingVertical: 8,
               borderRadius: 999,
               backgroundColor: active ? activeBg : "transparent",
-              shadowColor: "#000",
-              shadowOpacity: active ? 0.12 : 0,
-              shadowOffset: { width: 0, height: 2 },
-              shadowRadius: 4,
+              boxShadow: active ? "0px 2px 4px rgba(0, 0, 0, 0.12)" : undefined,
             }}
           >
             <Text

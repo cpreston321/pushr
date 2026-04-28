@@ -15,37 +15,45 @@ import { useTheme, spacing, type } from "@/lib/theme";
  */
 export function Sheet({
   title,
+  showHandle = true,
   children,
   style,
 }: {
   title?: string;
+  showHandle?: boolean;
   children: ReactNode;
   style?: ViewStyle;
 }) {
-  const { colors, isDark } = useTheme();
-  const bg = isDark ? "#141416" : "#E9E9ED";
+  const { colors } = useTheme();
 
   return (
-    <View style={[{ flex: 1, backgroundColor: bg }, style]}>
-      <View
-        style={{
-          alignItems: "center",
-          paddingTop: 6,
-          paddingBottom: spacing.md,
-        }}
-      >
+    <View style={[{ flex: 1, backgroundColor: colors.sheet }, style]}>
+      {showHandle && (
         <View
           style={{
-            width: 36,
-            height: 5,
-            borderRadius: 2.5,
-            backgroundColor: colors.tertiaryLabel,
+            alignItems: "center",
+            paddingTop: spacing.md,
+            paddingBottom: title ? spacing.md : spacing.md + spacing.md,
           }}
-        />
-      </View>
+        >
+          <View
+            style={{
+              width: 56,
+              height: 5,
+              borderRadius: 2.5,
+              backgroundColor: colors.tertiaryLabel,
+            }}
+          />
+        </View>
+      )}
       {title && (
         <View
-          style={{ height: 44, alignItems: "center", justifyContent: "center" }}
+          style={{
+            height: 44,
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: spacing.md,
+          }}
         >
           <Text style={{ ...type.headline, color: colors.label }}>{title}</Text>
         </View>

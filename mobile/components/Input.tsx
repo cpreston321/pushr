@@ -1,3 +1,4 @@
+import { forwardRef } from "react";
 import { TextInput, TextInputProps, View, Text } from "react-native";
 import { useTheme, spacing, radius, type } from "@/lib/theme";
 
@@ -5,7 +6,10 @@ type Props = TextInputProps & {
   label?: string;
 };
 
-export function Input({ label, style, ...rest }: Props) {
+export const Input = forwardRef<TextInput, Props>(function Input(
+  { label, style, ...rest },
+  ref,
+) {
   const { colors } = useTheme();
   return (
     <View style={{ gap: 6 }}>
@@ -15,6 +19,7 @@ export function Input({ label, style, ...rest }: Props) {
         </Text>
       )}
       <TextInput
+        ref={ref}
         placeholderTextColor={colors.placeholder}
         style={[
           {
@@ -32,4 +37,4 @@ export function Input({ label, style, ...rest }: Props) {
       />
     </View>
   );
-}
+});

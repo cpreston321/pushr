@@ -17,6 +17,7 @@ import * as SecureStore from "expo-secure-store";
 export type Palette = {
   background: string;
   grouped: string;
+  sheet: string;
   cell: string;
   cellHighlight: string;
   label: string;
@@ -63,6 +64,7 @@ const basePalettes: { light: Palette; dark: Palette } = {
   light: {
     background: "#FFFFFF",
     grouped: "#F2F2F7",
+    sheet: "#E9E9ED",
     cell: "#FFFFFF",
     cellHighlight: "#E5E5EA",
     label: "#000000",
@@ -80,6 +82,7 @@ const basePalettes: { light: Palette; dark: Palette } = {
   dark: {
     background: "#000000",
     grouped: "#000000",
+    sheet: "#141416",
     cell: "#1C1C1E",
     cellHighlight: "#2C2C2E",
     label: "#FFFFFF",

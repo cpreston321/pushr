@@ -8,6 +8,10 @@ type Props = {
   title: string;
   subtitle?: string;
   caption?: string;
+  /** Allow long-press to copy the caption (for things like push tokens). */
+  captionSelectable?: boolean;
+  /** Allow long-press to copy the subtitle. */
+  subtitleSelectable?: boolean;
   leading?: ReactNode;
   trailing?: ReactNode;
   icon?: SFSymbol;
@@ -29,6 +33,8 @@ export function ListRow({
   title,
   subtitle,
   caption,
+  captionSelectable,
+  subtitleSelectable,
   leading,
   trailing,
   icon,
@@ -82,6 +88,7 @@ export function ListRow({
           <Text
             style={{ ...type.subhead, color: colors.secondaryLabel, marginTop: 1 }}
             numberOfLines={2}
+            selectable={subtitleSelectable}
           >
             {subtitle}
           </Text>
@@ -90,6 +97,7 @@ export function ListRow({
           <Text
             style={{ ...type.caption1, color: colors.tertiaryLabel, marginTop: 2 }}
             numberOfLines={1}
+            selectable={captionSelectable}
           >
             {caption}
           </Text>

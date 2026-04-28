@@ -1,6 +1,7 @@
 import { router } from "expo-router";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { authClient } from "@/lib/auth-client";
@@ -28,6 +29,7 @@ type SoundKey = "soundLow" | "soundNormal" | "soundHigh";
 
 export default function Settings() {
   const { colors, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
   const { data } = authClient().useSession();
   const user = data?.user;
   const prefs = useQuery(api.userPrefs.getMine);
@@ -75,7 +77,12 @@ export default function Settings() {
         title={user?.name ?? "Settings"}
       />
       <ScreenBody>
-        <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
+        <ScrollView
+          contentInsetAdjustmentBehavior="automatic"
+          contentContainerStyle={{
+            paddingBottom: Math.max(120, insets.bottom + spacing.xxl + 60),
+          }}
+        >
           <SectionHeader label="Plan" />
           <PlanCard />
 
@@ -525,7 +532,14 @@ function PlanCard() {
             <Text style={{ ...type.footnote, color: colors.secondaryLabel }}>
               Pushes this month
             </Text>
-            <Text style={{ ...type.footnote, color: colors.label, fontWeight: "600" }}>
+            <Text
+              style={{
+                ...type.footnote,
+                color: colors.label,
+                fontWeight: "600",
+                fontVariant: ["tabular-nums"],
+              }}
+            >
               {plan.pushesThisMonth.toLocaleString()} /{" "}
               {plan.pushesPerMonth.toLocaleString()}
             </Text>

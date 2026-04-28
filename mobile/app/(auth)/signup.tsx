@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { Link, router } from "expo-router";
@@ -23,6 +23,8 @@ export default function Signup() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const emailRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
 
   async function submit() {
     if (!email || !password || !name) return;
@@ -67,7 +69,7 @@ export default function Signup() {
         </Pressable>
       </View>
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={process.env.EXPO_OS === "ios" ? "padding" : undefined}
         style={{ flex: 1, padding: spacing.xl, justifyContent: "center", gap: spacing.lg }}
       >
         <View style={{ marginBottom: spacing.lg }}>
@@ -76,21 +78,39 @@ export default function Signup() {
             Start receiving pushes from your own apps.
           </Text>
         </View>
-        <Input placeholder="Name" value={name} onChangeText={setName} textContentType="name" />
         <Input
+          placeholder="Name"
+          value={name}
+          onChangeText={setName}
+          textContentType="name"
+          autoComplete="name"
+          returnKeyType="next"
+          onSubmitEditing={() => emailRef.current?.focus()}
+          submitBehavior="submit"
+        />
+        <Input
+          ref={emailRef}
           placeholder="Email"
           autoCapitalize="none"
           keyboardType="email-address"
           textContentType="emailAddress"
+          autoComplete="email"
           value={email}
           onChangeText={setEmail}
+          returnKeyType="next"
+          onSubmitEditing={() => passwordRef.current?.focus()}
+          submitBehavior="submit"
         />
         <Input
+          ref={passwordRef}
           placeholder="Password"
           secureTextEntry
           textContentType="newPassword"
+          autoComplete="password-new"
           value={password}
           onChangeText={setPassword}
+          returnKeyType="done"
+          onSubmitEditing={submit}
         />
         <Button title="Sign up" onPress={submit} loading={busy} />
         <View style={{ alignItems: "center", marginTop: spacing.md }}>

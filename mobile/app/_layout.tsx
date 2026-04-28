@@ -13,6 +13,7 @@ import { useLiveActivityTokens } from "@/lib/useLiveActivityTokens";
 import { useConvexAuth, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useBadgeSync } from "@/lib/useBadgeSync";
+import { PromptHost } from "@/components/PromptHost";
 
 export default function RootLayout() {
   return (
@@ -89,7 +90,7 @@ function AppShell({ isDark, bg }: { isDark: boolean; bg: string }) {
         <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
         <Stack.Screen
           name="source-app/[id]"
-          options={{ presentation: "formSheet", sheetAllowedDetents: [0.6, 1.0] }}
+          options={{ presentation: "formSheet", sheetAllowedDetents: [1.0] }}
         />
         <Stack.Screen
           name="server-config"
@@ -100,6 +101,7 @@ function AppShell({ isDark, bg }: { isDark: boolean; bg: string }) {
           options={{ presentation: "fullScreenModal" }}
         />
       </Stack>
+      <PromptHost />
       <StatusBar style={isDark ? "light" : "dark"} />
     </>
   );

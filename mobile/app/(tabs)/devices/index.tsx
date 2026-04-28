@@ -1,9 +1,10 @@
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import type { Doc } from "../../../../convex/_generated/dataModel";
-import { Alert, Platform, Pressable, ScrollView, Switch, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, Switch, Text, View } from "react-native";
 import { SymbolView } from "expo-symbols";
 import { useEffect, useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenHeader, ScreenBody } from "@/components/ScreenHeader";
 import { ScreenTransition } from "@/components/ScreenTransition";
 import { ListSection } from "@/components/ListSection";
@@ -11,10 +12,12 @@ import { ListRow } from "@/components/ListRow";
 import { useTheme, spacing, type } from "@/lib/theme";
 import { haptic } from "@/lib/haptics";
 import { showActionSheet } from "@/lib/actionSheet";
+import { promptText } from "@/lib/prompt";
 import { registerForPushAsync } from "@/lib/push";
 
 export default function Devices() {
   const { colors, tintBg } = useTheme();
+  const insets = useSafeAreaInsets();
   const devices = useQuery(api.devices.listMine) as Doc<"devices">[] | undefined;
   const register = useMutation(api.devices.register);
   const setEnabled = useMutation(api.devices.setEnabled);
@@ -60,29 +63,15 @@ export default function Devices() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function promptRename(id: Doc<"devices">["_id"], currentName: string) {
-    if (Platform.OS !== "ios") {
-      Alert.alert("Rename", "Renaming is only supported on iOS for now.");
-      return;
-    }
-    Alert.prompt(
-      "Rename device",
-      "Choose a name for this device.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Save",
-          onPress: (value?: string) => {
-            const next = value?.trim();
-            if (!next) return;
-            haptic.light();
-            rename({ id, name: next });
-          },
-        },
-      ],
-      "plain-text",
-      currentName,
-    );
+  async function promptRename(id: Doc<"devices">["_id"], currentName: string) {
+    const next = await promptText({
+      title: "Rename device",
+      message: "Choose a name for this device.",
+      defaultValue: currentName,
+    });
+    if (!next) return;
+    haptic.light();
+    rename({ id, name: next });
   }
 
   function handleDevicePress(id: Doc<"devices">["_id"], name: string) {
@@ -122,7 +111,13 @@ export default function Devices() {
         title="Devices"
       />
       <ScreenBody>
-        <ScrollView contentContainerStyle={{ paddingTop: spacing.xl, paddingBottom: 120 }}>
+        <ScrollView
+          contentInsetAdjustmentBehavior="automatic"
+          contentContainerStyle={{
+            paddingTop: spacing.xl,
+            paddingBottom: Math.max(120, insets.bottom + spacing.xxl + 60),
+          }}
+        >
       <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md, marginBottom: spacing.xl }}>
         <StatusCard status={status} error={error} onRetry={doRegister} />
       </View>
@@ -143,6 +138,7 @@ export default function Devices() {
               title={d.name ?? d.model ?? d.platform}
               subtitle={subtitleParts.join(" · ")}
               caption={`${d.expoPushToken.slice(0, 28)}…`}
+              captionSelectable
               leading={
                 <View
                   style={{
@@ -245,7 +241,10 @@ function StatusCard({
       </View>
       <View style={{ flex: 1 }}>
         <Text style={{ ...type.headline, color: colors.label }}>{cfg.title}</Text>
-        <Text style={{ ...type.footnote, color: colors.secondaryLabel, marginTop: 2 }}>
+        <Text
+          selectable={status === "error"}
+          style={{ ...type.footnote, color: colors.secondaryLabel, marginTop: 2 }}
+        >
           {cfg.body}
         </Text>
       </View>

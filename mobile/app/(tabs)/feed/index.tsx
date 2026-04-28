@@ -4,10 +4,10 @@ import type { FunctionReturnType } from "convex/server";
 import type { NotifAction } from "../../../../convex/lib/actionsLayout";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   Linking,
-  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -18,7 +18,10 @@ import {
 import ReanimatedSwipeable from "react-native-gesture-handler/ReanimatedSwipeable";
 import Animated, {
   Extrapolation,
+  FadeIn,
+  FadeOut,
   interpolate,
+  LinearTransition,
   useAnimatedStyle,
   type SharedValue,
 } from "react-native-reanimated";
@@ -31,6 +34,7 @@ import { ScreenTransition } from "@/components/ScreenTransition";
 import { Avatar } from "@/components/Avatar";
 import { useTheme, spacing, radius, type } from "@/lib/theme";
 import { haptic } from "@/lib/haptics";
+import { promptText } from "@/lib/prompt";
 
 // Distance (px) the row must travel before a release auto-fires delete.
 // Smaller = more sensitive. We want a deliberate full swipe.
@@ -38,6 +42,7 @@ const FULL_SWIPE_THRESHOLD = 140;
 
 export default function Feed() {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const items = useQuery(api.notifications.listMine, { limit: 100 });
   const markRead = useMutation(api.notifications.markRead);
   const markAllRead = useMutation(api.notifications.markAllRead);
@@ -128,7 +133,16 @@ export default function Feed() {
       <ScreenTransition style={{ backgroundColor: colors.background }}>
         {header}
         <ScreenBody>
-          <View />
+          <View
+            style={{
+              flex: 1,
+              alignItems: "center",
+              justifyContent: "center",
+              paddingTop: spacing.xxl,
+            }}
+          >
+            <ActivityIndicator color={colors.accent} />
+          </View>
         </ScreenBody>
       </ScreenTransition>
     );
@@ -160,7 +174,11 @@ export default function Feed() {
         <FlatList
           data={entries}
           keyExtractor={(e) => (e.kind === "group" ? `g:${e.activityId}` : e.item._id)}
-          contentContainerStyle={{ paddingTop: spacing.md, paddingBottom: 160 }}
+          contentInsetAdjustmentBehavior="automatic"
+          contentContainerStyle={{
+            paddingTop: spacing.md,
+            paddingBottom: Math.max(160, insets.bottom + 100),
+          }}
           ListHeaderComponent={
             <FeedToolbar
               search={search}
@@ -277,16 +295,14 @@ function FloatingBar({
         style={{
           borderRadius: 28,
           overflow: "hidden",
-          shadowColor: "#000",
-          shadowOpacity: isDark ? 0.5 : 0.18,
-          shadowOffset: { width: 0, height: 8 },
-          shadowRadius: 20,
-          elevation: 8,
+          boxShadow: isDark
+            ? "0px 8px 20px rgba(0, 0, 0, 0.5)"
+            : "0px 8px 20px rgba(0, 0, 0, 0.18)",
           borderCurve: "continuous",
         }}
       >
         <BlurView
-          intensity={Platform.OS === "ios" ? 70 : 100}
+          intensity={process.env.EXPO_OS === "ios" ? 70 : 100}
           tint={isDark ? "dark" : "light"}
           style={{
             flexDirection: "row",
@@ -380,6 +396,7 @@ function BarAction({
               fontSize: 11,
               fontWeight: "700",
               lineHeight: 14,
+              fontVariant: ["tabular-nums"],
             }}
           >
             {badge}
@@ -771,7 +788,10 @@ function FeedGroupRow({
   );
 
   const expandedList = expanded && (
-    <View
+    <Animated.View
+      entering={FadeIn.duration(180)}
+      exiting={FadeOut.duration(120)}
+      layout={LinearTransition}
       style={{
         backgroundColor: colors.fill,
         paddingHorizontal: spacing.md,
@@ -845,7 +865,7 @@ function FeedGroupRow({
           </Text>
         </Pressable>
       ))}
-    </View>
+    </Animated.View>
   );
 
   return (
@@ -1179,36 +1199,21 @@ function ActionButtonsBar({
         void Linking.openURL(action.url).catch(() => {});
       }
       if (action.kind === "reply") {
-        // iOS-only: prompt for the reply text, then invoke.
-        if (Platform.OS !== "ios") {
-          Alert.alert("Reply only supported on iOS right now.");
-          return;
-        }
-        Alert.prompt(
-          action.label,
-          action.placeholder ?? "Type a reply",
-          [
-            { text: "Cancel", style: "cancel" },
-            {
-              text: "Send",
-              onPress: (text?: string) => {
-                void (async () => {
-                  const result = await invoke({
-                    notificationId,
-                    actionIdentifier: action.id,
-                    reply: text ?? "",
-                  });
-                  setDone((d) => ({
-                    ...d,
-                    [action.id]: result?.ok ? "ok" : "fail",
-                  }));
-                })();
-              },
-            },
-          ],
-          "plain-text",
-          "",
-        );
+        const text = await promptText({
+          title: action.label,
+          placeholder: action.placeholder ?? "Type a reply",
+          confirmLabel: "Send",
+        });
+        if (text === null) return;
+        const result = await invoke({
+          notificationId,
+          actionIdentifier: action.id,
+          reply: text,
+        });
+        setDone((d) => ({
+          ...d,
+          [action.id]: result?.ok ? "ok" : "fail",
+        }));
         return;
       }
       const result = await invoke({

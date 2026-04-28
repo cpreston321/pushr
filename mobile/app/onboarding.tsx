@@ -1,10 +1,10 @@
 import { useRef, useState } from "react";
 import {
   Alert,
-  Dimensions,
   Pressable,
   ScrollView,
   Text,
+  useWindowDimensions,
   View,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -34,7 +34,6 @@ import { haptic } from "@/lib/haptics";
 import { registerForPushAsync } from "@/lib/push";
 
 const HAS_ONBOARDED_KEY = "pushr.hasOnboarded";
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 type StepId = "welcome" | "theme" | "notifications" | "firstApp" | "done";
 
@@ -50,6 +49,7 @@ type Step = {
 export default function Onboarding() {
   const { colors, tintBg } = useTheme();
   const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
   const scrollRef = useRef<ScrollView>(null);
   const [page, setPage] = useState(0);
   const [notifStatus, setNotifStatus] = useState<
@@ -112,11 +112,11 @@ export default function Onboarding() {
   function goTo(index: number) {
     const clamped = Math.max(0, Math.min(steps.length - 1, index));
     setPage(clamped);
-    scrollRef.current?.scrollTo({ x: clamped * SCREEN_WIDTH, animated: true });
+    scrollRef.current?.scrollTo({ x: clamped * screenWidth, animated: true });
   }
 
   function onMomentumEnd(e: NativeSyntheticEvent<NativeScrollEvent>) {
-    const next = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+    const next = Math.round(e.nativeEvent.contentOffset.x / screenWidth);
     setPage(next);
   }
 
@@ -196,7 +196,7 @@ export default function Onboarding() {
             <View
               key={s.id}
               style={{
-                width: SCREEN_WIDTH,
+                width: screenWidth,
                 paddingHorizontal: spacing.xl,
                 paddingTop: insets.top + spacing.xl,
                 gap: spacing.xl,

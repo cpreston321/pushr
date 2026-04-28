@@ -1,5 +1,6 @@
 import React from "react";
 import {
+  ActivityIndicator,
   Alert,
   Pressable,
   ScrollView,
@@ -12,17 +13,16 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useMutation, useQuery } from "convex/react";
 import { SymbolView, type SFSymbol } from "expo-symbols";
 import type { FunctionReturnType } from "convex/server";
-import { api } from "../../../convex/_generated/api";
-import type { Doc, Id } from "../../../convex/_generated/dataModel";
+import { api } from "../../../../convex/_generated/api";
+import type { Doc, Id } from "../../../../convex/_generated/dataModel";
 
 type SharingData = NonNullable<FunctionReturnType<typeof api.sharing.listMembers>>;
-type SharingMember = SharingData["members"][number];
-type SharingInvite = SharingData["invites"][number];
 import { Avatar } from "@/components/Avatar";
 import { Sheet } from "@/components/Sheet";
 import { useTheme, spacing, radius, type } from "@/lib/theme";
 import { haptic } from "@/lib/haptics";
 import { showActionSheet } from "@/lib/actionSheet";
+import { promptText } from "@/lib/prompt";
 import { pickAndUploadLogo } from "@/lib/uploadLogo";
 import { forgetToken, recallToken } from "@/lib/tokenStore";
 
@@ -51,7 +51,18 @@ export default function SourceAppDetail() {
   const leaveApp = useMutation(api.sharing.leaveApp);
 
   if (apps === undefined) {
-    return <View style={{ flex: 1, backgroundColor: colors.grouped }} />;
+    return (
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: colors.grouped,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <ActivityIndicator color={colors.accent} />
+      </View>
+    );
   }
 
   if (!app) {
@@ -90,26 +101,15 @@ export default function SourceAppDetail() {
     await setLogo({ id: app._id, storageId: picked.storageId });
   }
 
-  function promptRename() {
+  async function promptRename() {
     if (!app) return;
-    Alert.prompt(
-      "Rename app",
-      undefined,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Save",
-          onPress: (value?: string) => {
-            const next = value?.trim();
-            if (!next) return;
-            haptic.success();
-            rename({ id: app._id, name: next });
-          },
-        },
-      ],
-      "plain-text",
-      app.name,
-    );
+    const next = await promptText({
+      title: "Rename app",
+      defaultValue: app.name,
+    });
+    if (!next) return;
+    haptic.success();
+    rename({ id: app._id, name: next });
   }
 
   function openMutePresets() {
@@ -263,6 +263,7 @@ export default function SourceAppDetail() {
             )}
             {isOwner && (
               <Text
+                selectable
                 style={{
                   ...type.caption1,
                   color: colors.tertiaryLabel,
@@ -367,7 +368,7 @@ export default function SourceAppDetail() {
           </DetailSection>
         )}
 
-        <SharingSection sourceAppId={app._id} appName={app.name} />
+        <SharingSection sourceAppId={app._id} />
 
         {isOwner && (
           <DetailSection title="Integration">
@@ -418,197 +419,95 @@ export default function SourceAppDetail() {
 
 function SharingSection({
   sourceAppId,
-  appName,
 }: {
   sourceAppId: Id<"sourceApps">;
-  appName: string;
 }) {
   const { colors } = useTheme();
   const data = useQuery(api.sharing.listMembers, { sourceAppId });
-  const inviteByEmail = useMutation(api.sharing.inviteByEmail);
-  const cancelInvite = useMutation(api.sharing.cancelInvite);
-  const removeMember = useMutation(api.sharing.removeMember);
-  const setMemberRole = useMutation(api.sharing.setMemberRole);
 
-  if (!data) {
-    return (
-      <DetailSection title="Sharing">
-        <DetailRow
-          icon="person.2.fill"
-          tint={colors.accent}
-          title="Loading…"
-        />
-      </DetailSection>
-    );
-  }
-
-  const isOwner = data.myRole === "owner";
-
-  function promptInvite() {
-    haptic.light();
-    Alert.prompt(
-      `Invite to ${appName}`,
-      "They'll receive pushes from this app on their devices and see the feed.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Send invite",
-          onPress: async (value?: string) => {
-            const email = value?.trim();
-            if (!email) return;
-            try {
-              const result = await inviteByEmail({
-                sourceAppId,
-                email,
-                role: "editor",
-              });
-              haptic.success();
-              if ("alreadyMember" in result && result.alreadyMember) {
-                Alert.alert(
-                  "Already a member",
-                  `${email} already has access to ${appName}.`,
-                );
-              } else if ("refreshed" in result && result.refreshed) {
-                Alert.alert(
-                  "Invite refreshed",
-                  `Updated the existing invite for ${email}.`,
-                );
-              }
-            } catch (err: any) {
-              haptic.error();
-              Alert.alert(
-                "Couldn't send invite",
-                err?.data?.message ?? err?.message ?? "Please try again.",
-              );
-            }
-          },
-        },
-      ],
-      "plain-text",
-      "",
-      "email-address",
-    );
-  }
-
-  function memberMenu(member: SharingMember) {
-    if (!isOwner || member.isMe) return;
-    haptic.light();
-    showActionSheet({
-      title: member.email ?? member.userId,
-      options: [
-        {
-          label: member.role === "editor" ? "Demote to viewer" : "Promote to editor",
-          onPress: async () => {
-            haptic.success();
-            await setMemberRole({
-              sourceAppId,
-              memberId: member._id,
-              role: member.role === "editor" ? "viewer" : "editor",
-            });
-          },
-        },
-        {
-          label: "Remove from app",
-          destructive: true,
-          onPress: () => {
-            Alert.alert(
-              "Remove member?",
-              `${member.email ?? "This user"} will stop receiving pushes from ${appName}.`,
-              [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "Remove",
-                  style: "destructive",
-                  onPress: async () => {
-                    haptic.error();
-                    await removeMember({
-                      sourceAppId,
-                      memberId: member._id,
-                    });
-                  },
-                },
-              ],
-            );
-          },
-        },
-      ],
-    });
-  }
-
-  function inviteMenu(invite: SharingInvite) {
-    if (!isOwner) return;
-    haptic.light();
-    showActionSheet({
-      title: invite.email,
-      options: [
-        {
-          label: "Cancel invite",
-          destructive: true,
-          onPress: async () => {
-            haptic.error();
-            await cancelInvite({ inviteId: invite._id });
-          },
-        },
-      ],
-    });
-  }
-
-  const limit = data.sharedUsersLimit;
-  const used = data.sharedUsersUsed;
-  const atLimit = limit !== null && used >= limit;
-  const inviteSubtitle = atLimit
-    ? `${labelForLimit(limit)} reached on Free plan — upgrade for more`
-    : limit !== null
-      ? `${used} of ${limit} on Free plan`
-      : "Members receive pushes too";
+  const subtitle = sharingSubtitle(data);
+  const memberCount = data?.members.length ?? 0;
+  const pendingCount = data?.invites.length ?? 0;
+  const atLimit =
+    data?.sharedUsersLimit !== null &&
+    data?.sharedUsersLimit !== undefined &&
+    data.sharedUsersUsed >= data.sharedUsersLimit;
 
   return (
     <DetailSection title="Sharing">
-      {isOwner && (
-        <DetailRow
-          icon={atLimit ? "sparkles" : "person.crop.circle.badge.plus"}
-          tint={atLimit ? colors.warning : colors.accent}
-          title={atLimit ? "Upgrade to invite more" : "Invite by email"}
-          subtitle={inviteSubtitle}
-          onPress={atLimit ? () => router.push("/upgrade") : promptInvite}
-          chevron
-          badge={atLimit ? "PRO" : undefined}
-        />
-      )}
-      {data.members.map((m) => (
-        <DetailRow
-          key={m._id}
-          icon="person.fill"
-          tint={colors.secondaryLabel}
-          title={m.email ?? "Member"}
-          subtitle={m.isMe ? "You" : labelForRole(m.role)}
-          trailing={<RoleBadge role={m.role} />}
-          onPress={isOwner && !m.isMe ? () => memberMenu(m) : undefined}
-        />
-      ))}
-      {data.invites.map((i) => (
-        <DetailRow
-          key={i._id}
-          icon="envelope.fill"
-          tint={colors.warning}
-          title={i.email}
-          subtitle={`Invited as ${labelForRole(i.role)} · pending`}
-          onPress={isOwner ? () => inviteMenu(i) : undefined}
-        />
-      ))}
-      {!isOwner && data.members.length === 0 && data.invites.length === 0 && (
-        <DetailRow
-          icon="person.2"
-          tint={colors.tertiaryLabel}
-          title="No other members"
-        />
-      )}
+      <DetailRow
+        icon={atLimit ? "sparkles" : "person.2.fill"}
+        tint={atLimit ? colors.warning : colors.accent}
+        title="Manage sharing"
+        subtitle={subtitle}
+        onPress={() => {
+          haptic.light();
+          router.push(`/source-app/${sourceAppId}/sharing`);
+        }}
+        chevron
+        trailing={
+          memberCount + pendingCount > 0 ? (
+            <SharingCountBadge
+              memberCount={memberCount}
+              pendingCount={pendingCount}
+            />
+          ) : undefined
+        }
+      />
     </DetailSection>
   );
 }
 
-function labelForLimit(limit: number): string {
-  return limit === 1 ? "1-user limit" : `${limit}-user limit`;
+function sharingSubtitle(data: SharingData | undefined): string {
+  if (!data) return "Loading…";
+  const members = data.members.length;
+  const pending = data.invites.length;
+  const limit = data.sharedUsersLimit;
+  if (members === 0 && pending === 0) {
+    return data.myRole === "owner"
+      ? limit !== null
+        ? `Invite up to ${limit} other ${limit === 1 ? "person" : "people"}`
+        : "Invite others to receive these pushes"
+      : "Just you";
+  }
+  const parts: string[] = [];
+  parts.push(members === 1 ? "1 member" : `${members} members`);
+  if (pending > 0) parts.push(`${pending} pending`);
+  return parts.join(" · ");
+}
+
+function SharingCountBadge({
+  memberCount,
+  pendingCount,
+}: {
+  memberCount: number;
+  pendingCount: number;
+}) {
+  const { colors } = useTheme();
+  const total = memberCount + pendingCount;
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+      <Text
+        style={{
+          ...type.subhead,
+          color: colors.secondaryLabel,
+          fontVariant: ["tabular-nums"],
+        }}
+      >
+        {total}
+      </Text>
+      {pendingCount > 0 && (
+        <View
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: 4,
+            backgroundColor: colors.warning,
+          }}
+        />
+      )}
+    </View>
+  );
 }
 
 function RoleBadge({ role }: { role: Role }) {
@@ -694,6 +593,7 @@ function DetailRow({
   icon,
   tint,
   title,
+  titleSelectable,
   subtitle,
   trailing,
   onPress,
@@ -704,6 +604,7 @@ function DetailRow({
   icon: SFSymbol;
   tint: string;
   title: string;
+  titleSelectable?: boolean;
   subtitle?: string;
   trailing?: React.ReactNode;
   onPress?: () => void;
@@ -739,7 +640,11 @@ function DetailRow({
       </View>
       <View style={{ flex: 1 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
-          <Text style={{ ...type.body, color: titleColor }} numberOfLines={1}>
+          <Text
+            style={{ ...type.body, color: titleColor }}
+            numberOfLines={1}
+            selectable={titleSelectable}
+          >
             {title}
           </Text>
           {badge && (

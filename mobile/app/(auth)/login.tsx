@@ -1,5 +1,12 @@
-import { useState } from "react";
-import { Alert, KeyboardAvoidingView, Platform, Pressable, Text, View } from "react-native";
+import { useRef, useState } from "react";
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Pressable,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { Link, router } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import { Screen } from "@/components/Screen";
@@ -15,6 +22,7 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const passwordRef = useRef<TextInput>(null);
 
   async function submit() {
     if (!email || !password) return;
@@ -33,7 +41,7 @@ export default function Login() {
   return (
     <Screen edges={["top", "bottom"]}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={process.env.EXPO_OS === "ios" ? "padding" : undefined}
         style={{ flex: 1 }}
       >
         <View
@@ -73,14 +81,20 @@ export default function Login() {
             textContentType="emailAddress"
             value={email}
             onChangeText={setEmail}
+            returnKeyType="next"
+            onSubmitEditing={() => passwordRef.current?.focus()}
+            submitBehavior="submit"
           />
           <Input
+            ref={passwordRef}
             placeholder="Password"
             secureTextEntry
             autoComplete="current-password"
             textContentType="password"
             value={password}
             onChangeText={setPassword}
+            returnKeyType="done"
+            onSubmitEditing={submit}
           />
           <Button title="Sign in" onPress={submit} loading={busy} />
           <View style={{ alignItems: "center", marginTop: spacing.md }}>

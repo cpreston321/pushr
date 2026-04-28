@@ -38,6 +38,7 @@ export function ListSection({ header, footer, children }: Props) {
           marginHorizontal: spacing.lg,
           backgroundColor: colors.cell,
           borderRadius: radius.lg,
+          borderCurve: "continuous",
           overflow: "hidden",
         }}
       >
