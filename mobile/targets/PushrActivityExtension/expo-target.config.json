@@ -1,0 +1,6 @@
+{
+  "type": "widget",
+  "icon": "../../assets/images/pushr-light.png",
+  "deploymentTarget": "16.2",
+  "frameworks": ["WidgetKit", "SwiftUI", "ActivityKit"]
+}

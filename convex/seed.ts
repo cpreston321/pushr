@@ -2,10 +2,6 @@ import { v } from "convex/values";
 import { internalMutation } from "./_generated/server";
 import { createAuth } from "./betterAuth/auth";
 
-//pshr_Iu4xYLJgFr8v5xBf8n5jq-CXfDuSBCLBxQSVpOUjkmw
-//
-//
-
 /**
  * Seed a dev user so you can log in without going through the signup flow.
  *

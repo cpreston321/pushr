@@ -1,6 +1,7 @@
 import { v, ConvexError } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server";
 import { hashToken } from "./lib/tokens";
+// region: tier-features
 import {
   getEffectiveTier,
   getMonthlyUsage,
@@ -8,6 +9,7 @@ import {
   quotaExceeded,
   TIER_LIMITS,
 } from "./tiers";
+// endregion: tier-features
 
 const liveActivityValidator = v.object({
   action: v.union(
@@ -110,6 +112,7 @@ export const ingest = internalMutation({
       throw new ConvexError({ code: "APP_DISABLED", message: "Source app is disabled" });
     }
 
+    // region: tier-features
     // Tier enforcement: check quota BEFORE writing the notification row so we
     // don't clutter the feed with rows we refused to deliver.
     const tier = await getEffectiveTier(ctx, app.ownerId);
@@ -119,6 +122,7 @@ export const ingest = internalMutation({
       throw quotaExceeded(tier, current, limit);
     }
     await incrementMonthlyUsage(ctx, app.ownerId);
+    // endregion: tier-features
 
     await ctx.db.patch(app._id, { lastUsedAt: Date.now() });
 

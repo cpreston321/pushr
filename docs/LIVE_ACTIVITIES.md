@@ -93,43 +93,40 @@ End the activity when done:
 }
 ```
 
-## One-time Xcode setup
+## Xcode targets (automated via `@bacons/apple-targets`)
 
-The Expo config plugin adds `NSSupportsLiveActivities = true` to the main
-app automatically. The **Widget Extension target** (which owns the
-lockscreen / Dynamic Island UI) still needs to be created once in Xcode —
-running `expo run:ios` will not create it for you.
+Both extension targets are recreated on every `expo prebuild` from the
+contents of `mobile/targets/`:
 
-Steps:
+```
+mobile/targets/
+  PushrActivityExtension/        ← Widget Extension (lockscreen + Dynamic Island)
+    expo-target.config.json
+    Info.plist
+    PushrActivityAttributes.swift
+    PushrActivityWidget.swift
+  PushrNotificationService/      ← Notification Service Extension
+    expo-target.config.json
+    Info.plist
+    NotificationService.swift
+```
 
-1. `cd mobile && bun install && bun run ios:dev` — this regenerates the
-   `ios/` project and pulls the native module into the main app.
-2. Open `mobile/ios/pushr.xcworkspace` in Xcode.
-3. **File → New → Target → Widget Extension**. Name it
-   `PushrActivityExtension`. Bundle id should be
-   `dev.cpreston.pushr.PushrActivityExtension` (matches the main app id
-   with a suffix). Language: Swift. **Uncheck "Include Configuration
-   Intent"**. **Check "Include Live Activity"**.
-4. Xcode will create stub files (`PushrActivityExtension.swift` or
-   similar). Delete them.
-5. Right-click the Widget Extension group → **Add Files to "pushr"…**.
-   Select these files from `mobile/modules/live-activity/ios/`:
-   - `PushrActivityWidget.swift` → target: `PushrActivityExtension` only
-   - `PushrActivityAttributes.swift` → target: `PushrActivityExtension`
-     **AND** the main app target (it's shared)
-6. Target settings → **General → Minimum Deployments → iOS 16.2**.
-7. Target settings → **Build Settings → Swift Language Version → Swift 5**.
-8. Target settings → **Info.plist**: Xcode's stub already covers the
-   required keys. If it doesn't, the contents of
-   `mobile/modules/live-activity/ios/PushrActivityExtensionInfo.plist`
-   can be pasted in.
-9. Build and run on a real device or iOS 16.2+ simulator. Live Activities
-   do not render in Expo Go.
+`@bacons/apple-targets` (registered as a plugin in `app.json`) reads each
+subdirectory, generates the matching Xcode target, and wires its sources
+into the build. After a `bun run ios:dev` (which runs `prebuild --clean`
+under the hood) both targets are present and configured automatically — no
+manual Xcode steps required.
 
-If you'd rather automate this, swap `plugin.js` for one that uses
-`withXcodeProject` + the `xcode` npm package to add the target on
-`prebuild`. Keep the manual steps documented either way — pbxproj munging
-is fragile and users end up here when it breaks.
+If you change source files, just re-run `bun run ios:dev` (or
+`expo prebuild --platform ios --clean`).
+
+> **Shared `PushrActivityAttributes.swift`.** ActivityKit needs the same
+> attributes type compiled into both the main app and the widget. Because
+> the two targets are independent compile units, the file exists in two
+> places: `mobile/modules/live-activity/ios/` (compiled into the main app
+> via Expo module autolinking) and
+> `mobile/targets/PushrActivityExtension/` (compiled into the widget).
+> Keep both copies byte-identical — there's a sync note in each file.
 
 ## Server-driven via APNs (push-to-start)
 

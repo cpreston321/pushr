@@ -18,7 +18,7 @@ import { createPrivateKey, createSign } from "node:crypto";
  *   APNS_KEY_ID        The 10-char key id shown next to the .p8 in the Apple
  *                      developer console.
  *   APNS_TEAM_ID       Your 10-char Apple Developer Team ID.
- *   APNS_BUNDLE_ID     The main app bundle id — e.g. "dev.cpreston.pushr".
+ *   APNS_BUNDLE_ID     The main app bundle id — e.g. "com.example.pushr".
  *   APNS_ENVIRONMENT   "production" (TestFlight/App Store) or "sandbox"
  *                      (Xcode debug builds). Defaults to "sandbox".
  *

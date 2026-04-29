@@ -124,6 +124,7 @@ export default defineSchema({
     .index("by_owner", ["ownerId"])
     .index("by_token", ["expoPushToken"]),
 
+  // region: tier-features — stripped by scripts/publish-public.sh
   /**
    * Subscription tier per user. No row = default "free".
    */
@@ -149,6 +150,7 @@ export default defineSchema({
     yearMonth: v.string(),
     count: v.number(),
   }).index("by_owner_month", ["ownerId", "yearMonth"]),
+  // endregion: tier-features
 
   /**
    * Per-user delivery preferences. One row per BA user subject.

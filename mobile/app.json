@@ -10,12 +10,17 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "dev.cpreston.pushr",
+      "appleTeamId": "39MSHURBYT",
       "icon": {
         "light": "./assets/images/pushr-light.png",
         "dark": "./assets/images/pushr-dark.png"
       },
+      "entitlements": {
+        "com.apple.developer.usernotifications.communication": true
+      },
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSUserActivityTypes": ["INSendMessageIntent"]
       }
     },
     "android": {
@@ -54,10 +59,12 @@
           "icon": "./assets/images/pushr-light.png",
           "color": "#ffffff",
           "defaultChannel": "default",
-          "sounds": []
+          "sounds": [],
+          "enableBackgroundRemoteNotifications": true
         }
       ],
-      "./modules/live-activity/plugin.js"
+      "./modules/live-activity/plugin.js",
+      "@bacons/apple-targets"
     ],
     "experiments": {
       "typedRoutes": true,

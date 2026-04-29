@@ -11,3 +11,11 @@ mobile/dist
 mobile/web-build
 mobile/ios
 mobile/android
+
+# Synced into public/ by scripts/publish-public.sh — canonical copies live
+# at the repo root. Tracking them here would create two sources of truth.
+# (public/overrides/ IS tracked — those are the public-build patches.)
+public/convex/
+public/LICENSE
+public/patches/
+public/tsconfig.json

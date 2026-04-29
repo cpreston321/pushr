@@ -221,6 +221,7 @@ async function dispatchNotification(
     const code = err?.data?.code;
     if (code === "INVALID_TOKEN") return json({ error: "Invalid token" }, 401);
     if (code === "APP_DISABLED") return json({ error: "Source app disabled" }, 403);
+    // region: tier-features
     if (code === "QUOTA_EXCEEDED") {
       return json(
         {
@@ -229,11 +230,12 @@ async function dispatchNotification(
           tier: err.data?.tier,
           count: err.data?.count,
           limit: err.data?.limit,
-          upgrade: "https://pushr.sh/pricing",
+          ...(process.env.UPGRADE_URL ? { upgrade: process.env.UPGRADE_URL } : {}),
         },
         429,
       );
     }
+    // endregion: tier-features
     return json({ error: err?.message ?? "Internal error" }, 500);
   }
 }

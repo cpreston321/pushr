@@ -27,9 +27,11 @@ const LIVE_ACTIVITY_RETAIN_MS = 14 * DAY_MS;
 // Active devices are never touched here.
 const INVALID_DEVICE_RETAIN_MS = 30 * DAY_MS;
 
+// region: tier-features
 // Usage counters keep ~13 months so the dashboard can show a 12-month
 // trailing view with one month of padding.
 const USAGE_COUNTER_RETAIN_MONTHS = 13;
+// endregion: tier-features
 
 const BATCH_SIZE = 100;
 
@@ -100,6 +102,7 @@ export const sweepInvalidDevices = internalMutation({
   },
 });
 
+// region: tier-features
 export const sweepUsageCounters = internalMutation({
   args: {},
   handler: async (ctx) => {
@@ -130,6 +133,7 @@ export const sweepUsageCounters = internalMutation({
     return deleted;
   },
 });
+// endregion: tier-features
 
 /**
  * Entry point kicked off by the cron. Fires each sweep; they self-reschedule
@@ -141,7 +145,9 @@ export const runAll = internalMutation({
     await ctx.scheduler.runAfter(0, internal.cleanup.sweepNotifications, {});
     await ctx.scheduler.runAfter(0, internal.cleanup.sweepLiveActivities, {});
     await ctx.scheduler.runAfter(0, internal.cleanup.sweepInvalidDevices, {});
+    // region: tier-features
     await ctx.scheduler.runAfter(0, internal.cleanup.sweepUsageCounters, {});
+    // endregion: tier-features
   },
 });
 

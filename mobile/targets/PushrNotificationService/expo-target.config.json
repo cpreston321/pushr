@@ -1,0 +1,5 @@
+{
+  "type": "notification-service",
+  "deploymentTarget": "15.1",
+  "frameworks": ["Intents", "UserNotifications"]
+}

@@ -6,7 +6,9 @@ import {
   requireSourceAppRole,
   canManageSharing,
 } from "./lib/sharing";
+// region: tier-features
 import { getEffectiveTier, TIER_LIMITS } from "./tiers";
+// endregion: tier-features
 import type { Doc, Id } from "./_generated/dataModel";
 
 /**
@@ -91,17 +93,21 @@ export const listMembers = query({
         expiresAt: i.expiresAt,
       }));
 
+    // region: tier-features
     // Sharing capacity is gated by the bill-paying owner's tier.
     const ownerTier = await getEffectiveTier(ctx, access.app.ownerId);
     const sharedLimit = TIER_LIMITS[ownerTier].sharedUsersPerApp;
     const usedSlots = members.length + invites.length;
+    // endregion: tier-features
 
     return {
       myRole: access.role,
       ownerId: access.app.ownerId,
+      // region: tier-features
       ownerTier,
       sharedUsersLimit: Number.isFinite(sharedLimit) ? sharedLimit : null,
       sharedUsersUsed: usedSlots,
+      // endregion: tier-features
       members,
       invites,
     };
@@ -204,6 +210,7 @@ export const inviteByEmail = mutation({
       (i) => !i.acceptedAt && !i.declinedAt && !i.canceledAt,
     );
 
+    // region: tier-features
     // Tier limit on the bill-paying owner's plan. Free is capped at 1
     // shared user per source app (accepted members + pending invites).
     // Refreshing an already-live invite to the same email doesn't consume
@@ -228,6 +235,7 @@ export const inviteByEmail = mutation({
         }
       }
     }
+    // endregion: tier-features
 
     if (live) {
       await ctx.db.patch(live._id, {

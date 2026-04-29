@@ -7,7 +7,9 @@ import {
   requireSourceAppRole,
 } from "./lib/sharing";
 import { generateToken, hashToken, tokenDisplayPrefix } from "./lib/tokens";
+// region: tier-features
 import { getEffectiveTier, TIER_LIMITS } from "./tiers";
+// endregion: tier-features
 import type { Doc } from "./_generated/dataModel";
 
 /**
@@ -75,6 +77,7 @@ export const create = mutation({
       throw new ConvexError("Name is required");
     }
 
+    // region: tier-features
     // Tier enforcement: free tier is limited to N non-revoked source apps.
     // Only counts apps the caller owns — shared apps don't count against
     // their quota.
@@ -95,6 +98,7 @@ export const create = mutation({
         });
       }
     }
+    // endregion: tier-features
 
     const token = generateToken();
     const tokenHash = await hashToken(token);
@@ -150,6 +154,7 @@ export const setQuietHours = mutation({
   handler: async (ctx, args) => {
     const userId = await requireAuth(ctx);
     const { app } = await requireSourceAppRole(ctx, args.id, userId, "editor");
+    // region: tier-features
     // Allow clearing on any tier so downgraded users can remove a leftover
     // window, but require Pro to set a non-null window. Pro is checked
     // against the source app's billed owner, not the editor making the change.
@@ -163,6 +168,8 @@ export const setQuietHours = mutation({
         });
       }
     }
+    // endregion: tier-features
+    void app; // referenced inside the stripped block; keep handler input alive
     const valid = (n: number | null) =>
       n === null || (Number.isInteger(n) && n >= 0 && n < 1440);
     if (!valid(args.start) || !valid(args.end)) {
