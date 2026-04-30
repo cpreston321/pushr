@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Alert,
   Pressable,
@@ -12,11 +12,13 @@ import Svg, { Defs, RadialGradient, Rect, Stop } from "react-native-svg";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { SymbolView, type SFSymbol } from "expo-symbols";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Button } from "@/components/Button";
 import { useTheme, spacing, radius, type } from "@/lib/theme";
 import { haptic } from "@/lib/haptics";
+import { authClient } from "@/lib/backend";
+import { pickPackages, useRevenueCat } from "@/lib/revenuecat";
 
 type BillingCycle = "monthly" | "yearly";
 
@@ -56,18 +58,84 @@ export default function Upgrade() {
   const plan = useQuery(api.tiers.getMyPlan);
   const grantPro = useMutation(api.tiers.grantProToMe);
   const downgrade = useMutation(api.tiers.downgradeMe);
+  const reconcile = useAction(api.iap.reconcile);
   const [cycle, setCycle] = useState<BillingCycle>("yearly");
+  const [busy, setBusy] = useState(false);
+
+  const session = authClient().useSession();
+  const userId = session.data?.user?.id;
+  const rc = useRevenueCat(userId);
+  const offerings = rc.status.kind === "ready" ? rc.status.offerings : null;
+  const { monthly, yearly } = useMemo(() => pickPackages(offerings), [offerings]);
+  const activePackage = cycle === "yearly" ? yearly : monthly;
+
+  // Until RevenueCat is configured, fall back to dev grant so the upgrade
+  // flow stays exercisable in simulator builds without billing wired up.
+  const rcConfigured = rc.status.kind !== "unconfigured";
 
   const isPro = plan?.tier === "pro";
 
-  async function fakeUpgrade() {
-    haptic.success();
-    await grantPro({ days: 30 });
-    Alert.alert(
-      "Pro granted (dev mode)",
-      "30-day trial added to your account. Replace this with RevenueCat before shipping.",
-    );
-    router.back();
+  async function startUpgrade() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      if (!rcConfigured || !activePackage) {
+        // Dev fallback: no API key set, no packages available.
+        haptic.success();
+        await grantPro({ days: 30 });
+        Alert.alert(
+          "Pro granted (dev mode)",
+          "RevenueCat isn't configured — falling back to a 30-day dev grant.",
+        );
+        router.back();
+        return;
+      }
+      await rc.purchase(activePackage);
+      haptic.success();
+      // Reconcile immediately so the server-side tier reflects the purchase
+      // even if the webhook is delayed. The Convex `getMyPlan` subscription
+      // re-runs automatically once userTiers updates.
+      try {
+        await reconcile({});
+      } catch {
+        // Webhook will catch up; not fatal.
+      }
+      router.back();
+    } catch (err) {
+      // RevenueCat surfaces user cancellation via { userCancelled: true } on
+      // the rejection — quietly bail without an alert.
+      if ((err as { userCancelled?: boolean }).userCancelled) {
+        haptic.light();
+        return;
+      }
+      haptic.warning();
+      Alert.alert("Purchase failed", (err as Error).message ?? "Try again later.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function restorePurchases() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      if (!rcConfigured) {
+        Alert.alert("Not configured", "Sign in via the App Store on a real device to restore purchases.");
+        return;
+      }
+      await rc.restorePurchases();
+      try {
+        await reconcile({});
+      } catch {
+        /* webhook fallback */
+      }
+      haptic.success();
+      Alert.alert("Restored", "Your subscription has been re-linked to this device.");
+    } catch (err) {
+      Alert.alert("Restore failed", (err as Error).message ?? "Try again later.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function fakeCancel() {
@@ -85,10 +153,21 @@ export default function Upgrade() {
     ]);
   }
 
-  const price =
+  // Prices: real localized strings from the App Store offering when available;
+  // bundled fallback strings while RC loads (or in dev without a key).
+  const fallbackPrice =
     cycle === "yearly"
       ? { headline: "$29", caption: "per year · $2.42/mo" }
       : { headline: "$3.99", caption: "per month" };
+  const price = activePackage
+    ? {
+        headline: activePackage.product.priceString,
+        caption:
+          cycle === "yearly"
+            ? `${activePackage.product.priceString} per year`
+            : `${activePackage.product.priceString} per month`,
+      }
+    : fallbackPrice;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.grouped }}>
@@ -273,7 +352,29 @@ export default function Upgrade() {
             onPress={fakeCancel}
           />
         ) : (
-          <Button title="Start 7-day free trial" onPress={fakeUpgrade} />
+          <>
+            <Button
+              title={busy ? "Working…" : "Start 7-day free trial"}
+              onPress={startUpgrade}
+              disabled={busy}
+            />
+            <Pressable
+              onPress={restorePurchases}
+              hitSlop={8}
+              disabled={busy}
+              style={{ alignSelf: "center", paddingVertical: 4 }}
+            >
+              <Text
+                style={{
+                  ...type.caption1,
+                  color: colors.accent,
+                  fontWeight: "600",
+                }}
+              >
+                Restore purchases
+              </Text>
+            </Pressable>
+          </>
         )}
         <Text
           style={{
@@ -285,7 +386,7 @@ export default function Upgrade() {
           {isPro
             ? "Cancel anytime."
             : "7 days free, then " +
-              (cycle === "yearly" ? "$29/year" : "$3.99/mo") +
+              price.caption +
               ". Cancel anytime. Self-hosted pushr stays free forever."}
         </Text>
       </View>

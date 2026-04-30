@@ -65,9 +65,10 @@ if [ -d "$ROOT/public/overrides/convex" ] && [ -n "$(ls -A "$ROOT/public/overrid
 fi
 
 # Delete tier-only files. The region-strip removed every import of and call
-# into tiers.ts, so the file itself is dead weight in the public build.
+# into these, so the files themselves are dead weight in the public build.
 note "→ removing tier-only files"
 rm -f "$DEST/convex/tiers.ts"
+rm -f "$DEST/convex/iap.ts"
 
 note "→ copying LICENSE"
 cp "$ROOT/LICENSE" "$DEST/LICENSE"

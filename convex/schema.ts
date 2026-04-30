@@ -135,9 +135,18 @@ export default defineSchema({
     // and for lifetime grants.
     proUntil: v.optional(v.number()),
     updatedAt: v.number(),
-    // External subscription id (e.g. RevenueCat app_user_id / product id) —
-    // populated once billing is wired up.
+    // RevenueCat app_user_id (mirrors ownerId in normal flows; differs only
+    // if a SUBSCRIBER_ALIAS event remapped the user).
     externalId: v.optional(v.string()),
+    // Latest store transaction id; carried across renewals for the same
+    // subscription. Used to ignore duplicate webhook deliveries.
+    originalTransactionId: v.optional(v.string()),
+    // Most recently observed RevenueCat product id (e.g. "pro_monthly").
+    productId: v.optional(v.string()),
+    // ID of the last RevenueCat event we processed; lets us short-circuit
+    // retried deliveries cheaply.
+    lastEventId: v.optional(v.string()),
+    lastEventAt: v.optional(v.number()),
   }).index("by_owner", ["ownerId"]),
 
   /**
@@ -150,6 +159,23 @@ export default defineSchema({
     yearMonth: v.string(),
     count: v.number(),
   }).index("by_owner_month", ["ownerId", "yearMonth"]),
+
+  /**
+   * Append-only audit log of every RevenueCat webhook we accept. Keyed by
+   * RevenueCat's `event.id` for idempotency. Stores the raw payload for
+   * debugging and replay.
+   */
+  iapEvents: defineTable({
+    eventId: v.string(),
+    ownerId: v.string(),
+    eventType: v.string(),
+    productId: v.optional(v.string()),
+    expirationAtMs: v.optional(v.number()),
+    payload: v.any(),
+    receivedAt: v.number(),
+  })
+    .index("by_event", ["eventId"])
+    .index("by_owner", ["ownerId"]),
   // endregion: tier-features
 
   /**

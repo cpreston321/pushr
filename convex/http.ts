@@ -493,6 +493,90 @@ http.route({
   handler: makeHookHandler("grafana", grafanaAdapter),
 });
 
+// region: tier-features
+/**
+ * RevenueCat webhook.
+ *
+ * POST /hooks/revenuecat
+ *   Auth: Authorization header must equal $REVENUECAT_WEBHOOK_AUTH exactly
+ *         (configure the same value in the RevenueCat dashboard).
+ *
+ * The `event.app_user_id` is expected to be the Better Auth subject — the
+ * mobile app identifies via Purchases.configure({ appUserID: ownerId }).
+ * Normalized fields are forwarded to internal.iap.applyEvent which
+ * idempotently updates `userTiers`. Unknown event types are accepted +
+ * logged but don't grant access.
+ */
+const revenuecatHandler = httpAction(async (ctx, req) => {
+  const expected = process.env.REVENUECAT_WEBHOOK_AUTH;
+  if (!expected) {
+    // Fail closed if the secret isn't configured in the deployment.
+    return json({ error: "Webhook not configured" }, 503);
+  }
+  const provided = req.headers.get("authorization") ?? "";
+  if (!constantTimeEqual(provided, expected)) {
+    return json({ error: "Invalid signature" }, 401);
+  }
+
+  let payload: { event?: Record<string, unknown> };
+  try {
+    payload = (await req.json()) as { event?: Record<string, unknown> };
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400);
+  }
+  const event = payload.event;
+  if (!isObject(event)) {
+    return json({ error: "Missing event" }, 400);
+  }
+
+  const eventType = asString(event.type);
+  const eventId = asString(event.id);
+  const ownerId =
+    asString(event.app_user_id) ?? asString(event.original_app_user_id);
+  const eventTimestampMs = asNumber(event.event_timestamp_ms) ?? Date.now();
+
+  // RevenueCat dashboard "Send Test" — short-circuit so test deliveries
+  // don't generate noise in iapEvents.
+  if (eventType === "TEST") {
+    return json({ ok: true, test: true }, 200);
+  }
+  if (!eventId || !eventType || !ownerId) {
+    return json({ error: "event missing id, type, or app_user_id" }, 400);
+  }
+
+  const result = await ctx.runMutation(internal.iap.applyEvent, {
+    eventId,
+    eventType,
+    ownerId,
+    productId: asString(event.product_id),
+    originalTransactionId: asString(event.original_transaction_id),
+    expirationAtMs: asNumber(event.expiration_at_ms),
+    eventTimestampMs,
+    payload: event,
+  });
+  return json({ ok: true, ...result }, 200);
+});
+
+http.route({
+  path: "/hooks/revenuecat",
+  method: "POST",
+  handler: revenuecatHandler,
+});
+
+/**
+ * Constant-time string compare for static webhook secrets.
+ * Length-leaking is acceptable here — the secret length is fixed at config.
+ */
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+// endregion: tier-features
+
 // Convenience: health check so source apps can verify config.
 http.route({
   path: "/healthz",

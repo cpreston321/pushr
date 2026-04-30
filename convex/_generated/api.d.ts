@@ -27,6 +27,7 @@ import type * as hooks_sentry from "../hooks/sentry.js";
 import type * as hooks_types from "../hooks/types.js";
 import type * as hooks_verifySignature from "../hooks/verifySignature.js";
 import type * as http from "../http.js";
+import type * as iap from "../iap.js";
 import type * as lib_actionsLayout from "../lib/actionsLayout.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_sharing from "../lib/sharing.js";
@@ -67,6 +68,7 @@ declare const fullApi: ApiFromModules<{
   "hooks/types": typeof hooks_types;
   "hooks/verifySignature": typeof hooks_verifySignature;
   http: typeof http;
+  iap: typeof iap;
   "lib/actionsLayout": typeof lib_actionsLayout;
   "lib/auth": typeof lib_auth;
   "lib/sharing": typeof lib_sharing;

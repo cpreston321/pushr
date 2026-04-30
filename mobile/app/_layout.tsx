@@ -2,7 +2,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import "react-native-reanimated";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
@@ -10,7 +10,7 @@ import { convex, authClient, initBackend } from "@/lib/backend";
 import { ThemePreferencesProvider, useTheme } from "@/lib/theme";
 import { useNotificationResponses } from "@/lib/useNotificationResponses";
 import { useLiveActivityTokens } from "@/lib/useLiveActivityTokens";
-import { useConvexAuth, useQuery } from "convex/react";
+import { useAction, useConvexAuth, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useBadgeSync } from "@/lib/useBadgeSync";
 import { PromptHost } from "@/components/PromptHost";
@@ -82,6 +82,20 @@ function AppShell({ isDark, bg }: { isDark: boolean; bg: string }) {
   const devices = useQuery(api.devices.listMine, isAuthenticated ? {} : "skip");
   const currentDeviceId = devices?.find((d) => d.enabled && !d.invalidatedAt)?._id;
   useLiveActivityTokens(isAuthenticated ? currentDeviceId : undefined);
+
+  // Cold-start reconcile against RevenueCat — recovers from dropped webhooks
+  // and cross-device installs by syncing entitlement state once per session.
+  // No-op (and silent) if REVENUECAT_REST_API_KEY isn't configured.
+  const reconcileIap = useAction(api.iap.reconcile);
+  const reconciledRef = useRef(false);
+  useEffect(() => {
+    if (!isAuthenticated || reconciledRef.current) return;
+    reconciledRef.current = true;
+    reconcileIap({}).catch(() => {
+      // Dropped reconcile is fine: getEffectiveTier handles natural
+      // expiration via proUntil and the webhook still drives grants.
+    });
+  }, [isAuthenticated, reconcileIap]);
   return (
     <>
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: bg } }}>
