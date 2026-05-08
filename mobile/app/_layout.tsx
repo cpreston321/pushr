@@ -5,6 +5,7 @@ import "react-native-reanimated";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { TrueSheetProvider } from "@lodev09/react-native-true-sheet";
 import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
 import { convex, authClient, initBackend } from "@/lib/backend";
 import { ThemePreferencesProvider, useTheme } from "@/lib/theme";
@@ -63,11 +64,13 @@ function ThemedRoot() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.grouped }}>
-      <ConvexBetterAuthProvider client={convex()} authClient={authClient() as never}>
-        <ThemeProvider value={navTheme}>
-          <AppShell isDark={isDark} bg={colors.grouped} />
-        </ThemeProvider>
-      </ConvexBetterAuthProvider>
+      <TrueSheetProvider>
+        <ConvexBetterAuthProvider client={convex()} authClient={authClient() as never}>
+          <ThemeProvider value={navTheme}>
+            <AppShell isDark={isDark} bg={colors.grouped} />
+          </ThemeProvider>
+        </ConvexBetterAuthProvider>
+      </TrueSheetProvider>
     </GestureHandlerRootView>
   );
 }
@@ -102,22 +105,6 @@ function AppShell({ isDark, bg }: { isDark: boolean; bg: string }) {
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
-        <Stack.Screen
-          name="source-app/[id]"
-          options={{
-            presentation: "formSheet",
-            sheetAllowedDetents: [1.0],
-            sheetGrabberVisible: true,
-          }}
-        />
-        <Stack.Screen
-          name="server-config"
-          options={{
-            presentation: "formSheet",
-            sheetAllowedDetents: [0.7, 1.0],
-            sheetGrabberVisible: true,
-          }}
-        />
         <Stack.Screen
           name="upgrade"
           options={{ presentation: "fullScreenModal" }}

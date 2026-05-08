@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { Pressable, ScrollView, Text, View } from "react-native";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
@@ -10,6 +10,10 @@ import { ScreenTransition } from "@/components/ScreenTransition";
 import { currentServerLabel } from "@/lib/backend";
 import { ListSection } from "@/components/ListSection";
 import { ListRow } from "@/components/ListRow";
+import { useProState, ProBadge } from "@/components/Pro";
+import type { DrawerRef } from "@/components/Drawer";
+import { ChangePasswordDrawer } from "@/components/drawers/ChangePasswordDrawer";
+import { ServerConfigDrawer } from "@/components/drawers/ServerConfigDrawer";
 import {
   useTheme,
   useThemePreferences,
@@ -34,6 +38,8 @@ export default function Settings() {
   const user = data?.user;
   const prefs = useQuery(api.userPrefs.getMine);
   const updatePrefs = useMutation(api.userPrefs.update);
+  const changePasswordRef = useRef<DrawerRef>(null);
+  const serverConfigRef = useRef<DrawerRef>(null);
 
   function pickSound(key: SoundKey, title: string) {
     haptic.light();
@@ -124,7 +130,10 @@ export default function Settings() {
               title="Backend"
               trailing={currentServerLabel()}
               tint={colors.accent}
-              onPress={() => router.push("/server-config")}
+              onPress={() => {
+                haptic.selection();
+                serverConfigRef.current?.present();
+              }}
             />
           </ListSection>
 
@@ -145,6 +154,15 @@ export default function Settings() {
                   : "—"
               }
               tint={colors.accent}
+            />
+            <TintedRow
+              icon="key.fill"
+              title="Change password"
+              tint={colors.accent}
+              onPress={() => {
+                haptic.selection();
+                changePasswordRef.current?.present();
+              }}
             />
             <TintedRow
               icon="sparkles"
@@ -171,6 +189,8 @@ export default function Settings() {
           </View>
         </ScrollView>
       </ScreenBody>
+      <ChangePasswordDrawer ref={changePasswordRef} />
+      <ServerConfigDrawer ref={serverConfigRef} />
     </ScreenTransition>
   );
 }
@@ -458,13 +478,12 @@ function SoundRow({
 
 function PlanCard() {
   const { colors, tintBg } = useTheme();
-  const plan = useQuery(api.tiers.getMyPlan);
+  const { plan, isPro } = useProState();
 
   const pct =
     plan && plan.pushesPerMonth > 0
       ? Math.min(1, plan.pushesThisMonth / plan.pushesPerMonth)
       : 0;
-  const isPro = plan?.tier === "pro";
   const tint = isPro ? colors.accent : colors.secondaryLabel;
 
   return (
@@ -500,9 +519,18 @@ function PlanCard() {
           />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={{ ...type.headline, color: colors.label }}>
-            {isPro ? "pushr Pro" : "Free plan"}
-          </Text>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: spacing.xs,
+            }}
+          >
+            <Text style={{ ...type.headline, color: colors.label }}>
+              {isPro ? "pushr" : "Free plan"}
+            </Text>
+            {isPro && <ProBadge />}
+          </View>
           <Text style={{ ...type.footnote, color: colors.secondaryLabel, marginTop: 1 }}>
             {plan
               ? isPro

@@ -12,6 +12,8 @@ import { SymbolView } from "expo-symbols";
 import { Screen } from "@/components/Screen";
 import { Input } from "@/components/Input";
 import { Button } from "@/components/Button";
+import type { DrawerRef } from "@/components/Drawer";
+import { ServerConfigDrawer } from "@/components/drawers/ServerConfigDrawer";
 import { currentServerLabel } from "@/lib/backend";
 import { authClient } from "@/lib/auth-client";
 import { useTheme, spacing, type } from "@/lib/theme";
@@ -23,6 +25,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const passwordRef = useRef<TextInput>(null);
+  const serverConfigRef = useRef<DrawerRef>(null);
 
   async function submit() {
     if (!email || !password) return;
@@ -104,7 +107,7 @@ export default function Login() {
           </View>
         </View>
         <Pressable
-          onPress={() => router.push("/server-config")}
+          onPress={() => serverConfigRef.current?.present()}
           style={({ pressed }) => ({
             flexDirection: "row",
             alignSelf: "center",
@@ -124,6 +127,7 @@ export default function Login() {
           </Text>
         </Pressable>
       </KeyboardAvoidingView>
+      <ServerConfigDrawer ref={serverConfigRef} />
     </Screen>
   );
 }

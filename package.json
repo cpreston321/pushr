@@ -4,13 +4,16 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "mobile"
+    "mobile",
+    "apps/*"
   ],
   "scripts": {
     "dev": "bunx convex dev",
     "deploy": "bunx convex deploy",
     "tsc": "bunx tsc --noEmit",
     "mobile": "cd mobile && bun run start",
+    "web": "cd apps/web && bun run dev",
+    "web:build": "cd apps/web && bun run build",
     "cli": "bun cli/pushrsh.ts",
     "cli:build": "bun build --compile --minify --target=bun --outfile=dist/pushrsh cli/pushrsh.ts",
     "sdk:build": "bun build sdk/index.ts --outdir=dist/sdk --target=node --format=esm --minify"

@@ -6,7 +6,6 @@ import {
   Alert,
   FlatList,
   KeyboardAvoidingView,
-  Modal,
   Pressable,
   ScrollView,
   Switch,
@@ -17,7 +16,7 @@ import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanim
 import ReanimatedSwipeable from "react-native-gesture-handler/ReanimatedSwipeable";
 import { Image } from "expo-image";
 import { SymbolView } from "expo-symbols";
-import React, { useState } from "react";
+import React, { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { router } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -26,12 +25,18 @@ import { ScreenTransition } from "@/components/ScreenTransition";
 import { Avatar } from "@/components/Avatar";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
+import { Drawer, useDrawer, type DrawerRef } from "@/components/Drawer";
+import { DrawerHeader } from "@/components/DrawerHeader";
+import {
+  SourceAppDrawer,
+  type SourceAppDrawerRef,
+} from "@/components/drawers/SourceAppDrawer";
 import { useTheme, spacing, radius, type } from "@/lib/theme";
 import { haptic } from "@/lib/haptics";
 import { showActionSheet } from "@/lib/actionSheet";
 import { promptText } from "@/lib/prompt";
 import { pickAndUploadLogo } from "@/lib/uploadLogo";
-import { forgetToken, recallToken, rememberToken } from "@/lib/tokenStore";
+import { recallToken, rememberToken } from "@/lib/tokenStore";
 
 type AppRow = Doc<"sourceApps"> & {
   logoUrl: string | null;
@@ -119,7 +124,9 @@ export default function Apps() {
     plan.sourceAppLimit !== null &&
     plan.sourceAppCount >= plan.sourceAppLimit;
 
-  const [showCreate, setShowCreate] = useState(false);
+  const sourceAppDrawerRef = useRef<SourceAppDrawerRef>(null);
+  const createDrawerRef = useRef<DrawerRef>(null);
+  const tokenDrawerRef = useRef<DrawerRef>(null);
   const [created, setCreated] = useState<{
     id: Id<"sourceApps">;
     name: string;
@@ -180,7 +187,7 @@ export default function Apps() {
 
   function openActions(item: AppRow) {
     haptic.light();
-    router.push(`/source-app/${item._id}`);
+    sourceAppDrawerRef.current?.open(item._id);
   }
 
   async function promptRename(item: AppRow) {
@@ -216,7 +223,7 @@ export default function Apps() {
             accessibilityRole="button"
             onPress={() => {
               haptic.light();
-              setShowCreate(true);
+              createDrawerRef.current?.present();
             }}
             hitSlop={10}
           >
@@ -229,18 +236,24 @@ export default function Apps() {
 
   const modals = (
     <>
-      <CreateModal
-        visible={showCreate}
-        onClose={() => setShowCreate(false)}
+      <SourceAppDrawer ref={sourceAppDrawerRef} />
+      <CreateDrawer
+        ref={createDrawerRef}
         onCreated={async (row) => {
           await rememberToken(row.id, row.token);
-          setShowCreate(false);
+          await createDrawerRef.current?.dismiss();
           setCreated(row);
+          // Defer present so dismissal animation finishes first.
+          setTimeout(() => tokenDrawerRef.current?.present(), 200);
         }}
         create={create}
         generateUploadUrl={generateUploadUrl}
       />
-      <TokenModal created={created} onClose={() => setCreated(null)} />
+      <TokenDrawer
+        ref={tokenDrawerRef}
+        created={created}
+        onClose={() => setCreated(null)}
+      />
     </>
   );
 
@@ -315,7 +328,10 @@ export default function Apps() {
               >
                 Create one for each project or service that should be able to send you pushes.
               </Text>
-              <Button title="Create source app" onPress={() => setShowCreate(true)} />
+              <Button
+                title="Create source app"
+                onPress={() => createDrawerRef.current?.present()}
+              />
             </View>
           </ScrollView>
         </ScreenBody>
@@ -460,18 +476,52 @@ export default function Apps() {
   );
 }
 
-function CreateModal({
-  visible,
-  onClose,
+const CreateDrawer = forwardRef<
+  DrawerRef,
+  {
+    onCreated: (created: { id: Id<"sourceApps">; name: string; token: string }) => void;
+    create: ReturnType<typeof useMutation<typeof api.sourceApps.create>>;
+    generateUploadUrl: ReturnType<
+      typeof useMutation<typeof api.sourceApps.generateLogoUploadUrl>
+    >;
+  }
+>(function CreateDrawer({ onCreated, create, generateUploadUrl }, ref) {
+  return (
+    <Drawer ref={ref} header={<CreateHeader />}>
+      <ScrollView
+        contentContainerStyle={{
+          paddingHorizontal: spacing.xl,
+          paddingTop: spacing.md,
+          paddingBottom: spacing.xl,
+          gap: spacing.lg,
+        }}
+        keyboardShouldPersistTaps="handled"
+      >
+        <CreateBody
+          onCreated={onCreated}
+          create={create}
+          generateUploadUrl={generateUploadUrl}
+        />
+      </ScrollView>
+    </Drawer>
+  );
+});
+
+function CreateHeader() {
+  const { dismiss } = useDrawer();
+  return <DrawerHeader title="New source app" onClose={() => dismiss()} />;
+}
+
+function CreateBody({
   onCreated,
   create,
   generateUploadUrl,
 }: {
-  visible: boolean;
-  onClose: () => void;
   onCreated: (created: { id: Id<"sourceApps">; name: string; token: string }) => void;
   create: ReturnType<typeof useMutation<typeof api.sourceApps.create>>;
-  generateUploadUrl: ReturnType<typeof useMutation<typeof api.sourceApps.generateLogoUploadUrl>>;
+  generateUploadUrl: ReturnType<
+    typeof useMutation<typeof api.sourceApps.generateLogoUploadUrl>
+  >;
 }) {
   const { colors } = useTheme();
   const [name, setName] = useState("");
@@ -534,34 +584,8 @@ function CreateModal({
   }
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="formSheet"
-      onDismiss={reset}
-    >
-      <KeyboardAvoidingView
-        behavior={process.env.EXPO_OS === "ios" ? "padding" : undefined}
-        style={{ flex: 1, backgroundColor: colors.grouped }}
-      >
-      <ScrollView
-        contentContainerStyle={{ padding: spacing.xl, gap: spacing.lg, flexGrow: 1 }}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-          <Text style={{ ...type.title2, color: colors.label }}>New source app</Text>
-          <Pressable
-            onPress={() => {
-              onClose();
-              reset();
-            }}
-            hitSlop={10}
-          >
-            <SymbolView name="xmark.circle.fill" size={28} tintColor={colors.tertiaryLabel} />
-          </Pressable>
-        </View>
-
-        <View style={{ alignItems: "center", gap: spacing.sm, paddingVertical: spacing.md }}>
+    <>
+      <View style={{ alignItems: "center", gap: spacing.sm, paddingVertical: spacing.md }}>
           <Pressable onPress={pickLogo} disabled={uploading}>
             {logo ? (
               <Image
@@ -611,22 +635,47 @@ function CreateModal({
           onChangeText={setDesc}
         />
 
-        <View style={{ flex: 1 }} />
         <Button title="Create" onPress={submit} disabled={!name.trim()} loading={submitting} />
-      </ScrollView>
-      </KeyboardAvoidingView>
-    </Modal>
+    </>
   );
 }
 
-function TokenModal({
+const TokenDrawer = forwardRef<
+  DrawerRef,
+  {
+    created: { name: string; token: string } | null;
+    onClose: () => void;
+  }
+>(function TokenDrawer({ created, onClose }, ref) {
+  return (
+    <Drawer ref={ref} header={<TokenHeader />} onDismiss={onClose}>
+      <ScrollView
+        contentContainerStyle={{
+          paddingHorizontal: spacing.xl,
+          paddingTop: spacing.md,
+          paddingBottom: 40,
+          gap: spacing.lg,
+        }}
+        keyboardShouldPersistTaps="handled"
+      >
+        <TokenBody created={created} />
+      </ScrollView>
+    </Drawer>
+  );
+});
+
+function TokenHeader() {
+  const { dismiss } = useDrawer();
+  return <DrawerHeader title="Your token" onClose={() => dismiss()} />;
+}
+
+function TokenBody({
   created,
-  onClose,
 }: {
   created: { name: string; token: string } | null;
-  onClose: () => void;
 }) {
   const { colors } = useTheme();
+  const { dismiss } = useDrawer();
   const [copied, setCopied] = useState<"token" | "curl" | null>(null);
 
   async function copy(kind: "token" | "curl", text: string) {
@@ -637,18 +686,8 @@ function TokenModal({
   }
 
   return (
-    <Modal
-      visible={created !== null}
-      animationType="slide"
-      presentationStyle="formSheet"
-      onDismiss={() => setCopied(null)}
-    >
-      <ScrollView
-        style={{ flex: 1, backgroundColor: colors.grouped }}
-        contentContainerStyle={{ padding: spacing.xl, gap: spacing.lg, paddingBottom: 40 }}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={{ alignItems: "center", gap: spacing.md, marginTop: spacing.md }}>
+    <>
+      <View style={{ alignItems: "center", gap: spacing.md, marginTop: spacing.md }}>
           <View
             style={{
               width: 64,
@@ -731,11 +770,10 @@ function TokenModal({
           title="Done"
           onPress={() => {
             setCopied(null);
-            onClose();
+            dismiss();
           }}
         />
-      </ScrollView>
-    </Modal>
+    </>
   );
 }
 

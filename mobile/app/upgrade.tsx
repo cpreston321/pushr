@@ -15,6 +15,7 @@ import { SymbolView, type SFSymbol } from "expo-symbols";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Button } from "@/components/Button";
+import { DrawerHeader } from "@/components/DrawerHeader";
 import { useTheme, spacing, radius, type } from "@/lib/theme";
 import { haptic } from "@/lib/haptics";
 import { authClient } from "@/lib/backend";
@@ -171,33 +172,6 @@ export default function Upgrade() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.grouped }}>
-      {/* Close button overlays the hero */}
-      <Pressable
-        accessibilityLabel="Close"
-        accessibilityRole="button"
-        onPress={() => {
-          haptic.light();
-          router.back();
-        }}
-        hitSlop={10}
-        style={({ pressed }) => ({
-          position: "absolute",
-          top: insets.top + spacing.sm,
-          right: spacing.md,
-          zIndex: 10,
-          width: 32,
-          height: 32,
-          borderRadius: 16,
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: pressed
-            ? "rgba(255,255,255,0.25)"
-            : "rgba(255,255,255,0.12)",
-        })}
-      >
-        <SymbolView name="xmark" size={14} tintColor="#FFFFFF" />
-      </Pressable>
-
       <ScrollView
         style={{ flex: 1 }}
         contentInsetAdjustmentBehavior="never"
@@ -390,6 +364,13 @@ export default function Upgrade() {
               ". Cancel anytime. Self-hosted pushr stays free forever."}
         </Text>
       </View>
+
+      <DrawerHeader
+        title="pushr Pro"
+        floating
+        safeAreaTop={insets.top}
+        hideTitle
+      />
     </View>
   );
 }
