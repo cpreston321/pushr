@@ -15,12 +15,12 @@
     "mobile": "cd mobile && bun run start",
     "web": "cd apps/web && bun run dev",
     "web:build": "cd apps/web && bun run build",
-    "cli": "bun cli/pushrsh.ts",
-    "cli:build": "bun build --compile --minify --target=bun --outfile=dist/pushrsh cli/pushrsh.ts",
-    "sdk:build": "bun build sdk/index.ts --outdir=dist/sdk --target=node --format=esm --minify"
+    "cli": "bun packages/cli/pushrsh.ts",
+    "cli:build": "bun build --compile --minify --target=bun --outfile=dist/pushrsh packages/cli/pushrsh.ts",
+    "sdk:build": "bun build packages/sdk/index.ts --outdir=dist/sdk --target=node --format=esm --minify"
   },
   "bin": {
-    "pushrsh": "./cli/pushrsh.ts"
+    "pushrsh": "./packages/cli/pushrsh.ts"
   },
   "dependencies": {
     "convex": "^1.36.1",

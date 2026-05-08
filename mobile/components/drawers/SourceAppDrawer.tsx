@@ -43,13 +43,22 @@ export type SourceAppDrawerRef = DrawerRef & {
   open: (id: Id<"sourceApps">) => Promise<void>;
 };
 
+export type SourceAppDrawerProps = {
+  /**
+   * Called after the owner rotates a source-app token. The drawer dismisses
+   * itself first; the parent typically presents a TokenDrawer to reveal the
+   * new bearer (only chance to capture it).
+   */
+  onTokenRotated?: (info: { id: Id<"sourceApps">; name: string; token: string }) => void;
+};
+
 /**
  * Two TrueSheets stacked: the detail sheet, and a sharing sheet that
  * presents on top of it when "Manage sharing" is tapped. iOS handles the
  * stack; back-arrow on the sharing sheet dismisses just the top sheet.
  */
-export const SourceAppDrawer = forwardRef<SourceAppDrawerRef>(
-  function SourceAppDrawer(_props, ref) {
+export const SourceAppDrawer = forwardRef<SourceAppDrawerRef, SourceAppDrawerProps>(
+  function SourceAppDrawer({ onTokenRotated }, ref) {
     const detailRef = useRef<DrawerRef>(null);
     const sharingRef = useRef<DrawerRef>(null);
     const [appId, setAppId] = useState<Id<"sourceApps"> | null>(null);
@@ -90,6 +99,10 @@ export const SourceAppDrawer = forwardRef<SourceAppDrawerRef>(
               <DetailBody
                 appId={appId}
                 onOpenSharing={() => sharingRef.current?.present()}
+                onTokenRotated={async (info) => {
+                  await detailRef.current?.dismiss();
+                  onTokenRotated?.(info);
+                }}
               />
             ) : null}
           </ScrollView>
@@ -162,9 +175,15 @@ function DetailHeader({
 function DetailBody({
   appId,
   onOpenSharing,
+  onTokenRotated,
 }: {
   appId: Id<"sourceApps">;
   onOpenSharing: () => void;
+  onTokenRotated: (info: {
+    id: Id<"sourceApps">;
+    name: string;
+    token: string;
+  }) => void;
 }) {
   const { colors } = useTheme();
   const { dismiss } = useDrawer();
@@ -184,7 +203,9 @@ function DetailBody({
   const generateUploadUrl = useMutation(api.sourceApps.generateLogoUploadUrl);
   const leaveApp = useMutation(api.sharing.leaveApp);
   const sendTestPush = useMutation(api.notifications.sendTest);
+  const rotateToken = useMutation(api.sourceApps.rotateToken);
   const [sendingTest, setSendingTest] = useState(false);
+  const [rotating, setRotating] = useState(false);
 
   if (apps === undefined) {
     return (
@@ -322,6 +343,37 @@ function DetailBody({
     if (!app) return;
     await Clipboard.setStringAsync(curlExample(app.name));
     haptic.success();
+  }
+
+  async function handleRotate() {
+    if (!app || rotating) return;
+    Alert.alert(
+      "Regenerate token?",
+      `Any caller still using the current token for ${app.name} will stop working immediately. The notification feed history is preserved.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Regenerate",
+          style: "destructive",
+          onPress: async () => {
+            setRotating(true);
+            try {
+              const { token } = await rotateToken({ id: app._id });
+              haptic.success();
+              onTokenRotated({ id: app._id, name: app.name, token });
+            } catch (err: any) {
+              haptic.error();
+              Alert.alert(
+                "Couldn't regenerate token",
+                err?.data?.message ?? err?.message ?? "Please try again.",
+              );
+            } finally {
+              setRotating(false);
+            }
+          },
+        },
+      ],
+    );
   }
 
   async function handleSendTest() {
@@ -519,6 +571,16 @@ function DetailBody({
               title="Copy token"
               subtitle="Only on the device the app was created on"
               onPress={copySavedToken}
+            />
+          )}
+          {isOwner && (
+            <DetailRow
+              icon="arrow.triangle.2.circlepath"
+              tint={colors.warning}
+              title={rotating ? "Regenerating…" : "Regenerate token"}
+              subtitle="Invalidates the old token. The new one is shown once."
+              onPress={rotating ? undefined : handleRotate}
+              destructive
             />
           )}
         </DetailSection>

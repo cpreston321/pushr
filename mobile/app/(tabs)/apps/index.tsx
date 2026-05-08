@@ -236,7 +236,16 @@ export default function Apps() {
 
   const modals = (
     <>
-      <SourceAppDrawer ref={sourceAppDrawerRef} />
+      <SourceAppDrawer
+        ref={sourceAppDrawerRef}
+        onTokenRotated={async ({ id, name, token }) => {
+          await rememberToken(id, token);
+          setCreated({ id, name, token });
+          // The detail drawer already dismisses itself; defer the token sheet
+          // so the animations don't collide.
+          setTimeout(() => tokenDrawerRef.current?.present(), 200);
+        }}
+      />
       <CreateDrawer
         ref={createDrawerRef}
         onCreated={async (row) => {

@@ -1,8 +1,39 @@
 import { v } from "convex/values";
 import { internalQuery } from "./_generated/server";
+import { listAccessibleSourceApps } from "./lib/sharing";
 
 // Queries used by the "use node" expoPush.ts action. Lives in a separate file
 // because actions can't colocate queries/mutations.
+
+/**
+ * Count unread notifications across every source app the given owner can
+ * see (apps they own + apps shared with them). Used by `expoPush.deliver`
+ * to stamp `badge` on the APNs payload so iOS updates the home-screen icon
+ * even when the app is closed.
+ *
+ * Mirrors the public `notifications.unreadCount` query without the auth
+ * gate (we already trust the caller — it's an internal action with a
+ * known ownerId).
+ */
+export const unreadCountForOwner = internalQuery({
+  args: { ownerId: v.string() },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    const accessible = await listAccessibleSourceApps(ctx, args.ownerId);
+    let total = 0;
+    for (const { app } of accessible) {
+      const unread = await ctx.db
+        .query("notifications")
+        .withIndex("by_sourceApp_created", (q) =>
+          q.eq("sourceAppId", app._id),
+        )
+        .filter((q) => q.eq(q.field("readAt"), undefined))
+        .take(500);
+      total += unread.length;
+    }
+    return total;
+  },
+});
 
 export const getNotification = internalQuery({
   args: { id: v.id("notifications") },

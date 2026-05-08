@@ -221,6 +221,29 @@ export const setWebhookConfig = mutation({
   },
 });
 
+/**
+ * Rotate the bearer token for a source app. Owner only — sensitive: any
+ * caller still using the old token immediately stops working. Returns the
+ * fresh token, which is the only chance to capture it (we only persist a
+ * hash). The notification feed history and configuration are preserved.
+ */
+export const rotateToken = mutation({
+  args: { id: v.id("sourceApps") },
+  returns: v.object({ token: v.string() }),
+  handler: async (ctx, args) => {
+    const userId = await requireAuth(ctx);
+    const { app } = await requireSourceAppRole(ctx, args.id, userId, "owner");
+    if (app.revokedAt) {
+      throw new ConvexError("Cannot rotate a revoked app — create a new one");
+    }
+    const token = generateToken();
+    const tokenHash = await hashToken(token);
+    const tokenPrefix = tokenDisplayPrefix(token);
+    await ctx.db.patch(args.id, { tokenHash, tokenPrefix });
+    return { token };
+  },
+});
+
 export const revoke = mutation({
   args: { id: v.id("sourceApps") },
   handler: async (ctx, args) => {

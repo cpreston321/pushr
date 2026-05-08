@@ -183,6 +183,23 @@ export const deliver = internalAction({
         `[expo] live activity flow — setting _contentAvailable=true on ${devices.length} message(s)`,
       );
     }
+
+    // Per-recipient unread count → APNs `badge` so the home-screen icon
+    // updates when the push arrives, even with the app terminated. Each
+    // recipient (bill-paying owner + members) sees their own count, so we
+    // dedupe by ownerId before querying.
+    const uniqueOwners = Array.from(new Set(devices.map((d) => d.ownerId)));
+    const badgeByOwner = new Map<string, number>();
+    await Promise.all(
+      uniqueOwners.map(async (ownerId) => {
+        const count = await ctx.runQuery(
+          internal.expoPushHelpers.unreadCountForOwner,
+          { ownerId },
+        );
+        badgeByOwner.set(ownerId, count);
+      }),
+    );
+
     const messages: ExpoMessage[] = devices.map((d) => ({
       to: d.expoPushToken,
       title: notif.title,
@@ -192,6 +209,7 @@ export const deliver = internalAction({
       sound,
       channelId: "default",
       categoryId,
+      badge: badgeByOwner.get(d.ownerId),
       richContent: richImage ? { image: richImage } : undefined,
       mutableContent: true,
       // Wake the main app in the background for Live Activity flows so the
