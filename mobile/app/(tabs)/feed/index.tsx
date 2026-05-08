@@ -11,23 +11,30 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
 import ReanimatedSwipeable from "react-native-gesture-handler/ReanimatedSwipeable";
 import Animated, {
+  Easing,
   Extrapolation,
   FadeIn,
   FadeOut,
   interpolate,
+  interpolateColor,
   LinearTransition,
   useAnimatedStyle,
+  useDerivedValue,
+  useSharedValue,
+  withTiming,
   type SharedValue,
 } from "react-native-reanimated";
 import { SymbolView } from "expo-symbols";
 import { BlurView } from "expo-blur";
-import { useCallback, useMemo, useState } from "react";
+import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenHeader, ScreenBody } from "@/components/ScreenHeader";
 import { ScreenTransition } from "@/components/ScreenTransition";
@@ -57,7 +64,8 @@ export default function Feed() {
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
   const [filterAppId, setFilterAppId] = useState<string | null>(null);
-  const canLoadMore = items != null && items.length === limit && limit < FEED_MAX;
+  const canLoadMore =
+    items != null && items.length === limit && limit < FEED_MAX;
 
   const unreadCount = items?.filter((i) => !i.readAt).length ?? 0;
   const total = items?.length ?? 0;
@@ -108,23 +116,12 @@ export default function Feed() {
     requestAnimationFrame(() => setRefreshing(false));
   }, []);
 
-  function confirmClear() {
-    Alert.alert(
-      "Clear feed?",
-      "All notifications will be permanently removed.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Clear",
-          style: "destructive",
-          onPress: () => {
-            haptic.warning();
-            clearAll({});
-          },
-        },
-      ],
-    );
-  }
+  // The actual destructive op — the FloatingBar handles its own two-tap
+  // confirm UX, so we just commit on demand.
+  const handleClear = useCallback(() => {
+    haptic.warning();
+    clearAll({});
+  }, [clearAll]);
 
   const header = (
     <ScreenHeader
@@ -184,7 +181,9 @@ export default function Feed() {
       <ScreenBody>
         <FlatList
           data={entries}
-          keyExtractor={(e) => (e.kind === "group" ? `g:${e.activityId}` : e.item._id)}
+          keyExtractor={(e) =>
+            e.kind === "group" ? `g:${e.activityId}` : e.item._id
+          }
           contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={{
             paddingTop: spacing.md,
@@ -290,11 +289,16 @@ export default function Feed() {
           haptic.success();
           markAllRead({});
         }}
-        onClear={confirmClear}
+        onClear={handleClear}
       />
     </ScreenTransition>
   );
 }
+
+// How long the Clear button stays in "Confirm" state before reverting on its
+// own. Long enough to read + commit, short enough that a stray tap can't fire
+// destructively a minute later.
+const CLEAR_CONFIRM_TIMEOUT_MS = 2500;
 
 function FloatingBar({
   unreadCount,
@@ -305,9 +309,61 @@ function FloatingBar({
   onMarkAllRead: () => void;
   onClear: () => void;
 }) {
-  const { colors, isDark } = useTheme();
+  const { colors, isDark, tintBg } = useTheme();
   const insets = useSafeAreaInsets();
   const canMarkAllRead = unreadCount > 0;
+  // On iOS 26+ we render each action as its own Liquid Glass pill, merged via
+  // a GlassContainer so they morph together natively. Older OS versions fall
+  // back to the previous BlurView pill (single capsule with a thin divider).
+  const liquid = isLiquidGlassAvailable();
+
+  // Two-tap confirm: first tap morphs the button into "Confirm clear", second
+  // tap commits. Reverts automatically after a short window if the user walks
+  // away. Mark-all-read is disabled while we're confirming so a stray tap
+  // doesn't dismiss the confirmation by accident.
+  const [confirming, setConfirming] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  const handleClearTap = useCallback(() => {
+    if (confirming) {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = null;
+      setConfirming(false);
+      onClear();
+      return;
+    }
+    setConfirming(true);
+    haptic.warning();
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      setConfirming(false);
+      timerRef.current = null;
+    }, CLEAR_CONFIRM_TIMEOUT_MS);
+  }, [confirming, onClear]);
+
+  const markRead = (
+    <BarAction
+      icon="checkmark.circle"
+      label="Mark all read"
+      disabled={!canMarkAllRead || confirming}
+      badge={canMarkAllRead ? unreadCount : undefined}
+      onPress={onMarkAllRead}
+      color={colors.accent}
+    />
+  );
+  const clear = (
+    <ClearPill
+      destructive={colors.destructive}
+      destructiveTint={tintBg(colors.destructive)}
+      confirming={confirming}
+      onPress={handleClearTap}
+    />
+  );
 
   return (
     <View
@@ -320,57 +376,238 @@ function FloatingBar({
         alignItems: "center",
       }}
     >
-      <View
-        style={{
-          borderRadius: 28,
-          overflow: "hidden",
-          boxShadow: isDark
-            ? "0px 8px 20px rgba(0, 0, 0, 0.5)"
-            : "0px 8px 20px rgba(0, 0, 0, 0.18)",
-          borderCurve: "continuous",
-        }}
-      >
-        <BlurView
-          intensity={process.env.EXPO_OS === "ios" ? 70 : 100}
-          tint={isDark ? "dark" : "light"}
+      {liquid ? (
+        // Outer glass = the bar tray (one continuous capsule). Inner glass =
+        // the two action buttons (separate pills sitting on top). Not wrapped
+        // in a GlassContainer because we *don't* want them to merge into the
+        // tray — Control Center uses the same nested-glass pattern.
+        <GlassView
+          glassEffectStyle="regular"
+          tintColor={isDark ? "rgba(0,0,0,0.25)" : "rgba(255,255,255,0.25)"}
           style={{
             flexDirection: "row",
-            alignItems: "stretch",
-            paddingHorizontal: 6,
-            paddingVertical: 6,
-            gap: 4,
-            borderWidth: 0.5,
-            borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
-            borderRadius: 28,
+            alignItems: "center",
+            padding: 5,
+            gap: 14,
+            borderRadius: 22,
+            borderCurve: "continuous",
           }}
         >
-          <BarAction
-            icon="checkmark.circle"
-            label="Mark all read"
-            disabled={!canMarkAllRead}
-            badge={canMarkAllRead ? unreadCount : undefined}
-            onPress={onMarkAllRead}
-            color={colors.accent}
-          />
-          <View
+          <GlassView
+            isInteractive
+            glassEffectStyle="clear"
+            style={{ borderRadius: 16, borderCurve: "continuous" }}
+          >
+            {markRead}
+          </GlassView>
+          <GlassView
+            isInteractive
+            glassEffectStyle="clear"
+            style={{ borderRadius: 16, borderCurve: "continuous" }}
+          >
+            {clear}
+          </GlassView>
+        </GlassView>
+      ) : (
+        <View
+          style={{
+            borderRadius: 28,
+            overflow: "hidden",
+            boxShadow: isDark
+              ? "0px 8px 20px rgba(0, 0, 0, 0.5)"
+              : "0px 8px 20px rgba(0, 0, 0, 0.18)",
+            borderCurve: "continuous",
+          }}
+        >
+          <BlurView
+            intensity={process.env.EXPO_OS === "ios" ? 70 : 100}
+            tint={isDark ? "dark" : "light"}
             style={{
-              width: 0.5,
-              backgroundColor: isDark
-                ? "rgba(255,255,255,0.12)"
-                : "rgba(0,0,0,0.08)",
-              alignSelf: "stretch",
-              marginVertical: 8,
+              flexDirection: "row",
+              alignItems: "stretch",
+              paddingHorizontal: 6,
+              paddingVertical: 6,
+              gap: 4,
+              borderWidth: 0.5,
+              borderColor: isDark
+                ? "rgba(255,255,255,0.08)"
+                : "rgba(0,0,0,0.06)",
+              borderRadius: 28,
             }}
-          />
-          <BarAction
-            icon="trash"
-            label="Clear"
-            onPress={onClear}
-            color={colors.destructive}
-          />
-        </BlurView>
-      </View>
+          >
+            {markRead}
+            <View
+              style={{
+                width: 0.5,
+                backgroundColor: isDark
+                  ? "rgba(255,255,255,0.12)"
+                  : "rgba(0,0,0,0.08)",
+                alignSelf: "stretch",
+                marginVertical: 8,
+              }}
+            />
+            {clear}
+          </BlurView>
+        </View>
+      )}
     </View>
+  );
+}
+
+/**
+ * Clear button with a smooth two-tap confirm. Everything animates from one
+ * shared progress value (0 → 1) so the bg color, text color, and pill width
+ * all move on the same iOS-feeling ease curve. The icon swaps with a quick
+ * crossfade keyed on the same progress.
+ */
+function ClearPill({
+  destructive,
+  destructiveTint,
+  confirming,
+  onPress,
+}: {
+  destructive: string;
+  destructiveTint: string;
+  confirming: boolean;
+  onPress: () => void;
+}) {
+  const progress = useSharedValue(0);
+  // iOS's signature ease-out curve — same one UIKit uses for sheet
+  // presentations. Feels like the native system, not a generic linear morph.
+  const ease = Easing.bezier(0.32, 0.72, 0, 1);
+
+  // Drive the progress shared value from React state. withTiming gives us
+  // smooth interpolation across all dependent animated styles.
+  useEffect(() => {
+    progress.value = withTiming(confirming ? 1 : 0, {
+      duration: 280,
+      easing: ease,
+    });
+  }, [confirming, ease, progress]);
+  const trashOpacity = useDerivedValue(() => 1 - progress.value);
+  const warnOpacity = useDerivedValue(() => progress.value);
+
+  const containerStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(
+      progress.value,
+      [0, 1],
+      ["rgba(0,0,0,0)", destructive],
+    ),
+  }));
+  const textStyle = useAnimatedStyle(() => ({
+    color: interpolateColor(progress.value, [0, 1], [destructive, "#FFFFFF"]),
+  }));
+  const trashStyle = useAnimatedStyle(() => ({ opacity: trashOpacity.value }));
+  const warnStyle = useAnimatedStyle(() => ({ opacity: warnOpacity.value }));
+  // Reference to silence unused-var; destructiveTint is reserved for a future
+  // press-feedback layer if needed.
+  void destructiveTint;
+
+  // Both label texts render at all times (absolutely overlapped) so neither
+  // snaps in or out — opacity is driven from the same shared progress that
+  // controls bg color, text color, and icon swap. The container width
+  // interpolates between the two measured natural widths so the pill grows
+  // and shrinks in lockstep with the colors.
+  const [idleW, setIdleW] = useState(0);
+  const [confirmW, setConfirmW] = useState(0);
+  const measured = idleW > 0 && confirmW > 0;
+  const labelStyle = { ...type.footnote, fontWeight: "600" as const };
+  const textWidthStyle = useAnimatedStyle(() => {
+    if (!measured) return {};
+    return { width: idleW + (confirmW - idleW) * progress.value };
+  });
+  const idleTextStyle = useAnimatedStyle(() => ({
+    opacity: 1 - progress.value,
+    color: destructive,
+  }));
+  const confirmTextStyle = useAnimatedStyle(() => ({
+    opacity: progress.value,
+    color: "#FFFFFF",
+  }));
+
+  return (
+    <Animated.View layout={LinearTransition.duration(280).easing(ease)}>
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={confirming ? "Confirm clear feed" : "Clear feed"}
+        accessibilityHint={
+          confirming ? "Commits the clear" : "Tap again to confirm"
+        }
+        style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+      >
+        <Animated.View
+          style={[
+            {
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 5,
+              paddingHorizontal: 11,
+              paddingVertical: 7,
+              borderRadius: 16,
+            },
+            containerStyle,
+          ]}
+        >
+          <View style={{ width: 15, height: 15, justifyContent: "center" }}>
+            <Animated.View style={[StyleSheet.absoluteFill, trashStyle]}>
+              <SymbolView name="trash" size={15} tintColor={destructive} />
+            </Animated.View>
+            <Animated.View style={[StyleSheet.absoluteFill, warnStyle]}>
+              <SymbolView
+                name="exclamationmark.triangle.fill"
+                size={15}
+                tintColor="#FFFFFF"
+              />
+            </Animated.View>
+          </View>
+
+          {/* One-shot offscreen measurement so we know the natural widths. */}
+          {idleW === 0 && (
+            <Text
+              style={[labelStyle, { position: "absolute", opacity: 0 }]}
+              onLayout={(e) => setIdleW(e.nativeEvent.layout.width)}
+            >
+              Clear
+            </Text>
+          )}
+          {confirmW === 0 && (
+            <Text
+              style={[labelStyle, { position: "absolute", opacity: 0 }]}
+              onLayout={(e) => setConfirmW(e.nativeEvent.layout.width)}
+            >
+              Confirm clear
+            </Text>
+          )}
+
+          {measured ? (
+            <Animated.View style={[{ height: 18 }, textWidthStyle]}>
+              <Animated.Text
+                style={[StyleSheet.absoluteFill, labelStyle, idleTextStyle]}
+                numberOfLines={1}
+              >
+                Clear
+              </Animated.Text>
+              <Animated.Text
+                style={[StyleSheet.absoluteFill, labelStyle, confirmTextStyle]}
+                numberOfLines={1}
+              >
+                Confirm clear
+              </Animated.Text>
+            </Animated.View>
+          ) : (
+            // First-frame placeholder before measurement completes — keeps
+            // the pill from rendering at width=0 for one frame on cold mount.
+            <Animated.Text
+              style={[labelStyle, textStyle]}
+              numberOfLines={1}
+            >
+              {confirming ? "Confirm clear" : "Clear"}
+            </Animated.Text>
+          )}
+        </Animated.View>
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -381,6 +618,7 @@ function BarAction({
   color,
   disabled,
   badge,
+  emphasized,
 }: {
   icon: string;
   label: string;
@@ -388,8 +626,14 @@ function BarAction({
   color: string;
   disabled?: boolean;
   badge?: number;
+  /**
+   * Filled-background variant. Used by the two-tap confirm state on Clear
+   * to flag "this tap will commit" with a saturated red pill.
+   */
+  emphasized?: boolean;
 }) {
   const { tintBg } = useTheme();
+  const fg = emphasized ? "#FFFFFF" : color;
   return (
     <Pressable
       onPress={onPress}
@@ -402,23 +646,29 @@ function BarAction({
       style={({ pressed }) => ({
         flexDirection: "row",
         alignItems: "center",
-        gap: 6,
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        borderRadius: 22,
-        backgroundColor: pressed ? tintBg(color) : "transparent",
+        gap: 5,
+        paddingHorizontal: 11,
+        paddingVertical: 7,
+        borderRadius: 16,
+        backgroundColor: emphasized
+          ? color
+          : pressed
+            ? tintBg(color)
+            : "transparent",
         opacity: disabled ? 0.45 : 1,
       })}
     >
-      <SymbolView name={icon as any} size={18} tintColor={color} />
-      <Text style={{ ...type.callout, color, fontWeight: "600" }}>{label}</Text>
+      <SymbolView name={icon as any} size={15} tintColor={fg} />
+      <Text style={{ ...type.footnote, color: fg, fontWeight: "600" }}>
+        {label}
+      </Text>
       {badge !== undefined && (
         <View
           style={{
-            minWidth: 20,
-            paddingHorizontal: 6,
-            height: 18,
-            borderRadius: 9,
+            minWidth: 18,
+            paddingHorizontal: 5,
+            height: 16,
+            borderRadius: 8,
             backgroundColor: color,
             alignItems: "center",
             justifyContent: "center",
@@ -495,7 +745,7 @@ function FeedToolbar({
           alignItems: "center",
           marginHorizontal: spacing.lg,
           paddingHorizontal: spacing.md,
-          height: 36,
+          height: 44,
           borderRadius: 10,
           borderCurve: "continuous",
           backgroundColor: colors.fill,
@@ -1070,11 +1320,7 @@ function FeedGroupRow({
   );
 }
 
-function ActionBadge({
-  action,
-}: {
-  action?: "start" | "update" | "end";
-}) {
+function ActionBadge({ action }: { action?: "start" | "update" | "end" }) {
   const { colors, tintBg } = useTheme();
   const spec = (() => {
     switch (action) {
@@ -1468,11 +1714,7 @@ function ActionButtonsBar({
   );
 }
 
-function LiveActivityBadge({
-  action,
-}: {
-  action: "start" | "update" | "end";
-}) {
+function LiveActivityBadge({ action }: { action: "start" | "update" | "end" }) {
   const { colors, tintBg } = useTheme();
   const ended = action === "end";
   const label = ended ? "Activity ended" : "Live Activity";
