@@ -206,6 +206,13 @@ export default defineSchema({
     body: v.string(),
     priority: v.optional(v.number()), // 1-10, maps to Expo low/default/high
     url: v.optional(v.string()),
+    /**
+     * Optional deep-link the device tries before `url`. Use this for custom
+     * schemes (e.g. `slack://`, `shortcuts://run-shortcut?name=…`) so the tap
+     * opens a native app or PWA shortcut. Falls back to `url` if the scheme
+     * has no handler installed.
+     */
+    appUrl: v.optional(v.string()),
     data: v.optional(v.any()), // arbitrary payload passed through to the device
     /** URL of an image to attach (rendered as a thumbnail on the banner) */
     image: v.optional(v.string()),

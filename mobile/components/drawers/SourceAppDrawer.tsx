@@ -29,6 +29,7 @@ import { showActionSheet } from "@/lib/actionSheet";
 import { promptText } from "@/lib/prompt";
 import { pickAndUploadLogo } from "@/lib/uploadLogo";
 import { forgetToken, recallToken } from "@/lib/tokenStore";
+import { backendConfig } from "@/lib/backend";
 
 type Role = "owner" | "editor" | "viewer";
 type AppRow = Doc<"sourceApps"> & { logoUrl: string | null; role: Role };
@@ -182,6 +183,8 @@ function DetailBody({
   const removeLogo = useMutation(api.sourceApps.removeLogo);
   const generateUploadUrl = useMutation(api.sourceApps.generateLogoUploadUrl);
   const leaveApp = useMutation(api.sharing.leaveApp);
+  const sendTestPush = useMutation(api.notifications.sendTest);
+  const [sendingTest, setSendingTest] = useState(false);
 
   if (apps === undefined) {
     return (
@@ -319,6 +322,23 @@ function DetailBody({
     if (!app) return;
     await Clipboard.setStringAsync(curlExample(app.name));
     haptic.success();
+  }
+
+  async function handleSendTest() {
+    if (!app || sendingTest) return;
+    setSendingTest(true);
+    try {
+      await sendTestPush({ sourceAppId: app._id });
+      haptic.success();
+    } catch (err: any) {
+      haptic.error();
+      Alert.alert(
+        "Test push failed",
+        err?.data?.message ?? err?.message ?? "Please try again.",
+      );
+    } finally {
+      setSendingTest(false);
+    }
   }
 
   async function copySavedToken() {
@@ -474,22 +494,33 @@ function DetailBody({
         onPress={onOpenSharing}
       />
 
-      {isOwner && (
+      {canEdit && (
         <DetailSection title="Integration">
           <DetailRow
-            icon="terminal.fill"
-            tint={colors.accent}
-            title="Copy curl example"
-            subtitle="Paste into any shell to send a test push"
-            onPress={copyCurl}
+            icon="paperplane.fill"
+            tint={colors.success}
+            title={sendingTest ? "Sending…" : "Send test push"}
+            subtitle="Fires a notification to your devices right now"
+            onPress={sendingTest ? undefined : handleSendTest}
           />
-          <DetailRow
-            icon="key.fill"
-            tint={colors.accent}
-            title="Copy token"
-            subtitle="Only on the device the app was created on"
-            onPress={copySavedToken}
-          />
+          {isOwner && (
+            <DetailRow
+              icon="terminal.fill"
+              tint={colors.accent}
+              title="Copy curl example"
+              subtitle="Paste into any shell to send a push"
+              onPress={copyCurl}
+            />
+          )}
+          {isOwner && (
+            <DetailRow
+              icon="key.fill"
+              tint={colors.accent}
+              title="Copy token"
+              subtitle="Only on the device the app was created on"
+              onPress={copySavedToken}
+            />
+          )}
         </DetailSection>
       )}
 
@@ -1515,8 +1546,10 @@ function quietHoursLabel(
 }
 
 function curlExample(appName: string, token = "<your_token>"): string {
-  const siteUrl =
-    process.env.EXPO_PUBLIC_CONVEX_SITE_URL ?? "https://your-convex.site";
+  // backendConfig() throws if the app booted without EXPO_PUBLIC_CONVEX_SITE_URL,
+  // and respects the user's self-hosted override saved via Server Config — so
+  // the curl always points at a real, reachable endpoint.
+  const { siteUrl } = backendConfig();
   return `curl -X POST ${siteUrl}/notify \\
   -H "Authorization: Bearer ${token}" \\
   -H "Content-Type: application/json" \\

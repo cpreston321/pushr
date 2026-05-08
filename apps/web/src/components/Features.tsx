@@ -352,7 +352,7 @@ function BearerCard() {
 
 function SourceAppsCard() {
   const apps = [
-    { name: "ci.peptide", glyph: "✦", color: "var(--color-signal)" },
+    { name: "ci.acme", glyph: "✦", color: "var(--color-signal)" },
     { name: "stripe", glyph: "$", color: "var(--color-amber)" },
     { name: "linear", glyph: "◆", color: "var(--color-wire-bright)" },
     { name: "uptime", glyph: "▲", color: "var(--color-rose)" },

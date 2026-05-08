@@ -1,10 +1,18 @@
 import { v, ConvexError } from "convex/values";
 import { query, mutation, internalMutation } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { requireAuth } from "./lib/auth";
 import {
   getSourceAppRole,
   listAccessibleSourceApps,
 } from "./lib/sharing";
+import {
+  getEffectiveTier,
+  getMonthlyUsage,
+  incrementMonthlyUsage,
+  quotaExceeded,
+  TIER_LIMITS,
+} from "./tiers";
 import type { Id } from "./_generated/dataModel";
 
 /**
@@ -178,6 +186,53 @@ export const unreadCount = query({
       total += unread.length;
     }
     return total;
+  },
+});
+
+/**
+ * Send a test push from one of the caller's source apps to their own devices.
+ * Mirrors the /notify pipeline (quota check, notifications row, scheduled
+ * delivery) but skips the bearer-token step since the caller is already
+ * authenticated. Counts against the bill-paying owner's monthly quota the
+ * same way an HTTP /notify call would.
+ */
+export const sendTest = mutation({
+  args: { sourceAppId: v.id("sourceApps") },
+  returns: v.object({ id: v.id("notifications") }),
+  handler: async (ctx, args) => {
+    const userId = await requireAuth(ctx);
+    const access = await getSourceAppRole(ctx, args.sourceAppId, userId);
+    if (!access || (access.role !== "owner" && access.role !== "editor")) {
+      throw new ConvexError("Only owners and editors can send test pushes");
+    }
+    const app = access.app;
+    if (!app.enabled) {
+      throw new ConvexError("Source app is disabled — re-enable it first");
+    }
+
+    const tier = await getEffectiveTier(ctx, app.ownerId);
+    const limit = TIER_LIMITS[tier].pushesPerMonth;
+    const current = await getMonthlyUsage(ctx, app.ownerId);
+    if (current >= limit) {
+      throw quotaExceeded(tier, current, limit);
+    }
+    await incrementMonthlyUsage(ctx, app.ownerId);
+    await ctx.db.patch(app._id, { lastUsedAt: Date.now() });
+
+    const notificationId = await ctx.db.insert("notifications", {
+      ownerId: app.ownerId,
+      sourceAppId: app._id,
+      title: `Test push from ${app.name}`,
+      body: "If you're seeing this on your phone, pushr is working.",
+      priority: 5,
+      createdAt: Date.now(),
+      attemptedDeviceCount: 0,
+      successDeviceCount: 0,
+    });
+    await ctx.scheduler.runAfter(0, internal.expoPush.deliver, {
+      notificationId,
+    });
+    return { id: notificationId };
   },
 });
 

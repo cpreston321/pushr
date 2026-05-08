@@ -17,6 +17,8 @@ export type NormalizedNotification = {
   body: string;
   priority?: number;
   url?: string;
+  /** Optional deep-link/scheme tried before `url` on tap. */
+  appUrl?: string;
   data?: Record<string, unknown>;
   image?: string;
   action?: { label: string; url: string };

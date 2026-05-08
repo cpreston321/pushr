@@ -38,7 +38,9 @@ export default function Login() {
       return;
     }
     haptic.success();
-    router.replace("/feed");
+    // Defer to the root gate (app/index.tsx) so a fresh-install login still
+    // hits onboarding (notification permission + device registration).
+    router.replace("/");
   }
 
   return (

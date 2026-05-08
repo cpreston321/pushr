@@ -8,7 +8,6 @@ import {
   View,
 } from "react-native";
 import { Link, router } from "expo-router";
-import * as SecureStore from "expo-secure-store";
 import { SymbolView } from "expo-symbols";
 import { Screen } from "@/components/Screen";
 import { Input } from "@/components/Input";
@@ -37,8 +36,9 @@ export default function Signup() {
       return;
     }
     haptic.success();
-    const seen = await SecureStore.getItemAsync("pushr.hasOnboarded");
-    router.replace(seen ? "/feed" : "/onboarding");
+    // Defer to the root gate (app/index.tsx) — it reads the hasOnboarded flag
+    // and routes new accounts through /onboarding, returning users to /feed.
+    router.replace("/");
   }
 
   function goBack() {

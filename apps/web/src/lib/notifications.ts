@@ -13,7 +13,7 @@ export type Notification = {
 
 const SAMPLES: Omit<Notification, "id" | "time">[] = [
   {
-    app: "ci.peptide",
+    app: "ci.acme",
     title: "Deploy #482 succeeded",
     body: "main → production · 1m 04s · 12 files changed",
     priority: "normal",

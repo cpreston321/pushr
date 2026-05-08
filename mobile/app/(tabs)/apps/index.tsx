@@ -373,6 +373,8 @@ export default function Apps() {
                   renderRightActions={() => (
                     <Pressable
                       onPress={() => copySavedToken(item)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Copy token for ${item.name}`}
                       style={{
                         backgroundColor: colors.accent,
                         justifyContent: "center",
@@ -390,6 +392,13 @@ export default function Apps() {
                   <Pressable
                     onPress={() => openActions(item)}
                     onLongPress={() => changeLogo(item._id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${item.name}${isMuted(item) ? ", muted" : ""}${
+                      item.lastUsedAt
+                        ? `, last used ${formatRelative(item.lastUsedAt)}`
+                        : ", never used"
+                    }`}
+                    accessibilityHint="Opens app actions. Swipe left to copy token."
                     style={({ pressed }) => ({
                       backgroundColor: pressed ? colors.cellHighlight : colors.cell,
                       paddingHorizontal: spacing.lg,
@@ -453,6 +462,7 @@ export default function Apps() {
                         haptic.light();
                         setEnabled({ id: item._id, enabled: v });
                       }}
+                      accessibilityLabel={`${item.name} enabled`}
                       style={{ alignSelf: "center" }}
                     />
                   </Pressable>
@@ -627,7 +637,7 @@ function CreateBody({
           </Pressable>
         </View>
 
-        <Input label="Name" placeholder="e.g. peptide" value={name} onChangeText={setName} autoFocus />
+        <Input label="Name" placeholder="e.g. home" value={name} onChangeText={setName} autoFocus />
         <Input
           label="Description (optional)"
           placeholder="What sends from this app?"

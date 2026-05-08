@@ -70,9 +70,12 @@ export default function Upgrade() {
   const { monthly, yearly } = useMemo(() => pickPackages(offerings), [offerings]);
   const activePackage = cycle === "yearly" ? yearly : monthly;
 
-  // Until RevenueCat is configured, fall back to dev grant so the upgrade
-  // flow stays exercisable in simulator builds without billing wired up.
-  const rcConfigured = rc.status.kind !== "unconfigured";
+  // Three operating modes:
+  //   - unconfigured: no RC API key in env → dev grant fallback
+  //   - loading: RC is fetching customer info / offerings → skeleton UI
+  //   - ready: prices come from the App Store offering, never hardcoded
+  const rcUnconfigured = rc.status.kind === "unconfigured";
+  const pricesLoading = !rcUnconfigured && !activePackage;
 
   const isPro = plan?.tier === "pro";
 
@@ -80,8 +83,9 @@ export default function Upgrade() {
     if (busy) return;
     setBusy(true);
     try {
-      if (!rcConfigured || !activePackage) {
-        // Dev fallback: no API key set, no packages available.
+      if (rcUnconfigured) {
+        // Self-hosters / dev builds without an RC key: grant 30-day Pro so the
+        // flow stays exercisable. Real builds always have the env key set.
         haptic.success();
         await grantPro({ days: 30 });
         Alert.alert(
@@ -89,6 +93,14 @@ export default function Upgrade() {
           "RevenueCat isn't configured — falling back to a 30-day dev grant.",
         );
         router.back();
+        return;
+      }
+      if (!activePackage) {
+        haptic.warning();
+        Alert.alert(
+          "Pricing unavailable",
+          "Couldn't load App Store pricing. Check your connection and try again.",
+        );
         return;
       }
       await rc.purchase(activePackage);
@@ -120,7 +132,7 @@ export default function Upgrade() {
     if (busy) return;
     setBusy(true);
     try {
-      if (!rcConfigured) {
+      if (rcUnconfigured) {
         Alert.alert("Not configured", "Sign in via the App Store on a real device to restore purchases.");
         return;
       }
@@ -154,12 +166,9 @@ export default function Upgrade() {
     ]);
   }
 
-  // Prices: real localized strings from the App Store offering when available;
-  // bundled fallback strings while RC loads (or in dev without a key).
-  const fallbackPrice =
-    cycle === "yearly"
-      ? { headline: "$29", caption: "per year · $2.42/mo" }
-      : { headline: "$3.99", caption: "per month" };
+  // Prices come straight from the App Store offering — no hardcoded fallbacks
+  // that could mismatch regional pricing or drift when prices change. While RC
+  // is still fetching, the price block renders a skeleton.
   const price = activePackage
     ? {
         headline: activePackage.product.priceString,
@@ -168,7 +177,7 @@ export default function Upgrade() {
             ? `${activePackage.product.priceString} per year`
             : `${activePackage.product.priceString} per month`,
       }
-    : fallbackPrice;
+    : null;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.grouped }}>
@@ -194,6 +203,8 @@ export default function Upgrade() {
             {PERKS.map((p) => (
               <View
                 key={p.title}
+                accessible
+                accessibilityLabel={`${p.title}. ${p.body}`}
                 style={{
                   flexDirection: "row",
                   gap: spacing.md,
@@ -239,19 +250,29 @@ export default function Upgrade() {
           {!isPro && (
             <View style={{ alignItems: "center", gap: spacing.sm }}>
               <CycleToggle cycle={cycle} onChange={setCycle} />
-              <View style={{ alignItems: "center" }}>
-                <Text
-                  style={{ ...type.largeTitle, color: colors.label, fontSize: 40 }}
-                >
-                  {price.headline}
-                </Text>
-                <Text
-                  style={{ ...type.footnote, color: colors.secondaryLabel }}
-                >
-                  {price.caption}
-                </Text>
+              <View style={{ alignItems: "center", minHeight: 64, justifyContent: "center" }}>
+                {price ? (
+                  <>
+                    <Text
+                      style={{ ...type.largeTitle, color: colors.label, fontSize: 40 }}
+                    >
+                      {price.headline}
+                    </Text>
+                    <Text
+                      style={{ ...type.footnote, color: colors.secondaryLabel }}
+                    >
+                      {price.caption}
+                    </Text>
+                  </>
+                ) : pricesLoading ? (
+                  <PriceSkeleton tint={colors.fill} />
+                ) : (
+                  <Text style={{ ...type.footnote, color: colors.secondaryLabel }}>
+                    Pricing unavailable
+                  </Text>
+                )}
               </View>
-              {cycle === "yearly" && (
+              {cycle === "yearly" && price && (
                 <View
                   style={{
                     backgroundColor: tintBg(colors.success),
@@ -328,14 +349,24 @@ export default function Upgrade() {
         ) : (
           <>
             <Button
-              title={busy ? "Working…" : "Start 7-day free trial"}
+              title={
+                busy
+                  ? "Working…"
+                  : pricesLoading
+                    ? "Loading prices…"
+                    : "Start 7-day free trial"
+              }
               onPress={startUpgrade}
-              disabled={busy}
+              disabled={busy || pricesLoading}
             />
             <Pressable
               onPress={restorePurchases}
               hitSlop={8}
               disabled={busy}
+              accessibilityRole="button"
+              accessibilityLabel="Restore purchases"
+              accessibilityHint="Re-links a previously purchased subscription"
+              accessibilityState={{ disabled: busy }}
               style={{ alignSelf: "center", paddingVertical: 4 }}
             >
               <Text
@@ -359,9 +390,9 @@ export default function Upgrade() {
         >
           {isPro
             ? "Cancel anytime."
-            : "7 days free, then " +
-              price.caption +
-              ". Cancel anytime. Self-hosted pushr stays free forever."}
+            : price
+              ? `7 days free, then ${price.caption}. Cancel anytime. Self-hosted pushr stays free forever.`
+              : "Cancel anytime. Self-hosted pushr stays free forever."}
         </Text>
       </View>
 
@@ -460,6 +491,29 @@ function Hero({ insetTop, accent }: { insetTop: number; accent: string }) {
   );
 }
 
+function PriceSkeleton({ tint }: { tint: string }) {
+  return (
+    <View style={{ alignItems: "center", gap: 6 }}>
+      <View
+        style={{
+          width: 96,
+          height: 40,
+          borderRadius: 8,
+          backgroundColor: tint,
+        }}
+      />
+      <View
+        style={{
+          width: 120,
+          height: 12,
+          borderRadius: 6,
+          backgroundColor: tint,
+        }}
+      />
+    </View>
+  );
+}
+
 function CycleToggle({
   cycle,
   onChange,
@@ -487,6 +541,9 @@ function CycleToggle({
               if (process.env.EXPO_OS === "ios") haptic.selection();
               onChange(c);
             }}
+            accessibilityRole="button"
+            accessibilityLabel={c === "monthly" ? "Monthly billing" : "Yearly billing"}
+            accessibilityState={{ selected: active }}
             style={{
               paddingHorizontal: 20,
               paddingVertical: 8,

@@ -143,6 +143,7 @@ export const deliver = internalAction({
       sourceAppId: notif.sourceAppId,
       sourceAppName,
       url: notif.url,
+      appUrl: notif.appUrl,
       logoUrl,
       contentImage: notif.image,
       action: notif.action,

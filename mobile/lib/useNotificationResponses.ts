@@ -6,6 +6,7 @@ import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import type { NotifAction } from "../../convex/lib/actionsLayout";
 import { LiveActivity } from "../modules/live-activity";
+import { openLink } from "./openLink";
 
 type LiveActivityPayload = {
   action: "start" | "update" | "end";
@@ -89,6 +90,7 @@ export function useNotificationResponses(): void {
         | {
             notificationId?: string;
             url?: string;
+            appUrl?: string;
             action?: { label: string; url: string };
             actions?: ActionSlot[];
           }
@@ -102,8 +104,8 @@ export function useNotificationResponses(): void {
         if (notificationId) void markRead({ id: notificationId });
         return;
       }
-      if (identifier === "open_link" && data?.url) {
-        void Linking.openURL(data.url).catch(() => {});
+      if (identifier === "open_link" && (data?.appUrl || data?.url)) {
+        void openLink({ appUrl: data?.appUrl, url: data?.url });
         if (notificationId) void markRead({ id: notificationId });
         return;
       }

@@ -72,6 +72,7 @@ const notifyHandler = httpAction(async (ctx, req) => {
       (payload.extras as Record<string, any> | undefined)?.["client::notification"]
         ?.click?.url,
     );
+  const appUrl = asString(payload.appUrl);
   const data =
     isObject(payload.data) ? (payload.data as Record<string, unknown>) : undefined;
   const image = asString(payload.image);
@@ -112,6 +113,7 @@ const notifyHandler = httpAction(async (ctx, req) => {
       body,
       priority,
       url,
+      appUrl,
       data,
       image,
       action: action ?? undefined,
@@ -166,6 +168,7 @@ async function dispatchNotification(
         body: args.normalized.body,
         priority,
         url: args.normalized.url,
+        appUrl: args.normalized.appUrl,
         data: args.normalized.data,
         image: args.normalized.image,
         action: args.normalized.action,

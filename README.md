@@ -58,6 +58,26 @@ curl -X POST "$PUSHR_URL/notify" \
 High-priority pushes wake the device and surface as banners. Everything else
 delivers at default priority.
 
+### Deep-linking the tap target
+
+`url` opens in the user's default browser via `Linking.openURL`. If you want
+the tap to open a specific app (or a home-screen PWA via the iOS Shortcuts
+app), pass `appUrl` alongside — pushr tries `appUrl` first and falls back to
+`url` only when no handler is installed.
+
+```json
+{
+  "title": "New issue assigned",
+  "body": "#1284 — runtime error in checkout",
+  "appUrl": "github-mobile://issue/myorg/repo/1284",
+  "url": "https://github.com/myorg/repo/issues/1284"
+}
+```
+
+For a PWA you've added to your home screen on iOS: build a one-tap Shortcut
+("Open App" → pick the PWA), name it, and use
+`"appUrl": "shortcuts://run-shortcut?name=Open%20MyPWA"`.
+
 ### Live Activities (iOS 16.2+)
 
 Drive lockscreen and Dynamic Island progress from `/notify`:

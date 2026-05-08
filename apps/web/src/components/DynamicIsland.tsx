@@ -208,7 +208,7 @@ export function LockScreenLiveActivity() {
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-2">
             <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-bone/60">
-              ci.peptide · live
+              ci.acme · live
             </span>
             <span className="font-mono text-[11px] tabular-nums text-bone">
               {stage.pct}%

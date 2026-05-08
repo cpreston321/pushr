@@ -35,15 +35,21 @@ import { Avatar } from "@/components/Avatar";
 import { useTheme, spacing, radius, type } from "@/lib/theme";
 import { haptic } from "@/lib/haptics";
 import { promptText } from "@/lib/prompt";
+import { openLink } from "@/lib/openLink";
 
 // Distance (px) the row must travel before a release auto-fires delete.
 // Smaller = more sensitive. We want a deliberate full swipe.
 const FULL_SWIPE_THRESHOLD = 140;
 
+const FEED_PAGE_SIZE = 100;
+// Server caps at 500; mirror it so the client knows when to hide "Load older".
+const FEED_MAX = 500;
+
 export default function Feed() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const items = useQuery(api.notifications.listMine, { limit: 100 });
+  const [limit, setLimit] = useState(FEED_PAGE_SIZE);
+  const items = useQuery(api.notifications.listMine, { limit });
   const markRead = useMutation(api.notifications.markRead);
   const markAllRead = useMutation(api.notifications.markAllRead);
   const deleteOne = useMutation(api.notifications.deleteOne);
@@ -51,6 +57,7 @@ export default function Feed() {
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
   const [filterAppId, setFilterAppId] = useState<string | null>(null);
+  const canLoadMore = items != null && items.length === limit && limit < FEED_MAX;
 
   const unreadCount = items?.filter((i) => !i.readAt).length ?? 0;
   const total = items?.length ?? 0;
@@ -91,10 +98,14 @@ export default function Feed() {
     });
   })();
 
+  // Convex pushes updates over a websocket — the feed is always live. Pull is
+  // tactile reassurance, not a fetch trigger. Dismiss as soon as the next
+  // render lands so the spinner doesn't dawdle on a screen that's already up
+  // to date.
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     haptic.light();
-    setTimeout(() => setRefreshing(false), 500);
+    requestAnimationFrame(() => setRefreshing(false));
   }, []);
 
   function confirmClear() {
@@ -207,6 +218,18 @@ export default function Feed() {
               </Text>
             </View>
           }
+          ListFooterComponent={
+            <FeedFooter
+              canLoadMore={canLoadMore}
+              limit={limit}
+              max={FEED_MAX}
+              shown={filtered?.length ?? 0}
+              onLoadMore={() => {
+                haptic.selection();
+                setLimit((l) => Math.min(l + FEED_PAGE_SIZE, FEED_MAX));
+              }}
+            />
+          }
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -225,7 +248,9 @@ export default function Feed() {
                   isLast={isLast}
                   onOpenItem={(item) => {
                     if (!item.readAt) markRead({ id: item._id });
-                    if (item.url) Linking.openURL(item.url).catch(() => {});
+                    if (item.url || item.appUrl) {
+                      void openLink({ appUrl: item.appUrl, url: item.url });
+                    }
                   }}
                   onDeleteGroup={() => {
                     haptic.warning();
@@ -243,8 +268,12 @@ export default function Feed() {
                 isLast={isLast}
                 onOpen={() => {
                   if (!entry.item.readAt) markRead({ id: entry.item._id });
-                  if (entry.item.url)
-                    Linking.openURL(entry.item.url).catch(() => {});
+                  if (entry.item.url || entry.item.appUrl) {
+                    void openLink({
+                      appUrl: entry.item.appUrl,
+                      url: entry.item.url,
+                    });
+                  }
                 }}
                 onDelete={() => {
                   haptic.warning();
@@ -365,6 +394,11 @@ function BarAction({
     <Pressable
       onPress={onPress}
       disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={
+        badge !== undefined ? `${label}, ${badge} unread` : label
+      }
+      accessibilityState={{ disabled: !!disabled }}
       style={({ pressed }) => ({
         flexDirection: "row",
         alignItems: "center",
@@ -538,6 +572,9 @@ function FilterChip({
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`Filter by ${label}`}
+      accessibilityState={{ selected }}
       style={({ pressed }) => ({
         paddingHorizontal: 12,
         paddingVertical: 6,
@@ -562,8 +599,90 @@ function FilterChip({
   );
 }
 
+function FeedFooter({
+  canLoadMore,
+  limit,
+  max,
+  shown,
+  onLoadMore,
+}: {
+  canLoadMore: boolean;
+  limit: number;
+  max: number;
+  shown: number;
+  onLoadMore: () => void;
+}) {
+  const { colors } = useTheme();
+  if (shown === 0) return null;
+  if (canLoadMore) {
+    return (
+      <Pressable
+        onPress={onLoadMore}
+        accessibilityRole="button"
+        accessibilityLabel="Load older notifications"
+        style={({ pressed }) => ({
+          marginHorizontal: spacing.lg,
+          marginTop: spacing.md,
+          paddingVertical: spacing.sm + 2,
+          alignItems: "center",
+          borderRadius: radius.md,
+          borderCurve: "continuous",
+          backgroundColor: pressed ? colors.cellHighlight : colors.fill,
+        })}
+      >
+        <Text
+          style={{ ...type.subhead, color: colors.accent, fontWeight: "600" }}
+        >
+          Load older
+        </Text>
+      </Pressable>
+    );
+  }
+  if (limit >= max) {
+    return (
+      <Text
+        style={{
+          ...type.caption1,
+          color: colors.tertiaryLabel,
+          textAlign: "center",
+          marginTop: spacing.lg,
+        }}
+      >
+        Showing the latest {max}. Older notifications stay on the server.
+      </Text>
+    );
+  }
+  return null;
+}
+
 function EmptyState() {
   const { colors } = useTheme();
+  const apps = useQuery(api.sourceApps.listMine);
+  const sendTest = useMutation(api.notifications.sendTest);
+  const [sending, setSending] = useState(false);
+  // Pick the first app the user can actually send pushes from. Viewers don't
+  // have permission, so they'd just get an error if we offered them the CTA.
+  const sendableApp = apps?.find(
+    (a) => (a.role === "owner" || a.role === "editor") && a.enabled,
+  );
+
+  async function fireTest() {
+    if (!sendableApp || sending) return;
+    setSending(true);
+    try {
+      await sendTest({ sourceAppId: sendableApp._id });
+      haptic.success();
+    } catch (err: any) {
+      haptic.error();
+      Alert.alert(
+        "Test push failed",
+        err?.data?.message ?? err?.message ?? "Please try again.",
+      );
+    } finally {
+      setSending(false);
+    }
+  }
+
   return (
     <View
       style={{
@@ -598,11 +717,41 @@ function EmptyState() {
           ...type.subhead,
           color: colors.secondaryLabel,
           textAlign: "center",
-          maxWidth: 260,
+          maxWidth: 280,
         }}
       >
-        Create a source app in the Apps tab and send your first push.
+        {sendableApp
+          ? `Send yourself a test push from ${sendableApp.name} to make sure everything's working.`
+          : "Create a source app in the Apps tab and send your first push."}
       </Text>
+      {sendableApp && (
+        <Pressable
+          onPress={fireTest}
+          disabled={sending}
+          accessibilityRole="button"
+          accessibilityLabel={`Send a test push from ${sendableApp.name}`}
+          accessibilityState={{ busy: sending, disabled: sending }}
+          style={({ pressed }) => ({
+            marginTop: spacing.sm,
+            paddingHorizontal: spacing.lg,
+            paddingVertical: spacing.sm + 2,
+            borderRadius: radius.md,
+            borderCurve: "continuous",
+            backgroundColor: colors.accent,
+            opacity: pressed || sending ? 0.6 : 1,
+          })}
+        >
+          <Text
+            style={{
+              ...type.headline,
+              color: colors.accentContrast,
+              fontWeight: "600",
+            }}
+          >
+            {sending ? "Sending…" : "Send a test push"}
+          </Text>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -673,6 +822,10 @@ function FeedGroupRow({
         haptic.selection();
         setExpanded((e) => !e);
       }}
+      accessibilityRole="button"
+      accessibilityLabel={`Live activity from ${latest.sourceAppName}, ${latest.title}, ${eventCount} ${eventCount === 1 ? "event" : "events"}${anyEnded ? ", ended" : ""}`}
+      accessibilityState={{ expanded }}
+      accessibilityHint="Toggles event history"
       style={({ pressed }) => ({
         backgroundColor: pressed ? colors.cellHighlight : colors.cell,
         paddingLeft: spacing.md,
@@ -978,12 +1131,23 @@ function FeedRow({
   const { colors, tintBg } = useTheme();
   const unread = !item.readAt;
 
+  const a11yParts = [
+    unread ? "Unread" : "Read",
+    `notification from ${item.sourceAppName}`,
+    item.title,
+    item.body,
+    formatRelative(item.createdAt) + " ago",
+    item.ack && !item.acknowledgedAt ? "acknowledgement needed" : null,
+  ].filter(Boolean);
   const row = (
     <Pressable
       onPress={() => {
         haptic.selection();
         onOpen();
       }}
+      accessibilityRole="button"
+      accessibilityLabel={a11yParts.join(", ")}
+      accessibilityHint={item.url ? "Opens linked URL" : "Marks as read"}
       style={({ pressed }) => ({
         backgroundColor: pressed ? colors.cellHighlight : colors.cell,
         paddingLeft: spacing.md,
@@ -1255,6 +1419,12 @@ function ActionButtonsBar({
             key={a.id}
             onPress={() => handle(a)}
             disabled={busy !== null || disabled}
+            accessibilityRole="button"
+            accessibilityLabel={a.label}
+            accessibilityState={{
+              disabled: busy !== null || disabled,
+              busy: busy === a.id,
+            }}
             style={({ pressed }) => ({
               paddingHorizontal: 12,
               paddingVertical: 6,
@@ -1453,6 +1623,8 @@ function SwipeAction({
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
       style={{
         width: 96,
         backgroundColor: tint,

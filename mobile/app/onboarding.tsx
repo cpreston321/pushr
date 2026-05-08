@@ -1,6 +1,5 @@
 import { useRef, useState } from "react";
 import {
-  Alert,
   Pressable,
   ScrollView,
   Text,
@@ -10,7 +9,6 @@ import {
   type NativeSyntheticEvent,
 } from "react-native";
 import * as SecureStore from "expo-secure-store";
-import * as Clipboard from "expo-clipboard";
 import { SymbolView, type SFSymbol } from "expo-symbols";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -18,7 +16,6 @@ import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
-import { Input } from "@/components/Input";
 import {
   useTheme,
   useThemePreferences,
@@ -33,9 +30,9 @@ import {
 import { haptic } from "@/lib/haptics";
 import { registerForPushAsync } from "@/lib/push";
 
-const HAS_ONBOARDED_KEY = "pushr.hasOnboarded";
+export const HAS_ONBOARDED_KEY = "pushr.hasOnboarded";
 
-type StepId = "welcome" | "theme" | "notifications" | "firstApp" | "done";
+type StepId = "welcome" | "theme" | "notifications" | "done";
 
 type Step = {
   id: StepId;
@@ -56,15 +53,8 @@ export default function Onboarding() {
     "idle" | "requesting" | "granted" | "denied"
   >("idle");
   const [notifError, setNotifError] = useState<string | null>(null);
-  const [appName, setAppName] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [createdToken, setCreatedToken] = useState<{ name: string; token: string } | null>(
-    null,
-  );
-  const [copied, setCopied] = useState(false);
 
   const registerDevice = useMutation(api.devices.register);
-  const createApp = useMutation(api.sourceApps.create);
 
   const steps: Step[] = [
     {
@@ -79,7 +69,7 @@ export default function Onboarding() {
       id: "theme",
       icon: "paintpalette.fill",
       tint: colors.accent,
-      eyebrow: "Step 1 of 3",
+      eyebrow: "Step 1 of 2",
       title: "Make it yours",
       body: "Choose light, dark, or match your system — plus the accent color you like. You can change these any time in Settings.",
     },
@@ -87,17 +77,9 @@ export default function Onboarding() {
       id: "notifications",
       icon: "app.badge",
       tint: colors.accent,
-      eyebrow: "Step 2 of 3",
+      eyebrow: "Step 2 of 2",
       title: "Enable notifications",
       body: "We need permission to deliver pushes on this device. Your device will also be registered so you can receive pushes immediately.",
-    },
-    {
-      id: "firstApp",
-      icon: "plus.rectangle.on.folder.fill",
-      tint: colors.success,
-      eyebrow: "Step 3 of 3",
-      title: "Create your first source app",
-      body: "Each service that sends you pushes gets its own source app. Think: scripts, dashboards, home automation. You'll get a token to plug into them.",
     },
     {
       id: "done",
@@ -105,7 +87,7 @@ export default function Onboarding() {
       tint: colors.success,
       eyebrow: "All set",
       title: "You're ready",
-      body: "Head to the Apps tab any time to create more source apps. Settings lets you swap backends or tweak notification sounds.",
+      body: "Create source apps in the Apps tab to receive your own pushes — or wait for an invite. Settings lets you swap backends and tweak sounds.",
     },
   ];
 
@@ -145,31 +127,6 @@ export default function Onboarding() {
       setNotifStatus("denied");
       setNotifError(err?.message ?? "Failed to register this device");
     }
-  }
-
-  async function createFirstApp() {
-    const name = appName.trim();
-    if (!name) return;
-    setBusy(true);
-    try {
-      const result = await createApp({ name });
-      setCreatedToken({ name, token: result.token });
-      haptic.success();
-      goTo(3);
-    } catch (err: any) {
-      haptic.error();
-      Alert.alert("Couldn't create app", err?.message ?? "Please try again.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function copyToken() {
-    if (!createdToken) return;
-    await Clipboard.setStringAsync(createdToken.token);
-    haptic.success();
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   }
 
   async function finish() {
@@ -249,58 +206,6 @@ export default function Onboarding() {
                 />
               )}
 
-              {s.id === "firstApp" && (
-                <Input
-                  label="Source app name"
-                  placeholder="e.g. peptide, home, scripts"
-                  value={appName}
-                  onChangeText={setAppName}
-                  autoCapitalize="none"
-                />
-              )}
-
-              {s.id === "done" && createdToken && (
-                <View
-                  style={{
-                    padding: spacing.md,
-                    borderRadius: radius.lg,
-                    borderCurve: "continuous",
-                    backgroundColor: colors.fill,
-                    gap: spacing.sm,
-                  }}
-                >
-                  <Text style={{ ...type.footnote, color: colors.secondaryLabel }}>
-                    Token for {createdToken.name} — copy now, this is the only time it's shown.
-                  </Text>
-                  <Text
-                    selectable
-                    style={{ fontFamily: "Menlo", fontSize: 12, color: colors.label }}
-                    numberOfLines={2}
-                  >
-                    {createdToken.token}
-                  </Text>
-                  <Pressable
-                    onPress={copyToken}
-                    style={({ pressed }) => ({
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: spacing.xs,
-                      alignSelf: "flex-start",
-                      paddingVertical: 4,
-                      opacity: pressed ? 0.6 : 1,
-                    })}
-                  >
-                    <SymbolView
-                      name={copied ? "checkmark" : "doc.on.doc"}
-                      size={14}
-                      tintColor={colors.accent}
-                    />
-                    <Text style={{ ...type.footnote, color: colors.accent, fontWeight: "600" }}>
-                      {copied ? "Copied" : "Copy token"}
-                    </Text>
-                  </Pressable>
-                </View>
-              )}
             </View>
           ))}
         </ScrollView>
@@ -316,12 +221,10 @@ export default function Onboarding() {
             step={currentStep}
             page={page}
             total={steps.length}
-            busy={busy || notifStatus === "requesting"}
+            busy={notifStatus === "requesting"}
             notifStatus={notifStatus}
-            hasAppName={appName.trim().length > 0}
             onNext={() => goTo(page + 1)}
             onEnable={enableNotifications}
-            onCreate={createFirstApp}
             onFinish={finish}
             onSkip={() => goTo(page + 1)}
             colors={colors}
@@ -391,10 +294,8 @@ function StepFooter({
   total,
   busy,
   notifStatus,
-  hasAppName,
   onNext,
   onEnable,
-  onCreate,
   onFinish,
   onSkip,
   colors,
@@ -404,10 +305,8 @@ function StepFooter({
   total: number;
   busy: boolean;
   notifStatus: "idle" | "requesting" | "granted" | "denied";
-  hasAppName: boolean;
   onNext: () => void;
   onEnable: () => void;
-  onCreate: () => void;
   onFinish: () => void;
   onSkip: () => void;
   colors: ReturnType<typeof useTheme>["colors"];
@@ -442,18 +341,6 @@ function StepFooter({
           {notifStatus !== "granted" && (
             <Button title="Skip for now" variant="plain" onPress={onSkip} />
           )}
-        </View>
-      )}
-
-      {step.id === "firstApp" && (
-        <View style={{ gap: spacing.sm }}>
-          <Button
-            title="Create app"
-            onPress={onCreate}
-            loading={busy}
-            disabled={!hasAppName}
-          />
-          <Button title="I'll do this later" variant="plain" onPress={onSkip} />
         </View>
       )}
 
