@@ -31,6 +31,9 @@ export type DrawerHeaderProps = {
   safeAreaTop?: number;
   /** Hide the title text (still occupies layout space for the chevron logic). */
   hideTitle?: boolean;
+  /** Which side the close/back button sits on. Defaults to "left". When set
+   *  to "right", `trailing` is ignored — the close button takes that slot. */
+  closeAlign?: "left" | "right";
 };
 
 const BUTTON_SIZE = 36;
@@ -44,15 +47,60 @@ export function DrawerHeader({
   floating = false,
   safeAreaTop = 0,
   hideTitle = false,
+  closeAlign = "left",
 }: DrawerHeaderProps) {
   const { colors, isDark } = useTheme();
   const showBack = leading === "back";
+  const closeOnRight = closeAlign === "right";
 
   const handleLeading = () => {
     haptic.light();
     if (onClose) onClose();
     else router.back();
   };
+
+  const closeButton = (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={showBack ? "Back" : "Close"}
+      onPress={handleLeading}
+      hitSlop={10}
+      style={({ pressed }) => ({
+        width: BUTTON_SIZE,
+        height: BUTTON_SIZE,
+        borderRadius: BUTTON_SIZE / 2,
+        overflow: "hidden",
+        opacity: pressed ? 0.7 : 1,
+      })}
+    >
+      <BlurView
+        intensity={isDark ? 50 : 70}
+        tint={isDark ? "dark" : "light"}
+        style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: isDark
+            ? "rgba(40,40,42,0.55)"
+            : "rgba(255,255,255,0.55)",
+        }}
+      >
+        <SymbolView
+          name={showBack ? "chevron.left" : "xmark"}
+          size={showBack ? 16 : 13}
+          weight="semibold"
+          tintColor={colors.label}
+        />
+      </BlurView>
+    </Pressable>
+  );
+
+  // Empty 36×36 spacer that mirrors the close button's footprint, used on
+  // whichever side doesn't host the close so the title stays optically
+  // centered.
+  const spacer = (
+    <View style={{ width: BUTTON_SIZE, height: BUTTON_SIZE }} />
+  );
 
   return (
     <View
@@ -70,39 +118,7 @@ export function DrawerHeader({
         backgroundColor: "transparent",
       }}
     >
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={showBack ? "Back" : "Close"}
-        onPress={handleLeading}
-        hitSlop={10}
-        style={({ pressed }) => ({
-          width: BUTTON_SIZE,
-          height: BUTTON_SIZE,
-          borderRadius: BUTTON_SIZE / 2,
-          overflow: "hidden",
-          opacity: pressed ? 0.7 : 1,
-        })}
-      >
-        <BlurView
-          intensity={isDark ? 50 : 70}
-          tint={isDark ? "dark" : "light"}
-          style={{
-            flex: 1,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: isDark
-              ? "rgba(40,40,42,0.55)"
-              : "rgba(255,255,255,0.55)",
-          }}
-        >
-          <SymbolView
-            name={showBack ? "chevron.left" : "xmark"}
-            size={showBack ? 16 : 13}
-            weight="semibold"
-            tintColor={colors.label}
-          />
-        </BlurView>
-      </Pressable>
+      {closeOnRight ? spacer : closeButton}
 
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
         {hideTitle ? null : onPressTitle ? (
@@ -145,16 +161,20 @@ export function DrawerHeader({
         )}
       </View>
 
-      <View
-        style={{
-          width: BUTTON_SIZE,
-          height: BUTTON_SIZE,
-          alignItems: "flex-end",
-          justifyContent: "center",
-        }}
-      >
-        {trailing ?? null}
-      </View>
+      {closeOnRight ? (
+        closeButton
+      ) : (
+        <View
+          style={{
+            width: BUTTON_SIZE,
+            height: BUTTON_SIZE,
+            alignItems: "flex-end",
+            justifyContent: "center",
+          }}
+        >
+          {trailing ?? null}
+        </View>
+      )}
     </View>
   );
 }

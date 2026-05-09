@@ -8,7 +8,6 @@
 #
 #   convex/           ← snapshotted from the root convex/ (sans _generated)
 #   LICENSE           ← copied from the monorepo root
-#   patches/          ← copied from the monorepo root (required by package.json)
 #   tsconfig.json     ← stub for typechecking the convex/ tree standalone
 #
 # After the first run, point a public git repo at public/ (or a subtree of
@@ -73,9 +72,12 @@ rm -f "$DEST/convex/iap.ts"
 note "→ copying LICENSE"
 cp "$ROOT/LICENSE" "$DEST/LICENSE"
 
-if [ -d "$ROOT/patches" ]; then
-  note "→ syncing patches/ → $DEST/patches/"
-  rsync -a --delete "$ROOT/patches/" "$DEST/patches/"
+# Clean up any stale patches/ left from earlier publishes — `bun install` in
+# the public tree treats a missing `patchedDependencies` block as a no-op,
+# but a leftover patch file would still get applied and corrupt deps.
+if [ -d "$DEST/patches" ]; then
+  note "→ removing stale $DEST/patches/"
+  rm -rf "$DEST/patches"
 fi
 
 # Stub tsconfig for standalone typechecking of the convex/ tree.

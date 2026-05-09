@@ -402,6 +402,7 @@ export default function Upgrade() {
         floating
         safeAreaTop={insets.top}
         hideTitle
+        closeAlign="right"
       />
     </View>
   );
