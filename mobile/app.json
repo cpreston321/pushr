@@ -59,7 +59,14 @@
           "icon": "./assets/images/pushr-light.png",
           "color": "#ffffff",
           "defaultChannel": "default",
-          "sounds": [],
+          "sounds": [
+            "./assets/sounds/pulse.caf",
+            "./assets/sounds/wire.caf",
+            "./assets/sounds/tap.caf",
+            "./assets/sounds/bell.caf",
+            "./assets/sounds/escalate.caf",
+            "./assets/sounds/klaxon.caf"
+          ],
           "enableBackgroundRemoteNotifications": true
         }
       ],

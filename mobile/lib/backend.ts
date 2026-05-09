@@ -58,6 +58,12 @@ export async function initBackend(): Promise<BackendConfig> {
     },
     plugins: [
       expoClient({ scheme: "pushr", storagePrefix: "pushr", storage: SecureStore }),
+      // @convex-dev/better-auth@0.11.5 declares peer better-auth >=1.5.0 <1.6.0
+      // but we ship better-auth 1.6.5. Runtime shape is identical; only the
+      // BetterAuthClientPlugin type widened in 1.6. Remove this directive
+      // after bumping @convex-dev/better-auth to ≥0.12.x (which itself wants
+      // better-auth ≥1.6.9 — coordinate the upgrade).
+      // @ts-expect-error — peer-dep skew, see comment above
       convexAuthPlugin(),
     ],
   });
