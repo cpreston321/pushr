@@ -122,19 +122,32 @@ Up to **4 actions**. Three kinds:
   "title": "Staging deploy ready",
   "body":  "Merge main → staging?",
   "actions": [
-    { "kind": "callback", "id": "approve", "label": "Approve",
-      "callbackUrl": "https://ci.example.com/deploy/42/approve" },
-
-    { "kind": "callback", "id": "reject",  "label": "Reject",
+    {
+      "kind": "callback",
+      "id": "approve",
+      "label": "Approve",
+      "callbackUrl": "https://ci.example.com/deploy/42/approve"
+    },
+    {
+      "kind": "callback",
+      "id": "reject",
+      "label": "Reject",
       "callbackUrl": "https://ci.example.com/deploy/42/reject",
-      "destructive": true },
-
-    { "kind": "open_url", "id": "logs",    "label": "View logs",
-      "url": "https://ci.example.com/deploy/42" },
-
-    { "kind": "reply",    "id": "comment", "label": "Reply",
+      "destructive": true
+    },
+    {
+      "kind": "open_url",
+      "id": "logs",
+      "label": "View logs",
+      "url": "https://ci.example.com/deploy/42"
+    },
+    {
+      "kind": "reply",
+      "id": "comment",
+      "label": "Reply",
       "callbackUrl": "https://ci.example.com/deploy/42/comment",
-      "placeholder": "Add a note…" }
+      "placeholder": "Add a note…"
+    }
   ]
 }
 ```
@@ -157,7 +170,6 @@ User-Agent: pushr/1.0
 X-Pushr-Source: pushr
 X-Pushr-Notification: <notificationId>
 X-Pushr-Action: <action.id>
-X-Pushr-Signature: sha256=<hex>     ← only if the source app has webhookSecret set
 
 {
   "notificationId": "...",
@@ -167,13 +179,14 @@ X-Pushr-Signature: sha256=<hex>     ← only if the source app has webhookSecret
 }
 ```
 
-`X-Pushr-Signature` is `HMAC-SHA256(rawBody, sourceApp.webhookSecret)`.
-Verify with timing-safe equality:
+Outbound action callbacks are unsigned. To authenticate the request,
+embed a bearer token in the `callbackUrl` itself (e.g.
+`https://api.example.com/hook?key=…`) or terminate the URL on a server
+that already trusts pushr's egress IP / origin.
 
-```ts
-const mac = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
-const ok  = timingSafeEqual(`sha256=${mac}`, headers["x-pushr-signature"]);
-```
+> Inbound webhook signing (provider → pushr) is unrelated and configured
+> per provider — see [Webhook adapters → Signing secrets](#webhook-adapters)
+> below.
 
 #### Caveat: lockscreen labels
 
@@ -330,17 +343,10 @@ you care about:
 | `check_run`       | similar to workflow_run                | high on failure |
 | `deployment_status` | "{environment} {state}"              | high on `failure` |
 
-Set a webhook secret in GitHub and on the source app to verify
-`X-Hub-Signature-256` server-side:
-
-From the Convex dashboard:
-```
-sourceApps.setWebhookConfig
-  id=<sourceAppId>
-  provider="github"
-  secret="<your-github-webhook-secret>"
-```
-Pass `secret: null` to clear.
+Open the source app in the iOS app → **API & token** → **Webhook
+integrations** → tap **GitHub** and paste the same secret you configured
+in GitHub. Pushr verifies `X-Hub-Signature-256` on every delivery; mismatches
+return `401`.
 
 ### Sentry
 
@@ -355,12 +361,34 @@ Add an Internal Integration (or legacy plugin webhook) at
 | error        | 8              |
 | fatal        | 9              |
 
+To verify Sentry signatures, set the same client secret in **API & token →
+Webhook integrations → Sentry**. Pushr verifies `Sentry-Hook-Signature`
+(bare hex HMAC-SHA256 of the raw body) on every delivery.
+
 ### Grafana
 
 Contact point → Webhook → URL `$PUSHR_URL/hooks/grafana?token=…`. The
 adapter collapses the alert batch into one push titled
 `<ruleName> (<n> firing)`. `commonLabels.severity` maps to priority the
-same way Sentry levels do.
+same way Sentry levels do. Grafana doesn't HMAC-sign webhook payloads, so
+the bearer token is the only authenticator — keep the URL private.
+
+### Signing secrets
+
+A single source app can be wired to multiple providers — each with its own
+signing secret. Configure them independently in **API & token → Webhook
+integrations**.
+
+| Provider | Header                  | Format         | Notes                  |
+| -------- | ----------------------- | -------------- | ---------------------- |
+| GitHub   | `X-Hub-Signature-256`   | `sha256=<hex>` | Required when set      |
+| Sentry   | `Sentry-Hook-Signature` | bare `<hex>`   | Required when set      |
+| Grafana  | —                       | —              | Bearer-only (no signing) |
+
+When a secret is set for a provider that supports signing, every inbound
+delivery to `/hooks/{provider}` must carry a valid signature or pushr
+returns `401 { error: "Invalid signature" }`. Clearing the secret falls
+back to bearer-only auth.
 
 ### Adapter response
 
@@ -368,7 +396,7 @@ same way Sentry levels do.
 | ---- | ----------------------------- | --------------------------------------------------------- |
 | 202  | `{ id, scheduledFor: null }`  | Adapter normalized the event and the push was queued.    |
 | 200  | `{ ignored: true, provider }` | The adapter chose to ignore this event (e.g. GitHub `ping`). |
-| 401  | `{ error: "Invalid signature" }` | GitHub HMAC verification failed (only when `webhookSecret` is set). |
+| 401  | `{ error: "Invalid signature" }` | HMAC verification failed for a provider with a configured signing secret. |
 | 401 / 400 / 429 / 500 | (same as `/notify`)  |                                                           |
 
 ---

@@ -84,18 +84,29 @@ export default defineSchema({
     // Windows may wrap past midnight (e.g. start=1320 → end=480 covers 22:00-08:00).
     quietStart: v.optional(v.number()),
     quietEnd: v.optional(v.number()),
-    // Optional HMAC secret used by webhook adapters (e.g. GitHub's
-    // X-Hub-Signature-256). Stored in plaintext because we need to compute
-    // signatures with it. `undefined` means the adapter relies purely on
-    // bearer-token auth.
-    webhookSecret: v.optional(v.string()),
-    // Declared provider for /hooks/:provider routing. Currently informational
-    // — the HTTP route itself names the provider and bearer token identifies
-    // the app. Stored so the UI can label the app.
-    webhookProvider: v.optional(v.string()),
   })
     .index("by_owner", ["ownerId"])
     .index("by_tokenHash", ["tokenHash"]),
+
+  /**
+   * Per-provider HMAC secret used to verify inbound webhook signatures from
+   * a specific service (GitHub's X-Hub-Signature-256, Sentry's
+   * Sentry-Hook-Signature, etc.). One row per (sourceApp, provider) pair —
+   * a single source app can be wired to multiple providers, each with its
+   * own secret. Stored in plaintext because we need the raw key to compute
+   * HMAC-SHA256 at verification time. Only providers that actually sign
+   * payloads should have rows here; bearer-only providers like Grafana need
+   * no entry.
+   */
+  webhookConfigs: defineTable({
+    sourceAppId: v.id("sourceApps"),
+    provider: v.string(), // matches the /hooks/:provider URL segment
+    secret: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_app", ["sourceAppId"])
+    .index("by_app_provider", ["sourceAppId", "provider"]),
 
   /**
    * A device is a physical iOS/Android device registered to receive pushes.
@@ -419,5 +430,6 @@ export default defineSchema({
   })
     .index("by_owner_activity", ["ownerId", "activityId"])
     .index("by_owner_started", ["ownerId", "startedAt"])
+    .index("by_sourceApp", ["sourceAppId"])
     .index("by_native_activity_id", ["nativeActivityId"]),
 });

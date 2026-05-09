@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { Pressable, Text, View, ViewStyle } from "react-native";
 import { SymbolView, SFSymbol } from "expo-symbols";
-import { useTheme, spacing, type } from "@/lib/theme";
+import { useTheme, spacing, radius, type } from "@/lib/theme";
 import { haptic } from "@/lib/haptics";
 
 type Props = {
@@ -55,7 +55,7 @@ export function ListRow({
       style={{
         width: 28,
         height: 28,
-        borderRadius: 6,
+        borderRadius: radius.sm,
         backgroundColor: iconBg ?? colors.accent,
         alignItems: "center",
         justifyContent: "center",

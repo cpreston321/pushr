@@ -32,7 +32,13 @@ import { forgetToken, recallToken } from "@/lib/tokenStore";
 import { backendConfig } from "@/lib/backend";
 
 type Role = "owner" | "editor" | "viewer";
-type AppRow = Doc<"sourceApps"> & { logoUrl: string | null; role: Role };
+type AppRow = Doc<"sourceApps"> & {
+  logoUrl: string | null;
+  role: Role;
+  // Owner-only: per-provider webhook signing configs. Empty array for
+  // viewers/editors (server hides them).
+  webhookConfigs: Array<{ provider: string; secret: string }>;
+};
 type SharingData = NonNullable<
   FunctionReturnType<typeof api.sharing.listMembers>
 >;
@@ -53,14 +59,15 @@ export type SourceAppDrawerProps = {
 };
 
 /**
- * Two TrueSheets stacked: the detail sheet, and a sharing sheet that
- * presents on top of it when "Manage sharing" is tapped. iOS handles the
- * stack; back-arrow on the sharing sheet dismisses just the top sheet.
+ * Three TrueSheets stacked: the detail sheet, plus a sharing sheet and an
+ * API/token sheet that present on top of it when their entry rows are tapped.
+ * iOS handles the stack; back-arrow on a child sheet dismisses just the top.
  */
 export const SourceAppDrawer = forwardRef<SourceAppDrawerRef, SourceAppDrawerProps>(
   function SourceAppDrawer({ onTokenRotated }, ref) {
     const detailRef = useRef<DrawerRef>(null);
     const sharingRef = useRef<DrawerRef>(null);
+    const apiRef = useRef<DrawerRef>(null);
     const [appId, setAppId] = useState<Id<"sourceApps"> | null>(null);
 
     useImperativeHandle(
@@ -99,10 +106,7 @@ export const SourceAppDrawer = forwardRef<SourceAppDrawerRef, SourceAppDrawerPro
               <DetailBody
                 appId={appId}
                 onOpenSharing={() => sharingRef.current?.present()}
-                onTokenRotated={async (info) => {
-                  await detailRef.current?.dismiss();
-                  onTokenRotated?.(info);
-                }}
+                onOpenApi={() => apiRef.current?.present()}
               />
             ) : null}
           </ScrollView>
@@ -127,6 +131,37 @@ export const SourceAppDrawer = forwardRef<SourceAppDrawerRef, SourceAppDrawerPro
             }}
           >
             {appId ? <SharingBody sourceAppId={appId} /> : null}
+          </ScrollView>
+        </Drawer>
+
+        <Drawer
+          ref={apiRef}
+          header={
+            <DrawerHeader
+              title="API & token"
+              leading="back"
+              onClose={() => apiRef.current?.dismiss()}
+            />
+          }
+        >
+          <ScrollView
+            contentContainerStyle={{
+              paddingHorizontal: spacing.lg,
+              paddingTop: spacing.md,
+              paddingBottom: 40,
+              gap: spacing.lg,
+            }}
+          >
+            {appId ? (
+              <ApiBody
+                appId={appId}
+                onTokenRotated={async (info) => {
+                  await apiRef.current?.dismiss();
+                  await detailRef.current?.dismiss();
+                  onTokenRotated?.(info);
+                }}
+              />
+            ) : null}
           </ScrollView>
         </Drawer>
       </>
@@ -175,15 +210,11 @@ function DetailHeader({
 function DetailBody({
   appId,
   onOpenSharing,
-  onTokenRotated,
+  onOpenApi,
 }: {
   appId: Id<"sourceApps">;
   onOpenSharing: () => void;
-  onTokenRotated: (info: {
-    id: Id<"sourceApps">;
-    name: string;
-    token: string;
-  }) => void;
+  onOpenApi: () => void;
 }) {
   const { colors } = useTheme();
   const { dismiss } = useDrawer();
@@ -196,16 +227,13 @@ function DetailBody({
   const setEnabled = useMutation(api.sourceApps.setEnabled);
   const setMute = useMutation(api.sourceApps.setMute);
   const setQuietHours = useMutation(api.sourceApps.setQuietHours);
-  const rename = useMutation(api.sourceApps.rename);
-  const revoke = useMutation(api.sourceApps.revoke);
+  const deleteApp = useMutation(api.sourceApps.deleteApp);
   const setLogo = useMutation(api.sourceApps.setLogo);
   const removeLogo = useMutation(api.sourceApps.removeLogo);
   const generateUploadUrl = useMutation(api.sourceApps.generateLogoUploadUrl);
   const leaveApp = useMutation(api.sharing.leaveApp);
   const sendTestPush = useMutation(api.notifications.sendTest);
-  const rotateToken = useMutation(api.sourceApps.rotateToken);
   const [sendingTest, setSendingTest] = useState(false);
-  const [rotating, setRotating] = useState(false);
 
   if (apps === undefined) {
     return (
@@ -243,15 +271,27 @@ function DetailBody({
     await setLogo({ id: app._id, storageId: picked.storageId });
   }
 
-  async function promptRename() {
-    if (!app) return;
-    const next = await promptText({
-      title: "Rename app",
-      defaultValue: app.name,
+  function handleAvatarPress() {
+    if (!app || !canEdit) return;
+    haptic.light();
+    if (!app.logoUrl) {
+      changeLogo();
+      return;
+    }
+    showActionSheet({
+      title: "Logo",
+      options: [
+        { label: "Change logo", onPress: changeLogo },
+        {
+          label: "Remove logo",
+          destructive: true,
+          onPress: () => {
+            haptic.warning();
+            removeLogo({ id: app._id });
+          },
+        },
+      ],
     });
-    if (!next) return;
-    haptic.success();
-    rename({ id: app._id, name: next });
   }
 
   function openMutePresets() {
@@ -303,19 +343,34 @@ function DetailBody({
   function confirmRevoke() {
     if (!app) return;
     haptic.warning();
-    Alert.alert("Revoke token?", `This permanently disables ${app.name}.`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Revoke",
-        style: "destructive",
-        onPress: async () => {
-          haptic.error();
-          await revoke({ id: app._id });
-          await forgetToken(app._id);
-          await dismiss();
+    Alert.alert(
+      "Delete app?",
+      `Permanently deletes ${app.name} and everything tied to it: the bearer token, notification history, delivery records, live activities, the logo, members, and pending invites. This can't be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            haptic.error();
+            const appId = app._id;
+            // Close the sheet immediately so the destructive action feels
+            // instant; the cascade-delete + background sweep run after.
+            await dismiss();
+            try {
+              await deleteApp({ id: appId });
+              await forgetToken(appId);
+            } catch (err: any) {
+              haptic.error();
+              Alert.alert(
+                "Couldn't delete app",
+                err?.data?.message ?? err?.message ?? "Please try again.",
+              );
+            }
+          },
         },
-      },
-    ]);
+      ],
+    );
   }
 
   function confirmLeave() {
@@ -339,43 +394,6 @@ function DetailBody({
     );
   }
 
-  async function copyCurl() {
-    if (!app) return;
-    await Clipboard.setStringAsync(curlExample(app.name));
-    haptic.success();
-  }
-
-  async function handleRotate() {
-    if (!app || rotating) return;
-    Alert.alert(
-      "Regenerate token?",
-      `Any caller still using the current token for ${app.name} will stop working immediately. The notification feed history is preserved.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Regenerate",
-          style: "destructive",
-          onPress: async () => {
-            setRotating(true);
-            try {
-              const { token } = await rotateToken({ id: app._id });
-              haptic.success();
-              onTokenRotated({ id: app._id, name: app.name, token });
-            } catch (err: any) {
-              haptic.error();
-              Alert.alert(
-                "Couldn't regenerate token",
-                err?.data?.message ?? err?.message ?? "Please try again.",
-              );
-            } finally {
-              setRotating(false);
-            }
-          },
-        },
-      ],
-    );
-  }
-
   async function handleSendTest() {
     if (!app || sendingTest) return;
     setSendingTest(true);
@@ -393,21 +411,6 @@ function DetailBody({
     }
   }
 
-  async function copySavedToken() {
-    if (!app) return;
-    const token = await recallToken(app._id);
-    if (!token) {
-      haptic.warning();
-      Alert.alert(
-        "Token not on this device",
-        "We only cache the token on the device it was created on. To use it elsewhere, revoke and create a new app.",
-      );
-      return;
-    }
-    await Clipboard.setStringAsync(token);
-    haptic.success();
-  }
-
   return (
     <>
       <View
@@ -417,7 +420,15 @@ function DetailBody({
           gap: spacing.md,
         }}
       >
-        <Avatar url={app.logoUrl} name={app.name} size={56} />
+        <Pressable
+          onPress={canEdit ? handleAvatarPress : undefined}
+          disabled={!canEdit}
+          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+          accessibilityRole={canEdit ? "button" : undefined}
+          accessibilityLabel={canEdit ? "Change logo" : undefined}
+        >
+          <Avatar url={app.logoUrl} name={app.name} size={56} />
+        </Pressable>
         <View style={{ flex: 1, gap: 2 }}>
           <View
             style={{
@@ -440,19 +451,6 @@ function DetailBody({
               numberOfLines={2}
             >
               {app.description}
-            </Text>
-          )}
-          {isOwner && (
-            <Text
-              selectable
-              style={{
-                ...type.caption1,
-                color: colors.tertiaryLabel,
-                fontFamily: "Menlo",
-                marginTop: 2,
-              }}
-            >
-              {app.tokenPrefix}
             </Text>
           )}
         </View>
@@ -513,34 +511,6 @@ function DetailBody({
         </ProGate>
       </DetailSection>
 
-      {canEdit && (
-        <DetailSection title="Identity">
-          <DetailRow
-            icon="photo.fill"
-            tint={colors.accent}
-            title={app.logoUrl ? "Change logo" : "Add logo"}
-            onPress={changeLogo}
-            chevron
-          />
-          {app.logoUrl && (
-            <DetailRow
-              icon="trash"
-              tint={colors.destructive}
-              title="Remove logo"
-              onPress={() => removeLogo({ id: app._id })}
-              destructive
-            />
-          )}
-          <DetailRow
-            icon="pencil"
-            tint={colors.accent}
-            title="Rename"
-            onPress={promptRename}
-            chevron
-          />
-        </DetailSection>
-      )}
-
       <SharingSummarySection
         sourceAppId={app._id}
         onPress={onOpenSharing}
@@ -557,58 +527,26 @@ function DetailBody({
           />
           {isOwner && (
             <DetailRow
-              icon="terminal.fill"
-              tint={colors.accent}
-              title="Copy curl example"
-              subtitle="Paste into any shell to send a push"
-              onPress={copyCurl}
-            />
-          )}
-          {isOwner && (
-            <DetailRow
               icon="key.fill"
               tint={colors.accent}
-              title="Copy token"
-              subtitle="Only on the device the app was created on"
-              onPress={copySavedToken}
-            />
-          )}
-          {isOwner && (
-            <DetailRow
-              icon="arrow.triangle.2.circlepath"
-              tint={colors.warning}
-              title={rotating ? "Regenerating…" : "Regenerate token"}
-              subtitle="Invalidates the old token. The new one is shown once."
-              onPress={rotating ? undefined : handleRotate}
-              destructive
+              title="API & token"
+              subtitle={apiRowSubtitle(app.webhookConfigs)}
+              onPress={onOpenApi}
+              chevron
+              badge={
+                app.webhookConfigs && app.webhookConfigs.length > 0
+                  ? "ON"
+                  : undefined
+              }
             />
           )}
         </DetailSection>
       )}
 
-      {isOwner ? (
-        <DetailSection title="Danger">
-          <DetailRow
-            icon="xmark.octagon.fill"
-            tint={colors.destructive}
-            title="Revoke token"
-            subtitle="Permanently disables this app"
-            onPress={confirmRevoke}
-            destructive
-          />
-        </DetailSection>
-      ) : (
-        <DetailSection title="Membership">
-          <DetailRow
-            icon="rectangle.portrait.and.arrow.right"
-            tint={colors.destructive}
-            title="Leave app"
-            subtitle="Stop receiving pushes from this app"
-            onPress={confirmLeave}
-            destructive
-          />
-        </DetailSection>
-      )}
+      <DestructiveFooterButton
+        label={isOwner ? "Delete app" : "Leave app"}
+        onPress={isOwner ? confirmRevoke : confirmLeave}
+      />
     </>
   );
 }
@@ -653,6 +591,463 @@ function SharingSummarySection({
   );
 }
 
+function DestructiveFooterButton({
+  label,
+  onPress,
+}: {
+  label: string;
+  onPress: () => void;
+}) {
+  const { colors } = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={() => {
+        haptic.selection();
+        onPress();
+      }}
+      style={({ pressed }) => ({
+        backgroundColor: pressed ? colors.cellHighlight : colors.cell,
+        borderRadius: radius.lg,
+        borderCurve: "continuous",
+        paddingVertical: spacing.md,
+        alignItems: "center",
+        justifyContent: "center",
+        minHeight: 52,
+      })}
+    >
+      <Text
+        style={{
+          ...type.body,
+          color: colors.destructive,
+          fontWeight: "600",
+        }}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// API & token
+// ---------------------------------------------------------------------------
+
+type WebhookProviderId = "github" | "sentry" | "grafana";
+
+type WebhookProviderMeta = {
+  label: string;
+  /** True if the provider HMAC-signs payloads (so a signing secret matters). */
+  signs: boolean;
+  signatureHeader?: string;
+  /** Where the user goes to copy the secret on the provider's side. */
+  configHint?: string;
+  hookPath: string;
+};
+
+const WEBHOOK_PROVIDERS: Record<WebhookProviderId, WebhookProviderMeta> = {
+  github: {
+    label: "GitHub",
+    signs: true,
+    signatureHeader: "X-Hub-Signature-256",
+    configHint: "Repo → Settings → Webhooks",
+    hookPath: "/hooks/github",
+  },
+  sentry: {
+    label: "Sentry",
+    signs: true,
+    signatureHeader: "Sentry-Hook-Signature",
+    configHint: "Settings → Custom Integrations → Webhooks",
+    hookPath: "/hooks/sentry",
+  },
+  grafana: {
+    label: "Grafana",
+    // Grafana doesn't sign webhook payloads natively — auth is bearer-only.
+    signs: false,
+    configHint: "Alerting → Contact points → Webhook",
+    hookPath: "/hooks/grafana",
+  },
+};
+
+const WEBHOOK_PROVIDER_ORDER: WebhookProviderId[] = [
+  "github",
+  "sentry",
+  "grafana",
+];
+
+function isWebhookProviderId(v: string | undefined): v is WebhookProviderId {
+  return v === "github" || v === "sentry" || v === "grafana";
+}
+
+function ApiBody({
+  appId,
+  onTokenRotated,
+}: {
+  appId: Id<"sourceApps">;
+  onTokenRotated: (info: {
+    id: Id<"sourceApps">;
+    name: string;
+    token: string;
+  }) => void;
+}) {
+  const { colors, tintBg } = useTheme();
+  const apps = useQuery(api.sourceApps.listMine) as AppRow[] | undefined;
+  const app = apps?.find((a) => a._id === appId);
+  const rotateToken = useMutation(api.sourceApps.rotateToken);
+  const setProviderWebhookSecret = useMutation(
+    api.sourceApps.setProviderWebhookSecret,
+  );
+  const [rotating, setRotating] = useState(false);
+  const [savingFor, setSavingFor] = useState<WebhookProviderId | null>(null);
+
+  if (apps === undefined) {
+    return (
+      <View style={{ paddingTop: spacing.xxl, alignItems: "center" }}>
+        <ActivityIndicator color={colors.accent} />
+      </View>
+    );
+  }
+
+  if (!app || app.role !== "owner") {
+    return (
+      <View style={{ paddingTop: spacing.xxl, alignItems: "center" }}>
+        <Text style={{ ...type.body, color: colors.secondaryLabel }}>
+          Owner access required.
+        </Text>
+      </View>
+    );
+  }
+
+  // Per-provider config lookup. `webhookConfigs` is owner-only, server-side
+  // populated; we always treat undefined as empty.
+  const configsByProvider = new Map<WebhookProviderId, string>();
+  for (const c of app.webhookConfigs ?? []) {
+    if (isWebhookProviderId(c.provider)) {
+      configsByProvider.set(c.provider, c.secret);
+    }
+  }
+
+  async function setSecretFor(providerId: WebhookProviderId) {
+    if (!app || savingFor) return;
+    const meta = WEBHOOK_PROVIDERS[providerId];
+    const existing = configsByProvider.get(providerId);
+    const value = await promptText({
+      title: existing
+        ? `Update ${meta.label} signing secret`
+        : `Set ${meta.label} signing secret`,
+      message: meta.configHint
+        ? `Paste the secret from ${meta.configHint}. We'll verify ${meta.signatureHeader} on every delivery to ${meta.hookPath}.`
+        : `We'll verify ${meta.signatureHeader} on every delivery to ${meta.hookPath}.`,
+      placeholder: "Paste signing secret",
+      contentType: "password",
+      confirmLabel: "Save",
+    });
+    if (!value) return;
+    setSavingFor(providerId);
+    try {
+      await setProviderWebhookSecret({
+        id: app._id,
+        provider: providerId,
+        secret: value,
+      });
+      haptic.success();
+    } catch (err: any) {
+      haptic.error();
+      Alert.alert(
+        `Couldn't save ${meta.label} secret`,
+        err?.data?.message ?? err?.message ?? "Please try again.",
+      );
+    } finally {
+      setSavingFor(null);
+    }
+  }
+
+  async function clearSecretFor(providerId: WebhookProviderId) {
+    if (!app || savingFor) return;
+    const meta = WEBHOOK_PROVIDERS[providerId];
+    Alert.alert(
+      `Clear ${meta.label} signing secret?`,
+      `${meta.label} deliveries to ${app.name} will stop being signature-verified. Other providers configured on this app are unaffected. The bearer token still authenticates each request.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Clear",
+          style: "destructive",
+          onPress: async () => {
+            setSavingFor(providerId);
+            try {
+              await setProviderWebhookSecret({
+                id: app._id,
+                provider: providerId,
+                secret: null,
+              });
+              haptic.success();
+            } catch (err: any) {
+              haptic.error();
+              Alert.alert(
+                `Couldn't clear ${meta.label} secret`,
+                err?.data?.message ?? err?.message ?? "Please try again.",
+              );
+            } finally {
+              setSavingFor(null);
+            }
+          },
+        },
+      ],
+    );
+  }
+
+  function tapProvider(providerId: WebhookProviderId) {
+    if (!app || savingFor) return;
+    const meta = WEBHOOK_PROVIDERS[providerId];
+    if (!meta.signs) return; // Bearer-only — nothing to configure.
+    haptic.light();
+    if (configsByProvider.has(providerId)) {
+      showActionSheet({
+        title: `${meta.label} webhook`,
+        options: [
+          {
+            label: "Update signing secret",
+            onPress: () => setSecretFor(providerId),
+          },
+          {
+            label: "Clear signing secret",
+            destructive: true,
+            onPress: () => clearSecretFor(providerId),
+          },
+        ],
+      });
+    } else {
+      setSecretFor(providerId);
+    }
+  }
+
+  async function copyCurl() {
+    if (!app) return;
+    await Clipboard.setStringAsync(curlExample(app.name));
+    haptic.success();
+  }
+
+  async function copyTokenPrefix() {
+    if (!app) return;
+    await Clipboard.setStringAsync(app.tokenPrefix);
+    haptic.light();
+  }
+
+  async function copySavedToken() {
+    if (!app) return;
+    const token = await recallToken(app._id);
+    if (!token) {
+      haptic.warning();
+      Alert.alert(
+        "Token not on this device",
+        "We only cache the token on the device it was created on. To use it elsewhere, regenerate the token.",
+      );
+      return;
+    }
+    await Clipboard.setStringAsync(token);
+    haptic.success();
+  }
+
+  async function handleRotate() {
+    if (!app || rotating) return;
+    Alert.alert(
+      "Regenerate token?",
+      `Any caller still using the current token for ${app.name} will stop working immediately. The notification feed history is preserved.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Regenerate",
+          style: "destructive",
+          onPress: async () => {
+            setRotating(true);
+            try {
+              const { token } = await rotateToken({ id: app._id });
+              haptic.success();
+              onTokenRotated({ id: app._id, name: app.name, token });
+            } catch (err: any) {
+              haptic.error();
+              Alert.alert(
+                "Couldn't regenerate token",
+                err?.data?.message ?? err?.message ?? "Please try again.",
+              );
+            } finally {
+              setRotating(false);
+            }
+          },
+        },
+      ],
+    );
+  }
+
+  return (
+    <View style={{ gap: spacing.xs }}>
+      <Text
+        style={{
+          ...type.footnote,
+          color: colors.secondaryLabel,
+          textTransform: "uppercase",
+          letterSpacing: 0.5,
+          paddingHorizontal: spacing.sm,
+        }}
+      >
+        Bearer token
+      </Text>
+
+      {/* Token card — prefix shown big & monospace, with inline copy. */}
+      <Pressable
+        onPress={copyTokenPrefix}
+        style={({ pressed }) => ({
+          backgroundColor: colors.cell,
+          borderRadius: radius.lg,
+          borderCurve: "continuous",
+          paddingHorizontal: spacing.lg,
+          paddingVertical: spacing.md,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: spacing.md,
+          opacity: pressed ? 0.7 : 1,
+        })}
+        accessibilityRole="button"
+        accessibilityLabel="Copy token prefix"
+      >
+        <View
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: radius.lg,
+            backgroundColor: tintBg(colors.accent),
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <SymbolView name="key.fill" size={18} tintColor={colors.accent} />
+        </View>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text
+            style={{
+              ...type.footnote,
+              color: colors.secondaryLabel,
+              textTransform: "uppercase",
+              letterSpacing: 0.5,
+            }}
+          >
+            Prefix
+          </Text>
+          <Text
+            selectable
+            numberOfLines={1}
+            style={{
+              ...type.body,
+              color: colors.label,
+              fontFamily: "Menlo",
+            }}
+          >
+            {app.tokenPrefix}
+            <Text style={{ color: colors.secondaryLabel }}>…</Text>
+          </Text>
+        </View>
+        <SymbolView
+          name="doc.on.doc"
+          size={16}
+          tintColor={colors.secondaryLabel}
+        />
+      </Pressable>
+
+      {/* Token actions — grouped DetailSection underneath the card. */}
+      <View style={{ marginTop: spacing.sm }}>
+        <DetailSection title="Token actions">
+          <DetailRow
+            icon="terminal.fill"
+            tint={colors.accent}
+            title="Copy curl example"
+            subtitle="Paste into any shell to send a push"
+            onPress={copyCurl}
+          />
+          <DetailRow
+            icon="square.on.square"
+            tint={colors.accent}
+            title="Copy full token"
+            subtitle="Only on the device the app was created on"
+            onPress={copySavedToken}
+          />
+          <DetailRow
+            icon="arrow.triangle.2.circlepath"
+            tint={colors.warning}
+            title={rotating ? "Regenerating…" : "Regenerate token"}
+            subtitle="Invalidates the old token. The new one is shown once."
+            onPress={rotating ? undefined : handleRotate}
+            destructive
+          />
+        </DetailSection>
+      </View>
+
+      <View style={{ marginTop: spacing.sm }}>
+        <DetailSection title="Webhook integrations">
+          {WEBHOOK_PROVIDER_ORDER.map((providerId) => {
+            const meta = WEBHOOK_PROVIDERS[providerId];
+            const secret = configsByProvider.get(providerId);
+            const isSet = !!secret;
+            const saving = savingFor === providerId;
+            const subtitle = !meta.signs
+              ? `Bearer-only · POST ${meta.hookPath}`
+              : isSet
+                ? `Set · ${secret!.length} chars · verifies ${meta.signatureHeader}`
+                : `Tap to set · verifies ${meta.signatureHeader} on ${meta.hookPath}`;
+            return (
+              <DetailRow
+                key={providerId}
+                icon={
+                  saving
+                    ? "arrow.triangle.2.circlepath"
+                    : !meta.signs
+                      ? "info.circle"
+                      : isSet
+                        ? "lock.shield.fill"
+                        : "lock.open.fill"
+                }
+                tint={
+                  !meta.signs
+                    ? colors.secondaryLabel
+                    : isSet
+                      ? colors.success
+                      : colors.accent
+                }
+                title={meta.label}
+                subtitle={saving ? "Saving…" : subtitle}
+                onPress={
+                  meta.signs && !saving
+                    ? () => tapProvider(providerId)
+                    : undefined
+                }
+                chevron={meta.signs && !saving}
+                badge={isSet ? "ON" : undefined}
+              />
+            );
+          })}
+        </DetailSection>
+      </View>
+    </View>
+  );
+}
+
+function apiRowSubtitle(
+  configs: Array<{ provider: string; secret: string }> | undefined,
+): string {
+  const count = configs?.length ?? 0;
+  if (count === 0) return "Curl example, copy token, regenerate";
+  if (count === 1) {
+    const provider = configs![0].provider;
+    const meta = isWebhookProviderId(provider)
+      ? WEBHOOK_PROVIDERS[provider]
+      : null;
+    return meta
+      ? `${meta.label} signing on · curl, regenerate`
+      : "Webhook signing on · curl, regenerate";
+  }
+  return `${count} webhook signers · curl, regenerate`;
+}
+
 // ---------------------------------------------------------------------------
 // Sharing
 // ---------------------------------------------------------------------------
@@ -671,6 +1066,7 @@ function SharingBody({
   const cancelInvite = useMutation(api.sharing.cancelInvite);
   const removeMember = useMutation(api.sharing.removeMember);
   const setMemberRole = useMutation(api.sharing.setMemberRole);
+  const setInviteRole = useMutation(api.sharing.setInviteRole);
 
   if (app === undefined || data === undefined) {
     return (
@@ -703,15 +1099,24 @@ function SharingBody({
       placeholder: "person@example.com",
       keyboardType: "email-address",
       contentType: "emailAddress",
-      confirmLabel: "Send invite",
+      confirmLabel: "Next",
     });
     if (!email) return;
+    haptic.light();
+    showActionSheet({
+      title: `Invite ${email} as…`,
+      message:
+        "Editors can adjust delivery settings. Viewers only receive pushes.",
+      options: [
+        { label: "Editor", onPress: () => sendInvite(email, "editor") },
+        { label: "Viewer", onPress: () => sendInvite(email, "viewer") },
+      ],
+    });
+  }
+
+  async function sendInvite(email: string, role: "editor" | "viewer") {
     try {
-      const result = await inviteByEmail({
-        sourceAppId,
-        email,
-        role: "editor",
-      });
+      const result = await inviteByEmail({ sourceAppId, email, role });
       haptic.success();
       if ("alreadyMember" in result && result.alreadyMember) {
         Alert.alert(
@@ -781,9 +1186,27 @@ function SharingBody({
 
   function inviteMenu(invite: Invite) {
     haptic.light();
+    const otherRole: "editor" | "viewer" =
+      invite.role === "editor" ? "viewer" : "editor";
     showActionSheet({
       title: invite.email,
+      message: `Pending · ${labelForRole(invite.role)}`,
       options: [
+        {
+          label: `Change role to ${labelForRole(otherRole)}`,
+          onPress: async () => {
+            try {
+              await setInviteRole({ inviteId: invite._id, role: otherRole });
+              haptic.success();
+            } catch (err: any) {
+              haptic.error();
+              Alert.alert(
+                "Couldn't change role",
+                err?.data?.message ?? err?.message ?? "Please try again.",
+              );
+            }
+          },
+        },
         {
           label: "Resend invite",
           onPress: async () => {
@@ -876,7 +1299,7 @@ function SharingBody({
             style={{
               width: 40,
               height: 40,
-              borderRadius: 20,
+              borderRadius: radius.xl,
               backgroundColor: atLimit ? colors.warning : colors.accent,
               alignItems: "center",
               justifyContent: "center",
@@ -1068,7 +1491,7 @@ function DetailRow({
         style={{
           width: 32,
           height: 32,
-          borderRadius: 16,
+          borderRadius: radius.lg,
           backgroundColor: tintBg(tint),
           alignItems: "center",
           justifyContent: "center",
@@ -1092,7 +1515,7 @@ function DetailRow({
               style={{
                 paddingHorizontal: 6,
                 paddingVertical: 1,
-                borderRadius: 4,
+                borderRadius: radius.xs,
                 backgroundColor: colors.accent,
               }}
             >
@@ -1174,7 +1597,7 @@ function SharingCountBadge({
           style={{
             width: 8,
             height: 8,
-            borderRadius: 4,
+            borderRadius: radius.xs,
             backgroundColor: colors.warning,
           }}
         />
@@ -1198,7 +1621,7 @@ function RoleBadge({ role, muted }: { role: Role; muted?: boolean }) {
       style={{
         paddingHorizontal: 6,
         paddingVertical: 2,
-        borderRadius: 4,
+        borderRadius: radius.xs,
         backgroundColor: muted ? colors.fill : tintBg(tint),
       }}
     >

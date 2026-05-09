@@ -12,7 +12,7 @@ import Svg, { Defs, RadialGradient, Rect, Stop } from "react-native-svg";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { SymbolView, type SFSymbol } from "expo-symbols";
-import { useAction, useMutation, useQuery } from "convex/react";
+import { useAction, useConvexAuth, useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Button } from "@/components/Button";
 import { DrawerHeader } from "@/components/DrawerHeader";
@@ -56,7 +56,8 @@ const PERKS: { icon: SFSymbol; title: string; body: string }[] = [
 export default function Upgrade() {
   const { colors, tintBg } = useTheme();
   const insets = useSafeAreaInsets();
-  const plan = useQuery(api.tiers.getMyPlan);
+  const { isAuthenticated } = useConvexAuth();
+  const plan = useQuery(api.tiers.getMyPlan, isAuthenticated ? {} : "skip");
   const grantPro = useMutation(api.tiers.grantProToMe);
   const downgrade = useMutation(api.tiers.downgradeMe);
   const reconcile = useAction(api.iap.reconcile);
@@ -192,7 +193,7 @@ export default function Upgrade() {
           <View
             style={{
               backgroundColor: colors.cell,
-              borderRadius: 20,
+              borderRadius: radius.xl,
               borderCurve: "continuous",
               paddingVertical: spacing.md,
               paddingHorizontal: spacing.lg,
@@ -278,7 +279,7 @@ export default function Upgrade() {
                     backgroundColor: tintBg(colors.success),
                     paddingHorizontal: 10,
                     paddingVertical: 4,
-                    borderRadius: 10,
+                    borderRadius: radius.md,
                   }}
                 >
                   <Text
@@ -498,7 +499,7 @@ function PriceSkeleton({ tint }: { tint: string }) {
         style={{
           width: 96,
           height: 40,
-          borderRadius: 8,
+          borderRadius: radius.sm,
           backgroundColor: tint,
         }}
       />
@@ -528,7 +529,7 @@ function CycleToggle({
       style={{
         flexDirection: "row",
         backgroundColor: colors.fill,
-        borderRadius: 999,
+        borderRadius: radius.pill,
         padding: 3,
       }}
     >
@@ -547,7 +548,7 @@ function CycleToggle({
             style={{
               paddingHorizontal: 20,
               paddingVertical: 8,
-              borderRadius: 999,
+              borderRadius: radius.pill,
               backgroundColor: active ? activeBg : "transparent",
               boxShadow: active ? "0px 2px 4px rgba(0, 0, 0, 0.12)" : undefined,
             }}

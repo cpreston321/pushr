@@ -19,3 +19,7 @@ public/convex/
 public/LICENSE
 public/patches/
 public/tsconfig.json
+
+
+.output/
+.tanstack/

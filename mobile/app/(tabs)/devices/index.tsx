@@ -9,7 +9,7 @@ import { ScreenHeader, ScreenBody } from "@/components/ScreenHeader";
 import { ScreenTransition } from "@/components/ScreenTransition";
 import { ListSection } from "@/components/ListSection";
 import { ListRow } from "@/components/ListRow";
-import { useTheme, spacing, type } from "@/lib/theme";
+import { useTheme, spacing, radius, type } from "@/lib/theme";
 import { haptic } from "@/lib/haptics";
 import { showActionSheet } from "@/lib/actionSheet";
 import { promptText } from "@/lib/prompt";
@@ -144,7 +144,7 @@ export default function Devices() {
                   style={{
                     width: 40,
                     height: 40,
-                    borderRadius: 20,
+                    borderRadius: radius.xl,
                     backgroundColor: isCurrent ? tintBg(colors.accent) : colors.fill,
                     alignItems: "center",
                     justifyContent: "center",
@@ -219,7 +219,7 @@ function StatusCard({
       style={{
         backgroundColor: colors.cell,
         padding: spacing.lg,
-        borderRadius: 14,
+        borderRadius: radius.lg,
         borderCurve: "continuous",
         flexDirection: "row",
         alignItems: "center",
@@ -230,7 +230,7 @@ function StatusCard({
         style={{
           width: 40,
           height: 40,
-          borderRadius: 12,
+          borderRadius: radius.md,
           borderCurve: "continuous",
           backgroundColor: tintBg(tint),
           alignItems: "center",

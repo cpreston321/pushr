@@ -1,5 +1,6 @@
 import { v, ConvexError } from "convex/values";
-import { query, mutation } from "./_generated/server";
+import { query, mutation, internalMutation } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { requireAuth } from "./lib/auth";
 import {
   getSourceAppRole,
@@ -13,8 +14,10 @@ import { getEffectiveTier, TIER_LIMITS } from "./tiers";
 import type { Doc } from "./_generated/dataModel";
 
 /**
- * Decorate a source-app document for the mobile UI: resolve the logo URL
- * and stamp on the caller's role. Hides the webhook secret from non-owners.
+ * Decorate a source-app document for the mobile UI: resolve the logo URL,
+ * stamp on the caller's role, and (for owners only) attach the per-provider
+ * webhook signing configs. Non-owners get an empty `webhookConfigs` array
+ * so the UI can render without conditional shape checks.
  */
 async function decorateApp(
   ctx: Parameters<typeof getSourceAppRole>[0],
@@ -24,12 +27,20 @@ async function decorateApp(
   const logoUrl = app.logoStorageId
     ? await ctx.storage.getUrl(app.logoStorageId)
     : null;
-  const { webhookSecret, ...rest } = app;
+  const webhookConfigs =
+    role === "owner"
+      ? (
+          await ctx.db
+            .query("webhookConfigs")
+            .withIndex("by_app", (q) => q.eq("sourceAppId", app._id))
+            .collect()
+        ).map((c) => ({ provider: c.provider, secret: c.secret }))
+      : [];
   return {
-    ...rest,
-    webhookSecret: role === "owner" ? webhookSecret : undefined,
+    ...app,
     logoUrl,
     role,
+    webhookConfigs,
   };
 }
 
@@ -199,25 +210,47 @@ export const rename = mutation({
 });
 
 /**
- * Set or clear the webhook HMAC secret for a source app.
- * Declares the provider at the same time so the Apps tab can label it.
- * Pass `secret: null` to clear.
+ * Set or clear the inbound HMAC signing secret for ONE provider on a source
+ * app. Pass `secret: null` to clear that provider's row. Other providers
+ * already configured on the same app are unaffected — a single source app
+ * can have entries for github, sentry, etc., each with its own key.
+ *
+ * Owner-only.
  */
-export const setWebhookConfig = mutation({
+export const setProviderWebhookSecret = mutation({
   args: {
     id: v.id("sourceApps"),
-    provider: v.optional(v.string()),
+    provider: v.string(),
     secret: v.union(v.null(), v.string()),
   },
   handler: async (ctx, args) => {
     const userId = await requireAuth(ctx);
-    // Webhook secret is sensitive — owner only.
     await requireSourceAppRole(ctx, args.id, userId, "owner");
+    const provider = args.provider.trim();
+    if (!provider) throw new ConvexError("Provider is required");
     const trimmed = args.secret?.trim();
-    await ctx.db.patch(args.id, {
-      webhookSecret: trimmed && trimmed.length > 0 ? trimmed : undefined,
-      webhookProvider: args.provider?.trim() || undefined,
-    });
+    const existing = await ctx.db
+      .query("webhookConfigs")
+      .withIndex("by_app_provider", (q) =>
+        q.eq("sourceAppId", args.id).eq("provider", provider),
+      )
+      .unique();
+    if (!trimmed || trimmed.length === 0) {
+      if (existing) await ctx.db.delete(existing._id);
+      return;
+    }
+    const now = Date.now();
+    if (existing) {
+      await ctx.db.patch(existing._id, { secret: trimmed, updatedAt: now });
+    } else {
+      await ctx.db.insert("webhookConfigs", {
+        sourceAppId: args.id,
+        provider,
+        secret: trimmed,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
   },
 });
 
@@ -244,15 +277,130 @@ export const rotateToken = mutation({
   },
 });
 
-export const revoke = mutation({
+/**
+ * Hard-delete a source app and every record tied to it: members, invites,
+ * notifications + their deliveries + actionEvents, live activities, the
+ * uploaded logo, and finally the sourceApps row itself.
+ *
+ * Two-phase to fit unbounded data within Convex's per-mutation transaction
+ * limit:
+ *   1. This public mutation deletes the bounded data (members/invites/logo)
+ *      and marks `revokedAt` so the app immediately disappears from
+ *      `listAccessibleSourceApps` (and therefore the feed/UI).
+ *   2. `internal.sourceApps.sweepDeletedAppData` runs in the background,
+ *      deleting batches of notifications + dependent rows, self-rescheduling
+ *      until everything is gone — at which point it deletes the sourceApps
+ *      row itself.
+ *
+ * Owner-only. Idempotent on repeat calls only until phase 1 commits — once
+ * `revokedAt` is set, `requireSourceAppRole` returns "not found" so a retry
+ * surfaces as a benign error to the caller.
+ */
+export const deleteApp = mutation({
   args: { id: v.id("sourceApps") },
   handler: async (ctx, args) => {
     const userId = await requireAuth(ctx);
-    await requireSourceAppRole(ctx, args.id, userId, "owner");
-    await ctx.db.patch(args.id, {
+    const { app } = await requireSourceAppRole(ctx, args.id, userId, "owner");
+
+    // Bounded synchronous deletes — sharedUsersLimit caps both members and
+    // invites, so these are small enough to handle in one transaction.
+    const members = await ctx.db
+      .query("sourceAppMembers")
+      .withIndex("by_app", (q) => q.eq("sourceAppId", app._id))
+      .collect();
+    for (const m of members) await ctx.db.delete(m._id);
+
+    const invites = await ctx.db
+      .query("sourceAppInvites")
+      .withIndex("by_app", (q) => q.eq("sourceAppId", app._id))
+      .collect();
+    for (const i of invites) await ctx.db.delete(i._id);
+
+    // Webhook signing configs — at most a handful per app (one per supported
+    // provider), bounded enough to handle synchronously.
+    const configs = await ctx.db
+      .query("webhookConfigs")
+      .withIndex("by_app", (q) => q.eq("sourceAppId", app._id))
+      .collect();
+    for (const c of configs) await ctx.db.delete(c._id);
+
+    if (app.logoStorageId) {
+      try {
+        await ctx.storage.delete(app.logoStorageId);
+      } catch {
+        // Already gone — ignore.
+      }
+    }
+
+    // Hide the app from every UI surface immediately. The row itself stays
+    // around until the sweep finishes deleting all dependent data, then the
+    // sweep deletes this row too.
+    await ctx.db.patch(app._id, {
       revokedAt: Date.now(),
       enabled: false,
     });
+
+    await ctx.scheduler.runAfter(
+      0,
+      internal.sourceApps.sweepDeletedAppData,
+      { appId: app._id },
+    );
+  },
+});
+
+const SWEEP_BATCH = 50;
+
+/**
+ * Internal cascade sweep for `deleteApp`. One batch per fire; self-reschedules
+ * while there's work left, then deletes the sourceApps row itself.
+ *
+ * Safe to run on a non-existent app — completes as a no-op.
+ */
+export const sweepDeletedAppData = internalMutation({
+  args: { appId: v.id("sourceApps") },
+  handler: async (ctx, { appId }) => {
+    let workDone = 0;
+
+    const notifications = await ctx.db
+      .query("notifications")
+      .withIndex("by_sourceApp_created", (q) => q.eq("sourceAppId", appId))
+      .take(SWEEP_BATCH);
+    for (const n of notifications) {
+      const deliveries = await ctx.db
+        .query("deliveries")
+        .withIndex("by_notification", (q) => q.eq("notificationId", n._id))
+        .collect();
+      for (const d of deliveries) await ctx.db.delete(d._id);
+      const events = await ctx.db
+        .query("actionEvents")
+        .withIndex("by_notification", (q) => q.eq("notificationId", n._id))
+        .collect();
+      for (const e of events) await ctx.db.delete(e._id);
+      await ctx.db.delete(n._id);
+      workDone++;
+    }
+
+    const activities = await ctx.db
+      .query("liveActivities")
+      .withIndex("by_sourceApp", (q) => q.eq("sourceAppId", appId))
+      .take(SWEEP_BATCH);
+    for (const a of activities) {
+      await ctx.db.delete(a._id);
+      workDone++;
+    }
+
+    if (workDone > 0) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.sourceApps.sweepDeletedAppData,
+        { appId },
+      );
+      return;
+    }
+
+    // No dependent data left — finally delete the sourceApps row itself.
+    const app = await ctx.db.get(appId);
+    if (app) await ctx.db.delete(appId);
   },
 });
 

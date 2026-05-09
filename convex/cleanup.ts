@@ -1,6 +1,9 @@
 import { v } from "convex/values";
 import { internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
+// region: tier-features
+import { TIER_LIMITS, getEffectiveTier, type Tier } from "./tiers";
+// endregion: tier-features
 
 /**
  * Scheduled cleanup of stale rows. Wired up in convex/crons.ts.
@@ -16,8 +19,13 @@ import { internal } from "./_generated/api";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-// Notifications (and their deliveries + actionEvents) kept for 30 days.
-const NOTIFICATION_RETAIN_MS = 30 * DAY_MS;
+// Notification retention is tier-aware (Free: 7 days, Pro: 90 days — see
+// `TIER_LIMITS.historyDays`). MIN bounds the early-break: a row younger
+// than the shortest tier window is fresh for every tier. MAX bounds the
+// "stale regardless of tier" fast path so we can skip the userTiers
+// lookup for rows that are obviously past retention.
+const MIN_NOTIFICATION_RETAIN_MS = 7 * DAY_MS;
+const MAX_NOTIFICATION_RETAIN_MS = 90 * DAY_MS;
 
 // Live Activities — ActivityKit activities don't run for weeks; drop shadow
 // rows after 14 days regardless of end state.
@@ -38,11 +46,39 @@ const BATCH_SIZE = 100;
 export const sweepNotifications = internalMutation({
   args: {},
   handler: async (ctx) => {
-    const cutoff = Date.now() - NOTIFICATION_RETAIN_MS;
+    const now = Date.now();
+    const minFreshFloor = now - MIN_NOTIFICATION_RETAIN_MS;
+    const alwaysStaleCutoff = now - MAX_NOTIFICATION_RETAIN_MS;
     const batch = await ctx.db.query("notifications").take(BATCH_SIZE);
+    // region: tier-features
+    // Cache tier per owner so a batch with many notifications from the same
+    // user costs one userTiers read instead of one per row.
+    const tierCache = new Map<string, Tier>();
+    async function retentionMsFor(ownerId: string): Promise<number> {
+      let tier = tierCache.get(ownerId);
+      if (tier === undefined) {
+        tier = await getEffectiveTier(ctx, ownerId);
+        tierCache.set(ownerId, tier);
+      }
+      return TIER_LIMITS[tier].historyDays * DAY_MS;
+    }
+    // endregion: tier-features
     let deleted = 0;
+    let allStale = true;
     for (const n of batch) {
-      if (n.createdAt >= cutoff) break;
+      // Rows are returned oldest-first; once we hit one fresh for every tier,
+      // nothing further could be stale.
+      if (n.createdAt >= minFreshFloor) {
+        allStale = false;
+        break;
+      }
+      let stale = n.createdAt < alwaysStaleCutoff;
+      // region: tier-features
+      if (!stale) {
+        stale = n.createdAt < now - (await retentionMsFor(n.ownerId));
+      }
+      // endregion: tier-features
+      if (!stale) continue;
       const deliveries = await ctx.db
         .query("deliveries")
         .withIndex("by_notification", (q) => q.eq("notificationId", n._id))
@@ -56,7 +92,10 @@ export const sweepNotifications = internalMutation({
       await ctx.db.delete(n._id);
       deleted++;
     }
-    if (deleted === BATCH_SIZE) {
+    // Reschedule only when the whole batch was stale AND we deleted at least
+    // one row. If a batch is entirely "stale-for-pro-but-pro-user", deleted
+    // is 0 — bailing keeps us from re-fetching the same prefix forever.
+    if (allStale && deleted > 0 && batch.length === BATCH_SIZE) {
       await ctx.scheduler.runAfter(0, internal.cleanup.sweepNotifications, {});
     }
     return deleted;

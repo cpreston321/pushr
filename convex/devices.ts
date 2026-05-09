@@ -38,10 +38,13 @@ export const register = mutation({
     const now = Date.now();
     if (existing) {
       // If the token was previously registered to a different user, take it over.
+      // `name` is intentionally NOT overwritten on re-register: the mobile
+      // client always sends the OS hardware name (Device.deviceName), which
+      // would clobber any user rename via `devices.rename`. The hardware
+      // name is only used to seed the initial insert below.
       await ctx.db.patch(existing._id, {
         ownerId,
         platform: args.platform,
-        name: args.name ?? existing.name,
         model: args.model ?? existing.model,
         osVersion: args.osVersion ?? existing.osVersion,
         appVersion: args.appVersion ?? existing.appVersion,

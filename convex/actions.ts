@@ -21,8 +21,10 @@ import type { Id, Doc } from "./_generated/dataModel";
  *                    HMAC-SHA256 signature (X-Pushr-Signature).
  *   - `reply`     → same as callback, plus { reply: <userText> } in body.
  *
- * The HMAC uses the source app's `webhookSecret` (same one used for
- * signed inbound webhooks). No secret set = unsigned POST.
+ * Outbound POSTs are currently unsigned — `X-Pushr-Signature` is omitted
+ * pending a dedicated callback-signing key on the source app. The receiver
+ * should authenticate via `X-Pushr-Source` + their own bearer/secret on
+ * the callbackUrl (e.g. embed it in the URL).
  */
 
 const CALLBACK_TIMEOUT_MS = 10_000;
@@ -53,7 +55,6 @@ export const invoke = action({
   handler: async (ctx, args) => {
     const resolved: {
       action: NotifAction | null;
-      webhookSecret: string | null;
       ownerId: string;
       callerId: string;
     } = await ctx.runQuery(internal.actions.resolveForInvoke, {
@@ -99,12 +100,6 @@ export const invoke = action({
       "X-Pushr-Notification": String(args.notificationId),
       "X-Pushr-Action": act.id,
     };
-    if (resolved.webhookSecret) {
-      headers["X-Pushr-Signature"] = `sha256=${await hmacHex(
-        body,
-        resolved.webhookSecret,
-      )}`;
-    }
 
     let callbackStatus: number | undefined;
     let callbackError: string | undefined;
@@ -146,8 +141,7 @@ export const invoke = action({
 });
 
 /**
- * Internal: resolve action identifier → action definition, plus the
- * source-app's webhookSecret for signing.
+ * Internal: resolve action identifier → action definition for the caller.
  */
 export const resolveForInvoke = internalQuery({
   args: {
@@ -186,13 +180,8 @@ export const resolveForInvoke = internalQuery({
       };
     }
 
-    let webhookSecret: string | null = null;
-    if (action && (action.kind === "callback" || action.kind === "reply")) {
-      webhookSecret = access.app.webhookSecret ?? null;
-    }
     return {
       action,
-      webhookSecret,
       ownerId: notif.ownerId,
       callerId,
     };
@@ -262,23 +251,5 @@ export const listForNotification = query({
     return rows;
   },
 });
-
-async function hmacHex(body: string, secret: string): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const sig = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    new TextEncoder().encode(body),
-  );
-  return Array.from(new Uint8Array(sig))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
 
 export type { NotifAction };

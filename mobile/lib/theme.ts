@@ -111,11 +111,22 @@ export const spacing = {
   xxl: 32,
 } as const;
 
+/**
+ * Border-radius scale. Multiples of 4 (Apple's standard design grid) so all
+ * rounded corners snap to the same rhythm. Tokens are sized for: tiny chips
+ * and badges (xs), small chips and inline icon containers (sm), list rows
+ * and medium cards (md), large cards and feature tiles (lg), drawers and
+ * sheets (xl). `pill` for fully-rounded capsules. Use these instead of raw
+ * numbers — direct numeric `borderRadius: N` is reserved for math-derived
+ * cases (circles where radius = width / 2).
+ */
 export const radius = {
-  sm: 6,
-  md: 10,
-  lg: 14,
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
   xl: 20,
+  pill: 9999,
 } as const;
 
 export const type = {

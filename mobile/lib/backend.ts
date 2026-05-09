@@ -49,6 +49,13 @@ export async function initBackend(): Promise<BackendConfig> {
   _convex = new ConvexReactClient(convexUrl, { unsavedChangesWarning: false });
   _auth = createAuthClient({
     baseURL: siteUrl,
+    // React Native's fetch doesn't send an Origin header, which causes Better
+    // Auth's CSRF check to reject authenticated requests with "Missing or
+    // null Origin". Force one that matches our app scheme — the server's
+    // trustedOrigins includes the same value.
+    fetchOptions: {
+      headers: { Origin: "pushr://" },
+    },
     plugins: [
       expoClient({ scheme: "pushr", storagePrefix: "pushr", storage: SecureStore }),
       convexAuthPlugin(),

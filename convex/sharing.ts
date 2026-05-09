@@ -381,6 +381,27 @@ export const setMemberRole = mutation({
 });
 
 /**
+ * Owner changes the role on a still-pending invite. Unlike re-sending via
+ * inviteByEmail, this leaves the expiry alone — purely a role correction.
+ */
+export const setInviteRole = mutation({
+  args: {
+    inviteId: v.id("sourceAppInvites"),
+    role: roleArg,
+  },
+  handler: async (ctx, args) => {
+    const userId = await requireAuth(ctx);
+    const invite = await ctx.db.get(args.inviteId);
+    if (!invite) throw new ConvexError("Invite not found");
+    if (invite.acceptedAt || invite.declinedAt || invite.canceledAt) {
+      throw new ConvexError("Invite is no longer pending");
+    }
+    await requireSourceAppRole(ctx, invite.sourceAppId, userId, "owner");
+    await ctx.db.patch(args.inviteId, { role: args.role });
+  },
+});
+
+/**
  * A non-owner member removes themselves from a source app.
  */
 export const leaveApp = mutation({

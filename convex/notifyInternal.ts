@@ -192,13 +192,16 @@ export const ingest = internalMutation({
 });
 
 /**
- * Internal: resolve a bearer token to its sourceApp's webhookSecret (if any).
- * Used by the /hooks dispatcher to verify signed webhooks BEFORE ingesting.
- * Returns null if the token is invalid — the caller is expected to still
- * call ingest (which throws INVALID_TOKEN) to surface a consistent error.
+ * Internal: resolve a bearer token + provider name to the sourceApp's
+ * configured signing secret for that provider (if any). Used by the /hooks
+ * dispatcher to verify signed webhooks BEFORE ingesting.
+ *
+ * Returns null when the token is invalid OR when no secret is configured
+ * for that provider — both cases skip signature verification (the caller's
+ * subsequent ingest call will surface INVALID_TOKEN consistently).
  */
 export const webhookSecretForToken = internalQuery({
-  args: { token: v.string() },
+  args: { token: v.string(), provider: v.string() },
   returns: v.union(v.null(), v.string()),
   handler: async (ctx, args) => {
     const tokenHash = await hashToken(args.token);
@@ -207,6 +210,12 @@ export const webhookSecretForToken = internalQuery({
       .withIndex("by_tokenHash", (q) => q.eq("tokenHash", tokenHash))
       .first();
     if (!app || app.revokedAt) return null;
-    return app.webhookSecret ?? null;
+    const config = await ctx.db
+      .query("webhookConfigs")
+      .withIndex("by_app_provider", (q) =>
+        q.eq("sourceAppId", app._id).eq("provider", args.provider),
+      )
+      .unique();
+    return config?.secret ?? null;
   },
 });

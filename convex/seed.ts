@@ -18,9 +18,12 @@ export const createAdmin = internalMutation({
     name: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const email = args.email ?? "admin@pushr.sh";
-    const password = args.password ?? "admin1234";
     const name = args.name ?? "Admin";
+    const email = args.email;
+    const password = args.password;
+
+    if (!email || !password)
+      return { created: false, reason: "missing email or password" };
 
     const auth = createAuth(ctx);
     try {

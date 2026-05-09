@@ -1,29 +1,29 @@
 import { useEffect } from "react";
-import { useQuery } from "convex/react";
+import { useConvexAuth, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { authClient } from "./auth-client";
 import { setBadge } from "./push";
 
 /**
  * Mirrors the unread-notification count onto the iOS app-icon badge while
- * the user is signed in. Skipped when the session is missing so we don't run
- * an authed query during the logged-out state.
+ * the user is signed in. Gates on `useConvexAuth().isAuthenticated` rather
+ * than better-auth's local session so we don't fire authed queries during
+ * the brief window after a password change / token rotation when the local
+ * session looks valid but Convex's verifier hasn't accepted the new JWT.
  */
 export function useBadgeSync(): void {
-  const { data } = authClient().useSession();
-  const signedIn = !!data?.session;
+  const { isAuthenticated } = useConvexAuth();
   const items = useQuery(
     api.notifications.listMine,
-    signedIn ? { limit: 100 } : "skip",
+    isAuthenticated ? { limit: 100 } : "skip",
   );
 
   useEffect(() => {
-    if (!signedIn) {
+    if (!isAuthenticated) {
       void setBadge(0);
       return;
     }
     if (items === undefined) return;
     const unread = items.filter((n) => !n.readAt).length;
     void setBadge(unread);
-  }, [items, signedIn]);
+  }, [items, isAuthenticated]);
 }

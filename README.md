@@ -145,7 +145,6 @@ User-Agent: pushr/1.0
 X-Pushr-Source: pushr
 X-Pushr-Notification: <notificationId>
 X-Pushr-Action: <action.id>
-X-Pushr-Signature: sha256=<hex>   ← only when webhookSecret is set
 
 {
   "notificationId": "...",
@@ -155,13 +154,11 @@ X-Pushr-Signature: sha256=<hex>   ← only when webhookSecret is set
 }
 ```
 
-`X-Pushr-Signature` is `HMAC-SHA256(body, sourceApp.webhookSecret)`. Verify it
-with the same secret you used for inbound webhooks:
-
-```ts
-const mac = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
-const ok = timingSafeEqual(`sha256=${mac}`, req.headers["x-pushr-signature"]);
-```
+Outbound action callbacks are unsigned. To authenticate the request,
+embed a token in the `callbackUrl` itself (e.g.
+`https://api.example.com/hook?key=…`). Inbound webhook signing
+(provider → pushr) is configured separately per provider — see [Webhook
+adapters](#webhook-adapters) below.
 
 **Lockscreen label caveat.** iOS requires notification categories to be
 pre-registered, so the on-device **lockscreen** shows generic labels
@@ -212,17 +209,10 @@ webhook settings. Select "application/json" and the events you care about
 (push, pull_request, issues, release, workflow_run, check_run,
 deployment_status).
 
-**Signature verification.** If you set a webhook secret in GitHub,
-configure the same secret on the source app and pushr will verify
-`X-Hub-Signature-256` on every request. From the Convex dashboard:
-
-```
-sourceApps.setWebhookConfig  id=<sourceAppId>
-                              provider="github"
-                              secret="<your-github-webhook-secret>"
-```
-
-Pass `secret: null` to clear.
+**Signature verification.** Set a webhook secret in GitHub, then open
+the source app in the iOS app → **API & token** → **Webhook integrations**
+→ tap **GitHub** and paste the same secret. Pushr verifies
+`X-Hub-Signature-256` on every request and rejects mismatches with `401`.
 
 ### Sentry
 
@@ -237,12 +227,31 @@ Add an Internal Integration (or legacy plugin webhook) pointing at
 | error | 8 |
 | fatal | 9 |
 
+**Signature verification.** In **API & token → Webhook integrations →
+Sentry**, paste the same client secret you set on the Sentry side. Pushr
+verifies `Sentry-Hook-Signature` (bare hex HMAC-SHA256 of the raw body)
+on every delivery.
+
 ### Grafana
 
 In your contact point → Webhook → URL `/hooks/grafana?token=…`. The adapter
 collapses the alert batch into a single push titled
 `<ruleName> (<n> firing)`. Severity (from `commonLabels.severity`) maps to
-pushr priority the same way Sentry levels do.
+pushr priority the same way Sentry levels do. Grafana doesn't natively
+HMAC-sign webhooks, so the bearer token is the only authenticator — keep
+the URL private.
+
+### Per-provider signing secrets
+
+A single source app can be wired to multiple providers — each with its
+own signing secret. Configure them independently in **API & token →
+Webhook integrations**. Bearer-only providers (Grafana) skip this step.
+
+| Provider | Header                  | Format         |
+| -------- | ----------------------- | -------------- |
+| GitHub   | `X-Hub-Signature-256`   | `sha256=<hex>` |
+| Sentry   | `Sentry-Hook-Signature` | bare `<hex>`   |
+| Grafana  | —                       | bearer-only    |
 
 ## Per-device delivery tracking
 

@@ -1,4 +1,5 @@
 import { motion } from "motion/react";
+import { Link } from "@tanstack/react-router";
 
 export function Footer() {
   return (
@@ -148,14 +149,14 @@ export function Footer() {
             items={[
               ["App Store", "#install"],
               ["Features", "#features"],
-              ["API", "#api"],
-              ["Changelog", "#"],
+              ["API", "/docs"],
+              ["Changelog", "/changelog"],
             ]}
           />
           <FootCol
             title="Developers"
             items={[
-              ["Docs", "#"],
+              ["Docs", "/docs"],
               ["GitHub", "#"],
               ["CLI · pushrsh", "#"],
               ["SDK · pushr", "#"],
@@ -272,12 +273,21 @@ function FootCol({ title, items }: { title: string; items: [string, string][] })
       <ul className="mt-4 space-y-2.5">
         {items.map(([label, href]) => (
           <li key={label}>
-            <a
-              href={href}
-              className="text-[14px] text-bone/70 transition hover:text-bone"
-            >
-              {label}
-            </a>
+            {href.startsWith("/") ? (
+              <Link
+                to={href}
+                className="text-[14px] text-bone/70 transition hover:text-bone"
+              >
+                {label}
+              </Link>
+            ) : (
+              <a
+                href={href}
+                className="text-[14px] text-bone/70 transition hover:text-bone"
+              >
+                {label}
+              </a>
+            )}
           </li>
         ))}
       </ul>

@@ -38,8 +38,6 @@ export function Hero() {
       {/* Top hairline */}
       <div className="anim-hairline absolute left-0 right-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--color-wire)] to-transparent" />
 
-      <Topbar />
-
       <div className="relative mx-auto grid max-w-[1280px] grid-cols-1 gap-12 px-6 pt-14 pb-28 lg:grid-cols-[1.05fr_1fr] lg:gap-8 lg:pt-24">
         {/* Left column — copy */}
         <div className="relative flex flex-col justify-center">
@@ -194,40 +192,6 @@ export function Hero() {
       {/* Marquee */}
       <Marquee />
     </section>
-  );
-}
-
-function Topbar() {
-  return (
-    <header className="relative z-20 mx-auto flex max-w-[1280px] items-center justify-between px-6 pt-6">
-      <div className="flex items-center gap-2.5">
-        <Logo />
-        <span className="font-mono text-[13px] tracking-tight text-bone">pushr.sh</span>
-      </div>
-      <nav className="hidden items-center gap-8 font-mono text-[12px] uppercase tracking-[0.2em] text-bone/60 md:flex">
-        <a href="#features" className="hover:text-bone">Features</a>
-        <a href="#api" className="hover:text-bone">API</a>
-        <a href="#install" className="hover:text-bone">Install</a>
-      </nav>
-      <a
-        href="https://github.com/anthropics"
-        className="rounded-full border border-white/15 bg-white/[0.03] px-4 py-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-bone/80 transition hover:border-[var(--color-wire)] hover:text-bone"
-      >
-        ↗ GitHub
-      </a>
-    </header>
-  );
-}
-
-function Logo() {
-  return (
-    <img
-      src="/pushr-icon.png"
-      alt="pushr"
-      width={28}
-      height={28}
-      className="h-7 w-7 rounded-lg shadow-[0_4px_18px_-4px_var(--color-wire)]"
-    />
   );
 }
 

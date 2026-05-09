@@ -15,7 +15,7 @@ import {
 import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 import ReanimatedSwipeable from "react-native-gesture-handler/ReanimatedSwipeable";
 import { Image } from "expo-image";
-import { SymbolView } from "expo-symbols";
+import { SymbolView, type SFSymbol } from "expo-symbols";
 import React, { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { router } from "expo-router";
 import * as Clipboard from "expo-clipboard";
@@ -110,7 +110,6 @@ export default function Apps() {
   const setEnabled = useMutation(api.sourceApps.setEnabled);
   const setMute = useMutation(api.sourceApps.setMute);
   const setQuietHours = useMutation(api.sourceApps.setQuietHours);
-  const revoke = useMutation(api.sourceApps.revoke);
   const rename = useMutation(api.sourceApps.rename);
   const generateUploadUrl = useMutation(api.sourceApps.generateLogoUploadUrl);
   const setLogo = useMutation(api.sourceApps.setLogo);
@@ -432,7 +431,7 @@ export default function Apps() {
                             style={{
                               paddingHorizontal: 6,
                               paddingVertical: 2,
-                              borderRadius: 4,
+                              borderRadius: radius.xs,
                               backgroundColor: colors.fill,
                               flexDirection: "row",
                               alignItems: "center",
@@ -693,9 +692,10 @@ function TokenBody({
 }: {
   created: { name: string; token: string } | null;
 }) {
-  const { colors } = useTheme();
+  const { colors, tintBg } = useTheme();
   const { dismiss } = useDrawer();
   const [copied, setCopied] = useState<"token" | "curl" | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
   async function copy(kind: "token" | "curl", text: string) {
     await Clipboard.setStringAsync(text);
@@ -704,51 +704,155 @@ function TokenBody({
     setTimeout(() => setCopied((c) => (c === kind ? null : c)), 2000);
   }
 
+  function handleDone() {
+    if (!confirming && copied !== "token") {
+      haptic.warning();
+      setConfirming(true);
+      setTimeout(() => setConfirming(false), 4000);
+      return;
+    }
+    setCopied(null);
+    setConfirming(false);
+    dismiss();
+  }
+
+  const tokenCopied = copied === "token";
+  const curlCopied = copied === "curl";
+  const accent = colors.warning;
+
   return (
     <>
-      <View style={{ alignItems: "center", gap: spacing.md, marginTop: spacing.md }}>
-          <View
-            style={{
-              width: 64,
-              height: 64,
-              borderRadius: 20,
-              borderCurve: "continuous",
-              backgroundColor: colors.accent,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <SymbolView name="key.fill" size={32} tintColor={colors.accentContrast} />
-          </View>
-          <Text style={{ ...type.title2, color: colors.label, textAlign: "center" }}>
-            Your token
-          </Text>
-          <Text style={{ ...type.subhead, color: colors.secondaryLabel, textAlign: "center" }}>
-            Copy this now. It will never be shown again — if you lose it, you'll need to revoke
-            and create a new app.
-          </Text>
-        </View>
-
+      {/* Compact warning hero — one icon, two lines. */}
+      <View style={{ alignItems: "center", gap: spacing.xs }}>
         <View
           style={{
-            backgroundColor: colors.cell,
-            paddingHorizontal: spacing.lg,
-            paddingVertical: spacing.md,
+            width: 44,
+            height: 44,
             borderRadius: radius.lg,
             borderCurve: "continuous",
-            gap: spacing.sm,
+            backgroundColor: tintBg(accent),
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
-          <Text style={{ ...type.footnote, color: colors.secondaryLabel }}>Token</Text>
+          <SymbolView
+            name="exclamationmark.shield.fill"
+            size={22}
+            tintColor={accent}
+          />
+        </View>
+        <Text
+          style={{
+            ...type.title3,
+            color: colors.label,
+            textAlign: "center",
+            marginTop: spacing.xs,
+          }}
+        >
+          Save this token now
+        </Text>
+        <Text
+          style={{
+            ...type.footnote,
+            color: colors.secondaryLabel,
+            textAlign: "center",
+            paddingHorizontal: spacing.lg,
+          }}
+        >
+          {created?.name ? `Token for ${created.name}. ` : ""}
+          Shown once — close this and you'll need to regenerate.
+        </Text>
+      </View>
+
+      {/* Single unified card: token + tap-to-copy rows. */}
+      <View
+        style={{
+          backgroundColor: colors.cell,
+          borderRadius: radius.lg,
+          borderCurve: "continuous",
+          overflow: "hidden",
+        }}
+      >
+        {/* Token value */}
+        <View
+          style={{
+            paddingHorizontal: spacing.lg,
+            paddingTop: spacing.md,
+            paddingBottom: spacing.md,
+            gap: spacing.xs,
+          }}
+        >
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <Text
+              style={{
+                ...type.footnote,
+                color: colors.secondaryLabel,
+                textTransform: "uppercase",
+                letterSpacing: 0.5,
+                fontWeight: "600",
+              }}
+            >
+              Bearer token
+            </Text>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 5,
+                paddingHorizontal: 7,
+                paddingVertical: 2,
+                borderRadius: 999,
+                backgroundColor: tintBg(
+                  tokenCopied ? colors.success : accent,
+                ),
+              }}
+            >
+              <View
+                style={{
+                  width: 5,
+                  height: 5,
+                  borderRadius: 3,
+                  backgroundColor: tokenCopied ? colors.success : accent,
+                }}
+              />
+              <Text
+                style={{
+                  ...type.caption2,
+                  color: tokenCopied ? colors.success : accent,
+                  fontWeight: "700",
+                  letterSpacing: 0.5,
+                }}
+              >
+                {tokenCopied ? "COPIED" : "SHOWN ONCE"}
+              </Text>
+            </View>
+          </View>
           <Text
             selectable
-            style={{ fontFamily: "Menlo", fontSize: 14, color: colors.label }}
+            style={{
+              fontFamily: "Menlo",
+              fontSize: 14,
+              lineHeight: 22,
+              color: colors.label,
+            }}
           >
             {created?.token ?? ""}
           </Text>
         </View>
-        <Button
-          title={copied === "token" ? "Copied ✓" : "Copy token"}
+
+        <View style={{ height: 0.5, backgroundColor: colors.separator }} />
+
+        {/* Tap to copy token */}
+        <TokenSheetRow
+          icon={tokenCopied ? "checkmark.circle.fill" : "doc.on.doc"}
+          tint={tokenCopied ? colors.success : colors.accent}
+          title={tokenCopied ? "Copied" : "Copy token"}
           onPress={() => {
             if (created) copy("token", created.token);
           }}
@@ -756,43 +860,94 @@ function TokenBody({
 
         <View
           style={{
-            backgroundColor: colors.cell,
-            padding: spacing.lg,
-            borderRadius: radius.lg,
-            borderCurve: "continuous",
-            gap: spacing.sm,
+            height: 0.5,
+            backgroundColor: colors.separator,
+            marginLeft: 56,
           }}
-        >
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-            <Text style={{ ...type.footnote, color: colors.secondaryLabel }}>
-              Try it from the command line
-            </Text>
-            <SymbolView name="terminal" size={14} tintColor={colors.tertiaryLabel} />
-          </View>
-          <Text
-            selectable
-            style={{ fontFamily: "Menlo", fontSize: 12, color: colors.label, lineHeight: 18 }}
-          >
-            {created ? curlExample(created.name, created.token) : ""}
-          </Text>
-        </View>
-        <Button
-          variant="secondary"
-          title={copied === "curl" ? "Copied ✓" : "Copy curl command"}
+        />
+
+        {/* Tap to copy curl example */}
+        <TokenSheetRow
+          icon={curlCopied ? "checkmark.circle.fill" : "terminal.fill"}
+          tint={curlCopied ? colors.success : colors.accent}
+          title={curlCopied ? "Copied" : "Copy curl example"}
+          subtitle={
+            curlCopied
+              ? undefined
+              : "Try it from the command line right now"
+          }
           onPress={() => {
             if (created) copy("curl", curlExample(created.name, created.token));
           }}
         />
+      </View>
 
-        <Button
-          variant="plain"
-          title="Done"
-          onPress={() => {
-            setCopied(null);
-            dismiss();
-          }}
-        />
+      <Button
+        title={
+          confirming ? "Tap again to dismiss without copying" : "Done"
+        }
+        variant={tokenCopied ? "primary" : "secondary"}
+        onPress={handleDone}
+      />
     </>
+  );
+}
+
+function TokenSheetRow({
+  icon,
+  tint,
+  title,
+  subtitle,
+  onPress,
+}: {
+  icon: SFSymbol;
+  tint: string;
+  title: string;
+  subtitle?: string;
+  onPress: () => void;
+}) {
+  const { colors, tintBg } = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => ({
+        flexDirection: "row",
+        alignItems: "center",
+        gap: spacing.md,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
+        opacity: pressed ? 0.6 : 1,
+        minHeight: 52,
+      })}
+    >
+      <View
+        style={{
+          width: 28,
+          height: 28,
+          borderRadius: radius.md,
+          backgroundColor: tintBg(tint),
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <SymbolView name={icon} size={16} tintColor={tint} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ ...type.body, color: colors.label }}>{title}</Text>
+        {!!subtitle && (
+          <Text
+            style={{
+              ...type.footnote,
+              color: colors.secondaryLabel,
+              marginTop: 1,
+            }}
+            numberOfLines={1}
+          >
+            {subtitle}
+          </Text>
+        )}
+      </View>
+    </Pressable>
   );
 }
 
@@ -943,7 +1098,7 @@ function RoleBadge({ role }: { role: "owner" | "editor" | "viewer" }) {
       style={{
         paddingHorizontal: 6,
         paddingVertical: 2,
-        borderRadius: 4,
+        borderRadius: radius.xs,
         backgroundColor: tintBg(tint),
         marginRight: spacing.xs,
       }}

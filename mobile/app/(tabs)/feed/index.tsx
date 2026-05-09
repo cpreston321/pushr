@@ -5,7 +5,6 @@ import type { NotifAction } from "../../../../convex/lib/actionsLayout";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Linking,
   Pressable,
@@ -32,6 +31,7 @@ import Animated, {
   type SharedValue,
 } from "react-native-reanimated";
 import { SymbolView } from "expo-symbols";
+import { Image } from "expo-image";
 import { BlurView } from "expo-blur";
 import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -396,14 +396,14 @@ function FloatingBar({
           <GlassView
             isInteractive
             glassEffectStyle="clear"
-            style={{ borderRadius: 16, borderCurve: "continuous" }}
+            style={{ borderRadius: radius.lg, borderCurve: "continuous" }}
           >
             {markRead}
           </GlassView>
           <GlassView
             isInteractive
             glassEffectStyle="clear"
-            style={{ borderRadius: 16, borderCurve: "continuous" }}
+            style={{ borderRadius: radius.lg, borderCurve: "continuous" }}
           >
             {clear}
           </GlassView>
@@ -544,7 +544,7 @@ function ClearPill({
               gap: 5,
               paddingHorizontal: 11,
               paddingVertical: 7,
-              borderRadius: 16,
+              borderRadius: radius.lg,
             },
             containerStyle,
           ]}
@@ -649,7 +649,7 @@ function BarAction({
         gap: 5,
         paddingHorizontal: 11,
         paddingVertical: 7,
-        borderRadius: 16,
+        borderRadius: radius.lg,
         backgroundColor: emphasized
           ? color
           : pressed
@@ -668,7 +668,7 @@ function BarAction({
             minWidth: 18,
             paddingHorizontal: 5,
             height: 16,
-            borderRadius: 8,
+            borderRadius: radius.sm,
             backgroundColor: color,
             alignItems: "center",
             justifyContent: "center",
@@ -721,7 +721,7 @@ function FeedToolbar({
             marginHorizontal: spacing.lg,
             paddingHorizontal: spacing.md,
             paddingVertical: spacing.sm,
-            borderRadius: 10,
+            borderRadius: radius.md,
             borderCurve: "continuous",
             backgroundColor: tintBg(colors.destructive, "1F"),
             flexDirection: "row",
@@ -746,7 +746,7 @@ function FeedToolbar({
           marginHorizontal: spacing.lg,
           paddingHorizontal: spacing.md,
           height: 44,
-          borderRadius: 10,
+          borderRadius: radius.md,
           borderCurve: "continuous",
           backgroundColor: colors.fill,
           gap: spacing.sm,
@@ -828,7 +828,7 @@ function FilterChip({
       style={({ pressed }) => ({
         paddingHorizontal: 12,
         paddingVertical: 6,
-        borderRadius: 14,
+        borderRadius: radius.lg,
         backgroundColor: selected
           ? colors.accent
           : pressed
@@ -907,32 +907,6 @@ function FeedFooter({
 
 function EmptyState() {
   const { colors } = useTheme();
-  const apps = useQuery(api.sourceApps.listMine);
-  const sendTest = useMutation(api.notifications.sendTest);
-  const [sending, setSending] = useState(false);
-  // Pick the first app the user can actually send pushes from. Viewers don't
-  // have permission, so they'd just get an error if we offered them the CTA.
-  const sendableApp = apps?.find(
-    (a) => (a.role === "owner" || a.role === "editor") && a.enabled,
-  );
-
-  async function fireTest() {
-    if (!sendableApp || sending) return;
-    setSending(true);
-    try {
-      await sendTest({ sourceAppId: sendableApp._id });
-      haptic.success();
-    } catch (err: any) {
-      haptic.error();
-      Alert.alert(
-        "Test push failed",
-        err?.data?.message ?? err?.message ?? "Please try again.",
-      );
-    } finally {
-      setSending(false);
-    }
-  }
-
   return (
     <View
       style={{
@@ -970,38 +944,8 @@ function EmptyState() {
           maxWidth: 280,
         }}
       >
-        {sendableApp
-          ? `Send yourself a test push from ${sendableApp.name} to make sure everything's working.`
-          : "Create a source app in the Apps tab and send your first push."}
+        Create a source app in the Apps tab and send your first push.
       </Text>
-      {sendableApp && (
-        <Pressable
-          onPress={fireTest}
-          disabled={sending}
-          accessibilityRole="button"
-          accessibilityLabel={`Send a test push from ${sendableApp.name}`}
-          accessibilityState={{ busy: sending, disabled: sending }}
-          style={({ pressed }) => ({
-            marginTop: spacing.sm,
-            paddingHorizontal: spacing.lg,
-            paddingVertical: spacing.sm + 2,
-            borderRadius: radius.md,
-            borderCurve: "continuous",
-            backgroundColor: colors.accent,
-            opacity: pressed || sending ? 0.6 : 1,
-          })}
-        >
-          <Text
-            style={{
-              ...type.headline,
-              color: colors.accentContrast,
-              fontWeight: "600",
-            }}
-          >
-            {sending ? "Sending…" : "Send a test push"}
-          </Text>
-        </Pressable>
-      )}
     </View>
   );
 }
@@ -1215,7 +1159,7 @@ function FeedGroupRow({
             gap: spacing.sm,
             paddingVertical: 6,
             paddingHorizontal: 6,
-            borderRadius: 8,
+            borderRadius: radius.sm,
             backgroundColor: pressed ? colors.cellHighlight : "transparent",
             opacity: item.liveActivity?.action === "end" ? 0.7 : 1,
           })}
@@ -1487,7 +1431,7 @@ function FeedRow({
               gap: 4,
               paddingHorizontal: 8,
               paddingVertical: 3,
-              borderRadius: 10,
+              borderRadius: radius.md,
               backgroundColor: tintBg(colors.destructive),
             }}
           >
@@ -1510,12 +1454,27 @@ function FeedRow({
           </View>
         )}
       </View>
-      {item.url && (
-        <SymbolView
-          name="chevron.right"
-          size={14}
-          tintColor={colors.tertiaryLabel}
+      {item.image ? (
+        <Image
+          source={{ uri: item.image }}
+          style={{
+            width: 56,
+            height: 56,
+            borderRadius: radius.md,
+            backgroundColor: colors.fill,
+          }}
+          contentFit="cover"
+          transition={150}
+          accessibilityIgnoresInvertColors
         />
+      ) : (
+        item.url && (
+          <SymbolView
+            name="chevron.right"
+            size={14}
+            tintColor={colors.tertiaryLabel}
+          />
+        )
       )}
     </Pressable>
   );
@@ -1674,7 +1633,7 @@ function ActionButtonsBar({
             style={({ pressed }) => ({
               paddingHorizontal: 12,
               paddingVertical: 6,
-              borderRadius: 14,
+              borderRadius: radius.lg,
               borderWidth: 0.5,
               borderColor: colors.separator,
               backgroundColor: pressed ? colors.cellHighlight : colors.fill,

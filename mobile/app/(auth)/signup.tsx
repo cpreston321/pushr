@@ -13,7 +13,7 @@ import { Screen } from "@/components/Screen";
 import { Input } from "@/components/Input";
 import { Button } from "@/components/Button";
 import { authClient } from "@/lib/auth-client";
-import { useTheme, spacing, type } from "@/lib/theme";
+import { useTheme, spacing, radius, type } from "@/lib/theme";
 import { haptic } from "@/lib/haptics";
 
 export default function Signup() {
@@ -60,7 +60,7 @@ export default function Signup() {
             gap: 4,
             paddingVertical: 8,
             paddingHorizontal: spacing.sm,
-            borderRadius: 10,
+            borderRadius: radius.md,
             opacity: pressed ? 0.6 : 1,
           })}
         >

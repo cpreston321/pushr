@@ -442,7 +442,7 @@ function ThemePicker() {
                   }}
                 >
                   <View
-                    style={{ flex: 1, borderRadius: 999, backgroundColor: color }}
+                    style={{ flex: 1, borderRadius: radius.pill, backgroundColor: color }}
                   />
                 </View>
               </Pressable>

@@ -122,9 +122,10 @@ POST /hooks/grafana?token=$PUSHR_TOKEN
 ```
 
 Either put the token in an `Authorization: Bearer …` header (if the provider
-supports custom headers) or append `?token=…` to the URL. GitHub adapters
-verify `X-Hub-Signature-256` if you've set a webhook secret on the source
-app.
+supports custom headers) or append `?token=…` to the URL. Each provider can
+have its own signing secret configured in the iOS app under **API & token
+→ Webhook integrations**: GitHub verifies `X-Hub-Signature-256`, Sentry
+verifies `Sentry-Hook-Signature`. Grafana is bearer-only.
 
 Adapters live in [`convex/hooks/`](./convex/hooks) — adding a new provider
 is one file (normalize provider payload → `NormalizedNotification`).

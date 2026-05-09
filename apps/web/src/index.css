@@ -140,4 +140,161 @@
   @keyframes dash {
     to { stroke-dashoffset: -20; }
   }
+
+  /* 404 — dead letter office: glitch / TV-static / scanlines */
+  @keyframes glitch-cyan {
+    0%, 100% { transform: translate3d(0, 0, 0); opacity: 0.55; }
+    20%      { transform: translate3d(-2px, 1px, 0); opacity: 0.7; }
+    40%      { transform: translate3d(2px, -1px, 0); opacity: 0.4; }
+    60%      { transform: translate3d(-1px, 0, 0); opacity: 0.65; }
+    80%      { transform: translate3d(1px, 1px, 0); opacity: 0.5; }
+  }
+  .anim-glitch-cyan { animation: glitch-cyan 1.6s steps(8, end) infinite; }
+
+  @keyframes glitch-rose {
+    0%, 100% { transform: translate3d(0, 0, 0); opacity: 0.5; }
+    25%      { transform: translate3d(2px, -1px, 0); opacity: 0.7; }
+    50%      { transform: translate3d(-2px, 1px, 0); opacity: 0.35; }
+    75%      { transform: translate3d(1px, 0, 0); opacity: 0.65; }
+  }
+  .anim-glitch-rose { animation: glitch-rose 1.7s steps(8, end) infinite; }
+
+  @keyframes static-flicker {
+    0%, 100% { opacity: 1; }
+    7%  { opacity: 0.55; }
+    9%  { opacity: 1; }
+    47% { opacity: 0.85; }
+    49% { opacity: 1; }
+    73% { opacity: 0.4; }
+    74% { opacity: 1; }
+  }
+  .anim-static-flicker { animation: static-flicker 4.2s linear infinite; }
+
+  @keyframes scanline-roll {
+    0%   { transform: translateY(-110%); }
+    100% { transform: translateY(2200%); }
+  }
+  .anim-scanline-roll { animation: scanline-roll 4.5s linear infinite; }
+
+  @keyframes spark-pulse {
+    0%, 100% { transform: scale(1);   opacity: 1;   filter: blur(0px); }
+    50%      { transform: scale(1.6); opacity: 0.4; filter: blur(1px); }
+  }
+  .anim-spark { animation: spark-pulse 0.9s ease-in-out infinite; }
+
+  @keyframes spark-ring {
+    0%   { transform: scale(0.4); opacity: 0.9; }
+    100% { transform: scale(3.2); opacity: 0; }
+  }
+  .anim-spark-ring { animation: spark-ring 1.6s ease-out infinite; }
+
+  /* CRT scanlines — used as a full-page overlay on the 404 */
+  .crt-scanlines {
+    background-image: repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.04) 0,
+      rgba(255, 255, 255, 0.04) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+  }
+}
+
+/* ---------------------------------------------------------------- */
+/*  Docs page (api reference)                                       */
+/* ---------------------------------------------------------------- */
+
+.docs-prose {
+  color: var(--color-bone);
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+/* The first paragraph of the rendered markdown (right after the hero)
+   reads as a lede — bigger, brighter, closer to the title. */
+.docs-prose > p:first-child {
+  font-size: 18px;
+  line-height: 1.6;
+  color: color-mix(in oklab, var(--color-bone) 92%, transparent);
+  margin-top: 0;
+}
+
+/* Shiki injects <pre class="shiki ..."> with inline background. We host it
+   inside our own framed container so reset its background and apply our
+   own padding + selectable font sizing. Line breaks come from the literal
+   "\n" text nodes shiki places between <span class="line"> elements — do
+   NOT add display:block to .line or you'll double-space the output. */
+.shiki-host pre.shiki {
+  background-color: transparent !important;
+  padding: 18px 22px;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.55;
+  font-feature-settings: "ss01", "cv11";
+  tab-size: 2;
+}
+
+.shiki-host pre.shiki code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+/* Inline code inside table cells should look quieter — the cell already
+   has structure around it. */
+.docs-prose td code,
+.docs-prose th code {
+  background: rgba(0, 0, 0, 0.35);
+  border-color: rgba(255, 255, 255, 0.05);
+  font-size: 0.86em;
+}
+
+/* ---------------------------------------------------------------- */
+/*  Homepage code showcase — shiki + line numbers                   */
+/* ---------------------------------------------------------------- */
+
+.code-showcase pre.shiki {
+  background-color: transparent !important;
+  padding: 22px 22px 22px 0;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.7;
+  font-feature-settings: "ss01", "cv11";
+  tab-size: 2;
+  counter-reset: shiki-line;
+}
+
+.code-showcase pre.shiki code {
+  display: block;
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+/* Each line in shiki output is a <span class="line"> separated by literal
+   "\n" text nodes. We can't make .line block-level (would double-space),
+   but we can prepend an inline-block gutter via a CSS counter on a
+   ::before — it lines up at the start of each visual row. */
+.code-showcase pre.shiki .line {
+  counter-increment: shiki-line;
+}
+
+.code-showcase pre.shiki .line::before {
+  content: counter(shiki-line, decimal-leading-zero);
+  display: inline-block;
+  width: 2.4em;
+  margin-right: 1.2em;
+  padding-left: 1.4em;
+  color: color-mix(in oklab, var(--color-bone) 25%, transparent);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+  -webkit-user-select: none;
 }

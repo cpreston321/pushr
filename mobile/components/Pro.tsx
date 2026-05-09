@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import { Pressable, Text, View } from "react-native";
 import { router } from "expo-router";
 import { SymbolView, type SFSymbol } from "expo-symbols";
-import { useQuery } from "convex/react";
+import { useConvexAuth, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { authClient } from "@/lib/auth-client";
 import { useRevenueCat } from "@/lib/revenuecat";
@@ -21,8 +21,9 @@ import { haptic } from "@/lib/haptics";
 export function useIsPro(): boolean {
   const session = authClient().useSession();
   const userId = session.data?.user?.id;
+  const { isAuthenticated } = useConvexAuth();
   const rc = useRevenueCat(userId);
-  const plan = useQuery(api.tiers.getMyPlan);
+  const plan = useQuery(api.tiers.getMyPlan, isAuthenticated ? {} : "skip");
   if (rc.status.kind === "ready" && rc.status.isPro) return true;
   return plan?.tier === "pro";
 }
@@ -31,8 +32,9 @@ export function useIsPro(): boolean {
 export function useProState() {
   const session = authClient().useSession();
   const userId = session.data?.user?.id;
+  const { isAuthenticated } = useConvexAuth();
   const rc = useRevenueCat(userId);
-  const plan = useQuery(api.tiers.getMyPlan);
+  const plan = useQuery(api.tiers.getMyPlan, isAuthenticated ? {} : "skip");
   const isPro =
     (rc.status.kind === "ready" && rc.status.isPro) || plan?.tier === "pro";
   return { isPro: !!isPro, plan, rc };
@@ -66,7 +68,7 @@ export function ProBadge({
       style={{
         paddingHorizontal: padH,
         paddingVertical: padV,
-        borderRadius: 4,
+        borderRadius: radius.xs,
         backgroundColor: colors.accent,
       }}
     >
@@ -119,7 +121,7 @@ export function ProUpsellCard({
         style={{
           width: 40,
           height: 40,
-          borderRadius: 20,
+          borderRadius: radius.xl,
           backgroundColor: tintBg(colors.accent),
           alignItems: "center",
           justifyContent: "center",
@@ -200,7 +202,7 @@ export function ProGate({
         style={{
           width: 32,
           height: 32,
-          borderRadius: 16,
+          borderRadius: radius.lg,
           backgroundColor: tintBg(colors.accent),
           alignItems: "center",
           justifyContent: "center",

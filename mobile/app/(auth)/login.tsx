@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import {
   Alert,
+  Image,
   KeyboardAvoidingView,
   Pressable,
   Text,
@@ -16,11 +17,11 @@ import type { DrawerRef } from "@/components/Drawer";
 import { ServerConfigDrawer } from "@/components/drawers/ServerConfigDrawer";
 import { currentServerLabel } from "@/lib/backend";
 import { authClient } from "@/lib/auth-client";
-import { useTheme, spacing, type } from "@/lib/theme";
+import { useTheme, spacing, radius, type } from "@/lib/theme";
 import { haptic } from "@/lib/haptics";
 
 export default function Login() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -62,14 +63,23 @@ export default function Login() {
               style={{
                 width: 72,
                 height: 72,
-                borderRadius: 22,
+                borderRadius: radius.xl,
                 borderCurve: "continuous",
                 backgroundColor: colors.accent,
                 alignItems: "center",
                 justifyContent: "center",
               }}
             >
-              <SymbolView name="bell.badge.fill" size={38} tintColor={colors.accentContrast} />
+              <Image
+                source={
+                  isDark
+                    ? require("../../assets/images/splash-icon-light.png")
+                    : require("../../assets/images/splash-icon-dark.png")
+                }
+                style={{ width: 56, height: 56 }}
+                resizeMode="contain"
+                accessibilityLabel="pushr"
+              />
             </View>
             <Text style={{ ...type.largeTitle, color: colors.label }}>pushr</Text>
             <Text
@@ -118,7 +128,7 @@ export default function Login() {
             paddingVertical: spacing.sm,
             paddingHorizontal: spacing.md,
             marginBottom: spacing.md,
-            borderRadius: 16,
+            borderRadius: radius.lg,
             opacity: pressed ? 0.6 : 1,
           })}
           hitSlop={8}

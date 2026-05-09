@@ -19,7 +19,16 @@ export const createAuthOptions = (ctx: GenericCtx<DataModel>) => ({
   appName: "pushr",
   baseURL: process.env.SITE_URL,
   secret: process.env.BETTER_AUTH_SECRET,
-  trustedOrigins: [process.env.SITE_URL!],
+  // Better Auth blocks requests whose Origin isn't on this list. Mobile
+  // builds send `pushr://` (the Expo URL scheme); the dev client also sends
+  // `exp://…` in some flows. The bare scheme covers production; the wildcard
+  // covers Expo Go / dev-client variants.
+  trustedOrigins: [
+    process.env.SITE_URL!,
+    "pushr://",
+    "pushr://*",
+    "exp://*",
+  ],
   database: authComponent.adapter(ctx),
   emailAndPassword: {
     enabled: true,

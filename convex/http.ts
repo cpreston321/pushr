@@ -414,14 +414,23 @@ http.route({ path: "/notify", method: "POST", handler: notifyHandler });
  *         ?token=<pshr_…> in the query string (for services that can't
  *         customize outbound headers).
  *
- *   GitHub additionally: if the source app has a `webhookSecret` set,
- *   X-Hub-Signature-256 is verified. Otherwise only the bearer token is
- *   checked (DO NOT use a bearer-only setup for a public repo).
+ *   If the source app has a `webhookSecret` set, the signature header for
+ *   the provider is verified (GitHub: X-Hub-Signature-256 sha256=<hex>;
+ *   Sentry: Sentry-Hook-Signature <hex>). Otherwise only the bearer token
+ *   is checked. Grafana doesn't natively sign webhooks, so for Grafana the
+ *   bearer is the only authenticator — DO NOT expose a Grafana hook URL
+ *   anywhere a third party could reach it.
  *
  * The adapter normalizes the provider payload to {title, body, priority,
  * url, data, image, action, eventType} and the rest of /notify's plumbing
  * (quotas, delivery, ack, receipts) applies unchanged.
  */
+const SIGNATURE_HEADER: Record<string, string | null> = {
+  github: "x-hub-signature-256",
+  sentry: "sentry-hook-signature",
+  grafana: null,
+};
+
 function makeHookHandler(provider: string, adapter: Adapter) {
   return httpAction(async (ctx, req) => {
     const url = new URL(req.url);
@@ -441,16 +450,22 @@ function makeHookHandler(provider: string, adapter: Adapter) {
       return json({ error: "Unable to read request body" }, 400);
     }
 
-    // GitHub: if a webhookSecret is configured on the app, require a valid
-    // X-Hub-Signature-256. (The bearer token already authenticates, but
-    // verifying lets the app's owner detect replay/forwarding attacks.)
-    if (provider === "github") {
+    // If a webhookSecret is configured on the app, require a valid signature
+    // for providers that sign their payloads. (The bearer token already
+    // authenticates the request — verifying the signature lets the app's
+    // owner detect replay/forwarding attacks.)
+    //
+    //   github  → X-Hub-Signature-256: sha256=<hex>
+    //   sentry  → Sentry-Hook-Signature: <hex>
+    //   grafana → no native signature; relies on bearer auth alone
+    const sigHeader = SIGNATURE_HEADER[provider];
+    if (sigHeader) {
       const secret: string | null = await ctx.runQuery(
         internal.notifyInternal.webhookSecretForToken,
-        { token },
+        { token, provider },
       );
       if (secret) {
-        const sig = req.headers.get("x-hub-signature-256");
+        const sig = req.headers.get(sigHeader);
         const ok = await verifyHmacSha256(rawBody, sig, secret);
         if (!ok) return json({ error: "Invalid signature" }, 401);
       }
