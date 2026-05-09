@@ -46,6 +46,7 @@
     "expo-system-ui": "~55.0.16",
     "expo-web-browser": "~55.0.14",
     "pushr-live-activity": "file:./modules/live-activity",
+    "pushr-widget-data": "file:./modules/widget-data",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "react-native": "0.83.6",

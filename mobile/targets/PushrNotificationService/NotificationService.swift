@@ -6,6 +6,10 @@ import os.log
 import UIKit
 #endif
 
+#if canImport(WidgetKit)
+import WidgetKit
+#endif
+
 /// Notification Service Extension for pushr.
 ///
 /// Runs in a tiny separate process before the OS displays a remote push,
@@ -60,6 +64,7 @@ class NotificationService: UNNotificationServiceExtension {
         self.bestAttempt = mutable
 
         rewriteCategoryIdentifier(mutable)
+        Self.updateWidgetSnapshot(mutable)
         applyCommunicationAvatar(mutable)
     }
 
@@ -289,5 +294,103 @@ class NotificationService: UNNotificationServiceExtension {
             }
         }
         task.resume()
+    }
+
+    // MARK: - Home Screen widget snapshot
+
+    /// Mirror of the JSON shape written by `pushr-widget-data` and read by
+    /// `targets/PushrWidget/PushrWidgetSnapshot.swift`. We read, prepend
+    /// the new arrival, dedupe by id, truncate, and write back. Doing this
+    /// from the NSE keeps the widget fresh even when the RN app is
+    /// terminated.
+    private static let widgetAppGroup = "group.dev.cpreston.pushr"
+    private static let widgetSnapshotKey = "snapshot.v1"
+    private static let widgetSnapshotMax = 50
+
+    private static func updateWidgetSnapshot(_ content: UNMutableNotificationContent) {
+        let bag = flattenPayload(content.userInfo)
+        guard let notifId = bag["notificationId"] as? String,
+              let sourceAppId = bag["sourceAppId"] as? String else {
+            os_log(.info, log: Self.log,
+                   "widget snapshot — missing notificationId/sourceAppId, skipping")
+            return
+        }
+        let sourceAppName = (bag["sourceAppName"] as? String) ?? "pushr"
+        let logoUrl = bag["logoUrl"] as? String
+
+        guard let defaults = UserDefaults(suiteName: widgetAppGroup) else {
+            os_log(.error, log: Self.log,
+                   "widget snapshot — App Group %{public}@ unavailable",
+                   widgetAppGroup)
+            return
+        }
+
+        var root: [String: Any] = [:]
+        if let raw = defaults.data(forKey: widgetSnapshotKey),
+           let parsed = try? JSONSerialization.jsonObject(with: raw) as? [String: Any] {
+            root = parsed
+        }
+        var sourceApps = (root["sourceApps"] as? [[String: Any]]) ?? []
+        var unread = (root["unread"] as? [[String: Any]]) ?? []
+
+        // Upsert the source app entry with the freshest name + logo.
+        let appIdx = sourceApps.firstIndex { ($0["id"] as? String) == sourceAppId }
+        let appEntry: [String: Any] = [
+            "id": sourceAppId,
+            "name": sourceAppName,
+            "logoUrl": logoUrl as Any
+        ]
+        if let i = appIdx {
+            sourceApps[i] = appEntry
+        } else {
+            sourceApps.append(appEntry)
+        }
+
+        // Drop any existing copy of this notification so we don't double up
+        // when the NSE runs after the RN app has already synced the row.
+        unread.removeAll { ($0["id"] as? String) == notifId }
+
+        let entry: [String: Any] = [
+            "id": notifId,
+            "sourceAppId": sourceAppId,
+            "title": content.title,
+            "body": content.body,
+            "createdAt": Date().timeIntervalSince1970 * 1000,
+            "url": (bag["url"] as? String) as Any,
+            "appUrl": (bag["appUrl"] as? String) as Any
+        ]
+        unread.insert(entry, at: 0)
+        if unread.count > widgetSnapshotMax {
+            unread = Array(unread.prefix(widgetSnapshotMax))
+        }
+
+        var next: [String: Any] = [
+            "updatedAt": Date().timeIntervalSince1970 * 1000,
+            "sourceApps": sourceApps,
+            "unread": unread
+        ]
+        // Preserve the user's accent — only the RN app sets this; if we
+        // dropped it the widget would revert to the default blue on every
+        // push.
+        if let accent = root["accent"] {
+            next["accent"] = accent
+        }
+        guard JSONSerialization.isValidJSONObject(next),
+              let data = try? JSONSerialization.data(withJSONObject: next) else {
+            os_log(.error, log: Self.log,
+                   "widget snapshot — failed to serialize next snapshot")
+            return
+        }
+        defaults.set(data, forKey: widgetSnapshotKey)
+
+        #if canImport(WidgetKit)
+        if #available(iOS 14.0, *) {
+            WidgetCenter.shared.reloadAllTimelines()
+        }
+        #endif
+
+        os_log(.info, log: Self.log,
+               "widget snapshot — wrote %{public}d unread (newest: %{public}@)",
+               unread.count, notifId)
     }
 }

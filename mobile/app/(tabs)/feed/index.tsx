@@ -8,7 +8,6 @@ import {
   FlatList,
   Linking,
   Pressable,
-  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -35,6 +34,7 @@ import { Image } from "expo-image";
 import { BlurView } from "expo-blur";
 import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenHeader, ScreenBody } from "@/components/ScreenHeader";
 import { ScreenTransition } from "@/components/ScreenTransition";
@@ -55,13 +55,14 @@ const FEED_MAX = 500;
 export default function Feed() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const params = useLocalSearchParams<{ notif?: string }>();
   const [limit, setLimit] = useState(FEED_PAGE_SIZE);
   const items = useQuery(api.notifications.listMine, { limit });
   const markRead = useMutation(api.notifications.markRead);
   const markAllRead = useMutation(api.notifications.markAllRead);
   const deleteOne = useMutation(api.notifications.deleteOne);
   const clearAll = useMutation(api.notifications.clearAll);
-  const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
   const [filterAppId, setFilterAppId] = useState<string | null>(null);
   const canLoadMore =
@@ -106,15 +107,25 @@ export default function Feed() {
     });
   })();
 
-  // Convex pushes updates over a websocket — the feed is always live. Pull is
-  // tactile reassurance, not a fetch trigger. Dismiss as soon as the next
-  // render lands so the spinner doesn't dawdle on a screen that's already up
-  // to date.
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    haptic.light();
-    requestAnimationFrame(() => setRefreshing(false));
-  }, []);
+  // Deep-link target from the Home Screen widget (pushr://feed?notif=<id>).
+  // We wait for `items` to load so we can resolve the row's url/appUrl
+  // before opening, then strip the param so navigating away and back
+  // doesn't re-trigger the open.
+  const consumedNotifRef = useRef<string | null>(null);
+  useEffect(() => {
+    const target = params.notif;
+    if (!target || items === undefined) return;
+    if (consumedNotifRef.current === target) return;
+    consumedNotifRef.current = target;
+    const hit = items.find((n) => (n._id as unknown as string) === target);
+    if (hit) {
+      if (!hit.readAt) markRead({ id: hit._id });
+      if (hit.url || hit.appUrl) {
+        void openLink({ appUrl: hit.appUrl, url: hit.url });
+      }
+    }
+    router.setParams({ notif: undefined });
+  }, [params.notif, items, markRead, router]);
 
   // The actual destructive op — the FloatingBar handles its own two-tap
   // confirm UX, so we just commit on demand.
@@ -227,13 +238,6 @@ export default function Feed() {
                 haptic.selection();
                 setLimit((l) => Math.min(l + FEED_PAGE_SIZE, FEED_MAX));
               }}
-            />
-          }
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={colors.secondaryLabel}
             />
           }
           renderItem={({ item: entry, index }) => {

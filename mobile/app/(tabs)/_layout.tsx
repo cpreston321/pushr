@@ -3,6 +3,7 @@ import { NativeTabs } from "expo-router/unstable-native-tabs";
 import { ActivityIndicator, View } from "react-native";
 import { authClient } from "@/lib/auth-client";
 import { useTheme } from "@/lib/theme";
+import { useSyncWidget } from "@/lib/widget-sync";
 
 export default function TabsLayout() {
   const { data, isPending } = authClient().useSession();
@@ -24,8 +25,15 @@ export default function TabsLayout() {
   }
   if (!data?.session) return <Redirect href="/(auth)/login" />;
 
+  return <AuthedTabs tint={colors.accent} />;
+}
+
+function AuthedTabs({ tint }: { tint: string }) {
+  // Mounted only after the auth gate so the Convex queries inside the
+  // hook never fire unauthenticated.
+  useSyncWidget();
   return (
-    <NativeTabs tintColor={colors.accent}>
+    <NativeTabs tintColor={tint}>
       <NativeTabs.Trigger name="feed">
         <NativeTabs.Trigger.Icon sf="bell.fill" />
         <NativeTabs.Trigger.Label>Feed</NativeTabs.Trigger.Label>

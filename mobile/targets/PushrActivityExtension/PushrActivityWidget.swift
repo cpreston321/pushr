@@ -2,19 +2,48 @@ import ActivityKit
 import SwiftUI
 import WidgetKit
 
-/// Widget Extension entrypoint.
+/// Widget Extension entrypoint — hosts both the Live Activity widget
+/// (iOS 16.2+) and the Home Screen feed widget (iOS 17+) in one bundle.
 ///
-/// This file is part of the `PushrActivityExtension` target (created by the
-/// Expo config plugin). It must NOT be compiled into the main app target
-/// — Widgets can only be declared inside a WidgetExtension.
+/// One Xcode Widget Extension target, multiple `Widget` declarations:
+/// Apple supports this via `WidgetBundleBuilder`'s `if #available` block,
+/// so each widget can require its own minimum OS without dragging the
+/// other along.
 ///
-/// Paired with ios/PushrActivityAttributes.swift (shared).
+/// Files in this target:
+/// - PushrActivityAttributes.swift  — Live Activity attribute schema
+/// - PushrWidgetSnapshot.swift      — App Group snapshot codec
+/// - PushrWidgetIntent.swift        — Configuration intent + entity
+/// - PushrWidgetProvider.swift      — TimelineProvider for the feed widget
+/// - PushrWidgetView.swift          — Small + Medium SwiftUI views
 
 @main
 @available(iOS 16.2, *)
 struct PushrActivityBundle: WidgetBundle {
     var body: some Widget {
         PushrActivityLiveWidget()
+        if #available(iOS 17.0, *) {
+            PushrFeedWidget()
+        }
+    }
+}
+
+@available(iOS 17.0, *)
+struct PushrFeedWidget: Widget {
+    let kind: String = "PushrFeedWidget"
+
+    var body: some WidgetConfiguration {
+        AppIntentConfiguration(
+            kind: kind,
+            intent: PushrWidgetIntent.self,
+            provider: PushrWidgetProvider()
+        ) { entry in
+            PushrWidgetView(entry: entry)
+        }
+        .configurationDisplayName("pushr feed")
+        .description("Latest unread notifications. Pick which apps appear via Edit Widget.")
+        .supportedFamilies([.systemMedium, .systemLarge])
+        .contentMarginsDisabled()
     }
 }
 

@@ -1,5 +1,8 @@
 {
   "type": "notification-service",
   "deploymentTarget": "15.1",
-  "frameworks": ["Intents", "UserNotifications"]
+  "frameworks": ["Intents", "UserNotifications", "WidgetKit"],
+  "entitlements": {
+    "com.apple.security.application-groups": ["group.dev.cpreston.pushr"]
+  }
 }

@@ -71,6 +71,7 @@
         }
       ],
       "./modules/live-activity/plugin.js",
+      "./modules/widget-data/plugin.js",
       "@bacons/apple-targets"
     ],
     "experiments": {

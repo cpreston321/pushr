@@ -2,5 +2,11 @@
   "type": "widget",
   "icon": "../../assets/images/pushr-light.png",
   "deploymentTarget": "16.2",
-  "frameworks": ["WidgetKit", "SwiftUI", "ActivityKit"]
+  "frameworks": ["WidgetKit", "SwiftUI", "ActivityKit", "AppIntents", "ImageIO"],
+  "entitlements": {
+    "com.apple.security.application-groups": ["group.dev.cpreston.pushr"]
+  },
+  "images": {
+    "SplashIcon": "../../assets/images/splash-icon-light.png"
+  }
 }

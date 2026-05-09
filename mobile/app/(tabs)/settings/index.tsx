@@ -66,6 +66,9 @@ export default function Settings() {
           <SectionHeader label="Plan" />
           <PlanCard />
 
+          <SectionHeader label="Appearance" />
+          <AppearanceCard isDark={isDark} />
+
           <SectionHeader label="Account" />
           <ListSection>
             <TintedRow
@@ -94,9 +97,6 @@ export default function Settings() {
               onPress={signOut}
             />
           </ListSection>
-
-          <SectionHeader label="Appearance" />
-          <AppearanceCard isDark={isDark} />
 
           <SectionHeader label="More" />
           <ListSection>
@@ -394,7 +394,9 @@ function PlanCard() {
         gap: spacing.md,
       })}
     >
-      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+      <View
+        style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}
+      >
         <View
           style={{
             width: 40,
@@ -424,7 +426,13 @@ function PlanCard() {
             </Text>
             {isPro && <ProBadge />}
           </View>
-          <Text style={{ ...type.footnote, color: colors.secondaryLabel, marginTop: 1 }}>
+          <Text
+            style={{
+              ...type.footnote,
+              color: colors.secondaryLabel,
+              marginTop: 1,
+            }}
+          >
             {plan
               ? isPro
                 ? plan.proUntil

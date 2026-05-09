@@ -1,0 +1,8 @@
+{
+  "name": "pushr-widget-data",
+  "version": "0.1.0",
+  "description": "App Group bridge for the pushr Home Screen widget",
+  "main": "index.ts",
+  "types": "index.ts",
+  "private": true
+}

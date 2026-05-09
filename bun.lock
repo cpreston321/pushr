@@ -80,6 +80,7 @@
         "expo-system-ui": "~55.0.16",
         "expo-web-browser": "~55.0.14",
         "pushr-live-activity": "file:./modules/live-activity",
+        "pushr-widget-data": "file:./modules/widget-data",
         "react": "19.2.0",
         "react-dom": "19.2.0",
         "react-native": "0.83.6",
@@ -2617,6 +2618,8 @@
     "micromatch/picomatch": ["picomatch@2.3.2", "", {}, "sha512-V7+vQEJ06Z+c5tSye8S+nHUfI51xoXIXjHQ99cQtKUkQqqO1kO/KCJUfZXuB47h/YBlDhah2H3hdUGXn8ie0oA=="],
 
     "mobile/pushr-live-activity": ["pushr-live-activity@file:mobile/modules/live-activity", {}],
+
+    "mobile/pushr-widget-data": ["pushr-widget-data@file:mobile/modules/widget-data", {}],
 
     "mobile/react": ["react@19.2.0", "", {}, "sha512-tmbWg6W31tQLeB5cdIBOicJDJRR2KzXsV7uSK9iNfLWQ5bIZfxuPEHp7M8wiHyHnn0DD1i7w3Zmin0FtkrwoCQ=="],
 
