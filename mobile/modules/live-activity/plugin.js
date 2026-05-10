@@ -1,4 +1,4 @@
-const { withInfoPlist, withAppDelegate } = require("@expo/config-plugins");
+const { withInfoPlist, withAppDelegate } = require("expo/config-plugins");
 
 /**
  * Expo config plugin for pushr's Live Activities.

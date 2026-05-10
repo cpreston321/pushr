@@ -1,4 +1,4 @@
-const { withEntitlementsPlist } = require("@expo/config-plugins");
+const { withEntitlementsPlist } = require("expo/config-plugins");
 
 const APP_GROUP = "group.dev.cpreston.pushr";
 

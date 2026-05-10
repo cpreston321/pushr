@@ -5,6 +5,7 @@
   "type": "module",
   "workspaces": [
     "mobile",
+    "mobile/modules/*",
     "apps/*",
     "packages/*"
   ],
@@ -34,6 +35,10 @@
     "typescript": "^6.0.3"
   },
   "overrides": {
-    "signal-exit": "^3.0.7"
+    "signal-exit": "^3.0.7",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "expo-constants": "55.0.16",
+    "expo-font": "55.0.7"
   }
 }

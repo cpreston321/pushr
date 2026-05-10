@@ -20,7 +20,9 @@
       },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSUserActivityTypes": ["INSendMessageIntent"]
+        "NSUserActivityTypes": [
+          "INSendMessageIntent"
+        ]
       }
     },
     "android": {
@@ -72,7 +74,10 @@
       ],
       "./modules/live-activity/plugin.js",
       "./modules/widget-data/plugin.js",
-      "@bacons/apple-targets"
+      "@bacons/apple-targets",
+      "expo-font",
+      "expo-image",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
