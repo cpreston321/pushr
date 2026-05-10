@@ -1,0 +1,135 @@
+import { useRef, useState } from 'react';
+import { Alert, Image, KeyboardAvoidingView, Pressable, Text, TextInput, View } from 'react-native';
+import { Link, router } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
+import { Screen } from '@/components/Screen';
+import { Input } from '@/components/Input';
+import { Button } from '@/components/Button';
+import type { DrawerRef } from '@/components/Drawer';
+import { ServerConfigDrawer } from '@/components/drawers/ServerConfigDrawer';
+import { currentServerLabel } from '@/lib/backend';
+import { authClient } from '@/lib/auth-client';
+import { useTheme, spacing, radius, type } from '@/lib/theme';
+import { haptic } from '@/lib/haptics';
+
+export default function Login() {
+  const { colors, isDark } = useTheme();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const passwordRef = useRef<TextInput>(null);
+  const serverConfigRef = useRef<DrawerRef>(null);
+
+  async function submit() {
+    if (!email || !password) return;
+    setBusy(true);
+    const { error } = await authClient().signIn.email({ email, password });
+    setBusy(false);
+    if (error) {
+      haptic.error();
+      Alert.alert('Sign-in failed', error.message ?? 'Please check your credentials.');
+      return;
+    }
+    haptic.success();
+    // Defer to the root gate (app/index.tsx) so a fresh-install login still
+    // hits onboarding (notification permission + device registration).
+    router.replace('/');
+  }
+
+  return (
+    <Screen edges={['top', 'bottom']}>
+      <KeyboardAvoidingView
+        behavior={process.env.EXPO_OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
+      >
+        <View
+          style={{
+            flex: 1,
+            paddingHorizontal: spacing.xl,
+            justifyContent: 'center',
+            gap: spacing.lg
+          }}
+        >
+          <View style={{ alignItems: 'center', gap: spacing.md, marginBottom: spacing.xl }}>
+            <View
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: radius.xl,
+                borderCurve: 'continuous',
+                backgroundColor: colors.accent,
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <Image
+                source={
+                  isDark
+                    ? require('@/assets/images/splash-icon-light.png')
+                    : require('@/assets/images/splash-icon-dark.png')
+                }
+                style={{ width: 56, height: 56 }}
+                resizeMode="contain"
+                accessibilityLabel="pushr"
+              />
+            </View>
+            <Text style={{ ...type.largeTitle, color: colors.label }}>pushr</Text>
+            <Text style={{ ...type.subhead, color: colors.secondaryLabel, textAlign: 'center' }}>
+              Your personal push-notification hub.
+            </Text>
+          </View>
+          <Input
+            placeholder="Email"
+            autoCapitalize="none"
+            autoComplete="email"
+            keyboardType="email-address"
+            textContentType="emailAddress"
+            value={email}
+            onChangeText={setEmail}
+            returnKeyType="next"
+            onSubmitEditing={() => passwordRef.current?.focus()}
+            submitBehavior="submit"
+          />
+          <Input
+            ref={passwordRef}
+            placeholder="Password"
+            secureTextEntry
+            autoComplete="current-password"
+            textContentType="password"
+            value={password}
+            onChangeText={setPassword}
+            returnKeyType="done"
+            onSubmitEditing={submit}
+          />
+          <Button title="Sign in" onPress={submit} loading={busy} />
+          <View style={{ alignItems: 'center', marginTop: spacing.md }}>
+            <Link href="/(auth)/signup" style={{ color: colors.accent, ...type.callout }}>
+              Create an account
+            </Link>
+          </View>
+        </View>
+        <Pressable
+          onPress={() => serverConfigRef.current?.present()}
+          style={({ pressed }) => ({
+            flexDirection: 'row',
+            alignSelf: 'center',
+            alignItems: 'center',
+            gap: 6,
+            paddingVertical: spacing.sm,
+            paddingHorizontal: spacing.md,
+            marginBottom: spacing.md,
+            borderRadius: radius.lg,
+            opacity: pressed ? 0.6 : 1
+          })}
+          hitSlop={8}
+        >
+          <SymbolView name="server.rack" size={12} tintColor={colors.tertiaryLabel} />
+          <Text style={{ ...type.caption1, color: colors.tertiaryLabel }}>
+            Server: {currentServerLabel()}
+          </Text>
+        </Pressable>
+      </KeyboardAvoidingView>
+      <ServerConfigDrawer ref={serverConfigRef} />
+    </Screen>
+  );
+}

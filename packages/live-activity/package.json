@@ -1,0 +1,13 @@
+{
+  "name": "@pushr/live-activity",
+  "version": "0.1.0",
+  "private": true,
+  "description": "iOS Live Activity / Dynamic Island module for pushr",
+  "main": "index.ts",
+  "types": "index.ts",
+  "scripts": {
+    "lint": "oxlint .",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check ."
+  }
+}

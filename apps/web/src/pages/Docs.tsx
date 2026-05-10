@@ -5,14 +5,14 @@ import {
   useMemo,
   useState,
   type ReactElement,
-  type ReactNode,
-} from "react";
-import { motion, useScroll, useTransform } from "motion/react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import apiMarkdown from "../../../../public/API.md?raw";
-import { getHighlighter, normalizeLang, SHIKI_THEME } from "../lib/shiki";
-import { SiteHeader } from "../components/SiteHeader";
+  type ReactNode
+} from 'react';
+import { motion, useScroll, useTransform } from 'motion/react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import apiMarkdown from '../../../../public-mirror/API.md?raw';
+import { getHighlighter, normalizeLang, SHIKI_THEME } from '../lib/shiki';
+import { SiteHeader } from '../components/SiteHeader';
 
 type TocLeaf = { id: string; text: string };
 type TocSection = {
@@ -41,12 +41,10 @@ export function Docs() {
       (entries) => {
         const visible = entries
           .filter((e) => e.isIntersecting)
-          .sort(
-            (a, b) => a.boundingClientRect.top - b.boundingClientRect.top,
-          )[0];
+          .toSorted((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
         if (visible) setActiveId(visible.target.id);
       },
-      { rootMargin: "-15% 0px -75% 0px", threshold: [0, 1] },
+      { rootMargin: '-15% 0px -75% 0px', threshold: [0, 1] }
     );
     for (const id of ids) {
       const el = document.getElementById(id);
@@ -67,8 +65,8 @@ export function Docs() {
       <SiteHeader
         tag="api · ref"
         nav={[
-          { kind: "route", label: "docs", to: "/docs" },
-          { kind: "route", label: "log", to: "/changelog" },
+          { kind: 'route', label: 'docs', to: '/docs' },
+          { kind: 'route', label: 'log', to: '/changelog' }
         ]}
       />
 
@@ -78,10 +76,7 @@ export function Docs() {
           <Hero />
           <TryIt />
           <div className="mt-20 docs-prose">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={mdComponents}
-            >
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
               {STRIPPED_MD}
             </ReactMarkdown>
           </div>
@@ -101,7 +96,7 @@ function ScrollProgressWire() {
   const scaleX = useTransform(scrollYProgress, [0, 1], [0, 1]);
   return (
     <motion.div
-      style={{ scaleX, transformOrigin: "0% 50%" }}
+      style={{ scaleX, transformOrigin: '0% 50%' }}
       className="fixed left-0 right-0 top-0 z-40 h-[2px] bg-gradient-to-r from-[var(--color-wire-deep)] via-[var(--color-wire-bright)] to-[var(--color-signal)] shadow-[0_0_18px_-2px_var(--color-wire)]"
     />
   );
@@ -121,36 +116,32 @@ function Hero() {
       </div>
 
       <h1 className="mt-7 font-display text-[clamp(54px,8vw,108px)] leading-[0.9] tracking-[-0.045em] text-bone">
-        HTTP{" "}
-        <span className="text-[var(--color-wire-bright)] glow-wire">API</span>
+        HTTP <span className="text-[var(--color-wire-bright)] glow-wire">API</span>
       </h1>
 
       <p className="mt-7 max-w-[680px] text-[18.5px] leading-[1.55] text-bone/75 text-pretty">
-        One bearer token. One URL.{" "}
-        <span className="font-mono text-bone">POST</span> a JSON payload — your
-        phone lights up. Live Activities, ack-or-escalate, scheduled delivery,
-        action buttons, webhook adapters. The whole surface, one page.
+        One bearer token. One URL. <span className="font-mono text-bone">POST</span> a JSON payload
+        — your phone lights up. Live Activities, ack-or-escalate, scheduled delivery, action
+        buttons, webhook adapters. The whole surface, one page.
       </p>
 
       <div className="mt-9 flex flex-wrap items-center gap-3">
         <a
-          href={anchorHref("post-notify")}
+          href={anchorHref('post-notify')}
           className="group inline-flex items-center gap-2.5 rounded-full border border-[var(--color-wire)]/40 bg-[var(--color-wire)]/5 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] text-bone transition hover:border-[var(--color-wire)] hover:bg-[var(--color-wire)]/10"
         >
           <span className="h-1 w-1 rounded-full bg-[var(--color-wire-bright)]" />
           start with /notify
-          <span className="text-bone/50 transition-transform group-hover:translate-x-0.5">
-            →
-          </span>
+          <span className="text-bone/50 transition-transform group-hover:translate-x-0.5">→</span>
         </a>
         <a
-          href={anchorHref("live-activities")}
+          href={anchorHref('live-activities')}
           className="inline-flex items-center gap-2.5 rounded-full border border-white/10 bg-white/[0.02] px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] text-bone/70 transition hover:border-white/20 hover:text-bone"
         >
           live activities
         </a>
         <a
-          href={anchorHref("source-app-token-format")}
+          href={anchorHref('source-app-token-format')}
           className="inline-flex items-center gap-2.5 rounded-full border border-white/10 bg-white/[0.02] px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] text-bone/70 transition hover:border-white/20 hover:text-bone"
         >
           tokens
@@ -194,7 +185,7 @@ type TryItResponse = {
 
 function useLocalStorage(key: string, initial: string): [string, (v: string) => void] {
   const [value, setValueState] = useState<string>(() => {
-    if (typeof window === "undefined") return initial;
+    if (typeof window === 'undefined') return initial;
     try {
       return window.localStorage.getItem(key) ?? initial;
     } catch {
@@ -213,16 +204,16 @@ function useLocalStorage(key: string, initial: string): [string, (v: string) => 
 }
 
 function TryIt() {
-  const [url, setUrl] = useLocalStorage("pushr-docs-url", "");
-  const [token, setToken] = useLocalStorage("pushr-docs-token", "");
-  const [title, setTitle] = useState("Hello from the docs");
-  const [body, setBody] = useState("It works.");
-  const [priority, setPriority] = useState<"low" | "normal" | "high">("normal");
+  const [url, setUrl] = useLocalStorage('pushr-docs-url', '');
+  const [token, setToken] = useLocalStorage('pushr-docs-token', '');
+  const [title, setTitle] = useState('Hello from the docs');
+  const [body, setBody] = useState('It works.');
+  const [priority, setPriority] = useState<'low' | 'normal' | 'high'>('normal');
   const [showToken, setShowToken] = useState(false);
   const [sending, setSending] = useState(false);
   const [response, setResponse] = useState<TryItResponse | null>(null);
 
-  const cleanUrl = url.trim().replace(/\/+$/, "");
+  const cleanUrl = url.trim().replace(/\/+$/, '');
   const cleanToken = token.trim();
   const ready = !!cleanUrl && !!cleanToken && !!title.trim() && !!body.trim();
 
@@ -234,9 +225,9 @@ function TryIt() {
     () => ({
       title: title.trim(),
       body: body.trim(),
-      priority,
+      priority
     }),
-    [title, body, priority],
+    [title, body, priority]
   );
 
   async function send() {
@@ -246,40 +237,40 @@ function TryIt() {
     const start = performance.now();
     try {
       const res = await fetch(`${cleanUrl}/notify`, {
-        method: "POST",
+        method: 'POST',
         headers: {
           Authorization: `Bearer ${cleanToken}`,
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payload)
       });
       const text = await res.text();
       setResponse({
         status: res.status,
         ok: res.ok,
         body: prettyJson(text),
-        durationMs: Math.round(performance.now() - start),
+        durationMs: Math.round(performance.now() - start)
       });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Network error";
+      const msg = err instanceof Error ? err.message : 'Network error';
       setResponse({
         status: 0,
         ok: false,
         body: `${msg}\n\n(If the request never left, the deployment may not allow CORS from this origin. Use curl from a terminal instead.)`,
-        durationMs: Math.round(performance.now() - start),
+        durationMs: Math.round(performance.now() - start)
       });
     } finally {
       setSending(false);
     }
   }
 
-  const status: "idle" | "sending" | "ok" | "fail" = sending
-    ? "sending"
+  const status: 'idle' | 'sending' | 'ok' | 'fail' = sending
+    ? 'sending'
     : !response
-      ? "idle"
+      ? 'idle'
       : response.ok
-        ? "ok"
-        : "fail";
+        ? 'ok'
+        : 'fail';
 
   return (
     <section
@@ -318,24 +309,20 @@ function TryIt() {
 
           <Field
             label="bearer token"
-            hint={
-              cleanToken
-                ? "saved on this device"
-                : "paste your pshr_… token"
-            }
+            hint={cleanToken ? 'saved on this device' : 'paste your pshr_… token'}
             trailing={
               <button
                 type="button"
                 onClick={() => setShowToken((s) => !s)}
                 className="font-mono text-[10px] uppercase tracking-[0.22em] text-bone/55 transition hover:text-bone"
-                aria-label={showToken ? "Hide token" : "Show token"}
+                aria-label={showToken ? 'Hide token' : 'Show token'}
               >
-                {showToken ? "hide" : "show"}
+                {showToken ? 'hide' : 'show'}
               </button>
             }
           >
             <input
-              type={showToken ? "text" : "password"}
+              type={showToken ? 'text' : 'password'}
               spellCheck={false}
               autoComplete="off"
               value={token}
@@ -387,11 +374,11 @@ function TryIt() {
               onClick={send}
               disabled={!ready || sending}
               className={[
-                "group relative inline-flex flex-1 items-center justify-center gap-2.5 overflow-hidden rounded-lg px-4 py-3 font-mono text-[12px] uppercase tracking-[0.28em] transition",
+                'group relative inline-flex flex-1 items-center justify-center gap-2.5 overflow-hidden rounded-lg px-4 py-3 font-mono text-[12px] uppercase tracking-[0.28em] transition',
                 ready && !sending
-                  ? "bg-[var(--color-wire-bright)] text-[var(--color-ink)] shadow-[0_0_0_1px_rgba(121,192,255,0.45),0_18px_48px_-18px_rgba(121,192,255,0.6)] hover:bg-[var(--color-wire-bright)]/90"
-                  : "border border-white/10 bg-white/[0.02] text-bone/45",
-              ].join(" ")}
+                  ? 'bg-[var(--color-wire-bright)] text-[var(--color-ink)] shadow-[0_0_0_1px_rgba(121,192,255,0.45),0_18px_48px_-18px_rgba(121,192,255,0.6)] hover:bg-[var(--color-wire-bright)]/90'
+                  : 'border border-white/10 bg-white/[0.02] text-bone/45'
+              ].join(' ')}
             >
               {sending ? (
                 <>
@@ -403,16 +390,14 @@ function TryIt() {
                   <span
                     className={
                       ready
-                        ? "h-1.5 w-1.5 rounded-full bg-[var(--color-ink)]"
-                        : "h-1.5 w-1.5 rounded-full bg-bone/30"
+                        ? 'h-1.5 w-1.5 rounded-full bg-[var(--color-ink)]'
+                        : 'h-1.5 w-1.5 rounded-full bg-bone/30'
                     }
                   />
                   send POST /notify
                   <span
                     className={
-                      ready
-                        ? "transition-transform group-hover:translate-x-0.5"
-                        : "opacity-30"
+                      ready ? 'transition-transform group-hover:translate-x-0.5' : 'opacity-30'
                     }
                   >
                     →
@@ -423,8 +408,8 @@ function TryIt() {
           </div>
 
           <p className="text-[11.5px] leading-relaxed text-bone/40">
-            URL + token persist in this browser only. Nothing is logged
-            server-side by the docs page.
+            URL + token persist in this browser only. Nothing is logged server-side by the docs
+            page.
           </p>
         </div>
 
@@ -432,7 +417,7 @@ function TryIt() {
         <div className="flex min-h-[260px] flex-col bg-[#080d18]/60">
           <div className="flex items-center justify-between border-b border-white/[0.05] bg-white/[0.015] px-5 py-3">
             <span className="font-mono text-[10px] uppercase tracking-[0.32em] text-bone/55">
-              {response ? "response" : sending ? "awaiting…" : "pending"}
+              {response ? 'response' : sending ? 'awaiting…' : 'pending'}
             </span>
             {response ? (
               <span className="font-mono text-[10px] tabular-nums text-bone/50">
@@ -448,13 +433,13 @@ function TryIt() {
             {response ? (
               <pre
                 className={[
-                  "whitespace-pre-wrap break-words font-mono text-[12.5px] leading-[1.6]",
+                  'whitespace-pre-wrap break-words font-mono text-[12.5px] leading-[1.6]',
                   response.ok
-                    ? "text-bone/85"
-                    : "text-[color-mix(in_oklab,var(--color-rose)_85%,white)]",
-                ].join(" ")}
+                    ? 'text-bone/85'
+                    : 'text-[color-mix(in_oklab,var(--color-rose)_85%,white)]'
+                ].join(' ')}
               >
-                {response.body || "(empty body)"}
+                {response.body || '(empty body)'}
               </pre>
             ) : (
               <div className="flex h-full flex-col items-start justify-center gap-2 text-bone/35">
@@ -462,8 +447,8 @@ function TryIt() {
                   ▌ idle
                 </span>
                 <p className="max-w-[260px] text-[12.5px] leading-relaxed">
-                  Fill in URL + token, hit send. The actual HTTP response
-                  prints here — status, latency, body.
+                  Fill in URL + token, hit send. The actual HTTP response prints here — status,
+                  latency, body.
                 </p>
               </div>
             )}
@@ -474,7 +459,7 @@ function TryIt() {
             </div>
             <pre
               className="mt-1.5 overflow-x-auto whitespace-pre font-mono text-[11px] leading-[1.55] text-bone/65"
-              style={{ scrollbarGutter: "stable" }}
+              style={{ scrollbarGutter: 'stable' }}
             >
               {curlPreview(cleanUrl, cleanToken, payload)}
             </pre>
@@ -486,32 +471,32 @@ function TryIt() {
 }
 
 const STATUS_META: Record<
-  "idle" | "sending" | "ok" | "fail",
+  'idle' | 'sending' | 'ok' | 'fail',
   { label: string; dot: string; text: string }
 > = {
-  idle: { label: "idle", dot: "bg-bone/30", text: "text-bone/45" },
+  idle: { label: 'idle', dot: 'bg-bone/30', text: 'text-bone/45' },
   sending: {
-    label: "sending",
-    dot: "bg-[var(--color-wire-bright)] animate-pulse-wire",
-    text: "text-[var(--color-wire-bright)]",
+    label: 'sending',
+    dot: 'bg-[var(--color-wire-bright)] animate-pulse-wire',
+    text: 'text-[var(--color-wire-bright)]'
   },
   ok: {
-    label: "ok",
-    dot: "bg-[var(--color-signal)]",
-    text: "text-[var(--color-signal)]",
+    label: 'ok',
+    dot: 'bg-[var(--color-signal)]',
+    text: 'text-[var(--color-signal)]'
   },
   fail: {
-    label: "fail",
-    dot: "bg-[var(--color-rose)]",
-    text: "text-[var(--color-rose)]",
-  },
+    label: 'fail',
+    dot: 'bg-[var(--color-rose)]',
+    text: 'text-[var(--color-rose)]'
+  }
 };
 
 function StatusPill({
   status,
-  statusCode,
+  statusCode
 }: {
-  status: "idle" | "sending" | "ok" | "fail";
+  status: 'idle' | 'sending' | 'ok' | 'fail';
   statusCode?: number;
 }) {
   const meta = STATUS_META[status];
@@ -519,9 +504,7 @@ function StatusPill({
     <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.025] px-3 py-1 font-mono text-[10px] uppercase tracking-[0.28em]">
       <span className={`h-1.5 w-1.5 rounded-full ${meta.dot}`} />
       <span className={meta.text}>
-        {statusCode && (status === "ok" || status === "fail")
-          ? statusCode
-          : meta.label}
+        {statusCode && (status === 'ok' || status === 'fail') ? statusCode : meta.label}
       </span>
     </span>
   );
@@ -531,7 +514,7 @@ function Field({
   label,
   hint,
   trailing,
-  children,
+  children
 }: {
   label: string;
   hint?: string;
@@ -560,12 +543,12 @@ function Field({
 
 function PriorityPills({
   value,
-  onChange,
+  onChange
 }: {
-  value: "low" | "normal" | "high";
-  onChange: (v: "low" | "normal" | "high") => void;
+  value: 'low' | 'normal' | 'high';
+  onChange: (v: 'low' | 'normal' | 'high') => void;
 }) {
-  const opts = ["low", "normal", "high"] as const;
+  const opts = ['low', 'normal', 'high'] as const;
   // Equal-width segmented control. Each cell is the same size regardless of
   // text length, and selection only swaps colors — never anything that
   // affects box geometry — so clicking a pill produces zero layout shift.
@@ -578,11 +561,11 @@ function PriorityPills({
       {opts.map((opt) => {
         const active = opt === value;
         const tint =
-          opt === "high"
-            ? "var(--color-amber)"
-            : opt === "low"
-              ? "var(--color-bone-dim)"
-              : "var(--color-wire-bright)";
+          opt === 'high'
+            ? 'var(--color-amber)'
+            : opt === 'low'
+              ? 'var(--color-bone-dim)'
+              : 'var(--color-wire-bright)';
         return (
           <button
             key={opt}
@@ -592,11 +575,11 @@ function PriorityPills({
             tabIndex={active ? 0 : -1}
             onClick={() => onChange(opt)}
             className={[
-              "relative flex h-9 items-center justify-center font-mono text-[11px] uppercase tracking-[0.22em] outline-none transition-colors",
+              'relative flex h-9 items-center justify-center font-mono text-[11px] uppercase tracking-[0.22em] outline-none transition-colors',
               active
-                ? "bg-white/[0.06] text-bone"
-                : "text-bone/45 hover:bg-white/[0.02] hover:text-bone/70",
-            ].join(" ")}
+                ? 'bg-white/[0.06] text-bone'
+                : 'text-bone/45 hover:bg-white/[0.02] hover:text-bone/70'
+            ].join(' ')}
             style={active ? { color: tint } : undefined}
           >
             {opt}
@@ -631,33 +614,27 @@ function prettyJson(text: string): string {
 function curlPreview(
   url: string,
   token: string,
-  payload: { title: string; body: string; priority: string },
+  payload: { title: string; body: string; priority: string }
 ): string {
-  const u = url || "$PUSHR_URL";
-  const t = token ? `${token.slice(0, 9)}…` : "$PUSHR_TOKEN";
+  const u = url || '$PUSHR_URL';
+  const t = token ? `${token.slice(0, 9)}…` : '$PUSHR_TOKEN';
   const json = JSON.stringify(payload, null, 2)
-    .split("\n")
+    .split('\n')
     .map((line, i) => (i === 0 ? line : `       ${line}`))
-    .join("\n");
+    .join('\n');
   return [
     `curl -X POST ${u}/notify \\`,
     `  -H "Authorization: Bearer ${t}" \\`,
     `  -H "Content-Type: application/json" \\`,
-    `  -d '${json}'`,
-  ].join("\n");
+    `  -d '${json}'`
+  ].join('\n');
 }
 
 // ---------------------------------------------------------------------------
 // Sidebar
 // ---------------------------------------------------------------------------
 
-function Sidebar({
-  sections,
-  activeId,
-}: {
-  sections: TocSection[];
-  activeId: string | null;
-}) {
+function Sidebar({ sections, activeId }: { sections: TocSection[]; activeId: string | null }) {
   return (
     <aside className="hidden lg:block">
       <div className="sticky top-24">
@@ -668,11 +645,7 @@ function Sidebar({
 
         <nav className="mt-8 flex flex-col gap-7">
           {sections.map((section) => (
-            <SidebarSection
-              key={section.id}
-              section={section}
-              activeId={activeId}
-            />
+            <SidebarSection key={section.id} section={section} activeId={activeId} />
           ))}
         </nav>
 
@@ -682,15 +655,15 @@ function Sidebar({
           </div>
           <pre className="mt-3 overflow-x-auto font-mono text-[11.5px] leading-[1.6] text-bone/85">
             <span className="text-[var(--color-wire-bright)]">curl</span>
-            {" -X POST "}
+            {' -X POST '}
             <span className="text-[var(--color-amber)]">$URL/notify</span>
-            {"\n"}
-            {"  "}
-            <span className="text-bone/55">-H</span>{" "}
+            {'\n'}
+            {'  '}
+            <span className="text-bone/55">-H</span>{' '}
             <span className="text-[var(--color-amber)]">"Auth: Bearer …"</span>
-            {"\n"}
-            {"  "}
-            <span className="text-bone/55">-d</span>{" "}
+            {'\n'}
+            {'  '}
+            <span className="text-bone/55">-d</span>{' '}
             <span className="text-[var(--color-amber)]">'&#123;…&#125;'</span>
           </pre>
         </div>
@@ -699,42 +672,33 @@ function Sidebar({
   );
 }
 
-function SidebarSection({
-  section,
-  activeId,
-}: {
-  section: TocSection;
-  activeId: string | null;
-}) {
+function SidebarSection({ section, activeId }: { section: TocSection; activeId: string | null }) {
   const isSectionActive =
-    activeId === section.id ||
-    section.children.some((c) => c.id === activeId);
+    activeId === section.id || section.children.some((c) => c.id === activeId);
 
   return (
     <div className="relative">
       <a
         href={anchorHref(section.id)}
         className="group block"
-        aria-current={activeId === section.id ? "true" : undefined}
+        aria-current={activeId === section.id ? 'true' : undefined}
       >
         <div className="flex items-baseline gap-3">
           <span
             className={[
-              "font-mono text-[10.5px] tracking-[0.18em] tabular-nums transition-colors",
+              'font-mono text-[10.5px] tracking-[0.18em] tabular-nums transition-colors',
               isSectionActive
-                ? "text-[var(--color-wire-bright)]"
-                : "text-bone/30 group-hover:text-bone/55",
-            ].join(" ")}
+                ? 'text-[var(--color-wire-bright)]'
+                : 'text-bone/30 group-hover:text-bone/55'
+            ].join(' ')}
           >
             /{section.number}
           </span>
           <span
             className={[
-              "text-[14px] leading-tight tracking-tight transition-colors",
-              isSectionActive
-                ? "text-bone"
-                : "text-bone/65 group-hover:text-bone/90",
-            ].join(" ")}
+              'text-[14px] leading-tight tracking-tight transition-colors',
+              isSectionActive ? 'text-bone' : 'text-bone/65 group-hover:text-bone/90'
+            ].join(' ')}
           >
             {section.text}
           </span>
@@ -748,7 +712,7 @@ function SidebarSection({
               <a
                 key={leaf.id}
                 href={anchorHref(leaf.id)}
-                aria-current={active ? "true" : undefined}
+                aria-current={active ? 'true' : undefined}
                 className="relative block"
               >
                 {active && (
@@ -756,19 +720,17 @@ function SidebarSection({
                     layoutId="sidebar-active-rail"
                     className="absolute -left-[17px] top-0 bottom-0 w-px bg-[var(--color-wire-bright)] shadow-[0_0_8px_var(--color-wire)]"
                     transition={{
-                      type: "spring",
+                      type: 'spring',
                       stiffness: 380,
-                      damping: 30,
+                      damping: 30
                     }}
                   />
                 )}
                 <span
                   className={[
-                    "block truncate text-[12.5px] leading-snug transition-colors",
-                    active
-                      ? "text-bone"
-                      : "text-bone/50 hover:text-bone/80",
-                  ].join(" ")}
+                    'block truncate text-[12.5px] leading-snug transition-colors',
+                    active ? 'text-bone' : 'text-bone/50 hover:text-bone/80'
+                  ].join(' ')}
                 >
                   {leaf.text}
                 </span>
@@ -806,7 +768,7 @@ function CodeBlock({ code, lang }: { code: string; lang: string }) {
         if (cancel) return;
         const out = hl.codeToHtml(code, {
           lang: normalizeLang(lang),
-          theme: SHIKI_THEME,
+          theme: SHIKI_THEME
         });
         highlightCache.set(key, out);
         setHtml(out);
@@ -827,8 +789,8 @@ function CodeBlock({ code, lang }: { code: string; lang: string }) {
     });
   }
 
-  const niceLang = lang === "text" ? "plain" : lang;
-  const lineCount = code.split("\n").length;
+  const niceLang = lang === 'text' ? 'plain' : lang;
+  const lineCount = code.split('\n').length;
 
   return (
     <div className="group relative mt-7 overflow-hidden rounded-2xl border border-white/[0.08] bg-[#080d18] shadow-[0_2px_0_rgba(255,255,255,0.02)_inset,0_24px_60px_-30px_rgba(10,132,255,0.25)]">
@@ -843,21 +805,21 @@ function CodeBlock({ code, lang }: { code: string; lang: string }) {
             {niceLang}
           </span>
           <span className="font-mono text-[10px] tabular-nums text-bone/30">
-            · {lineCount} {lineCount === 1 ? "line" : "lines"}
+            · {lineCount} {lineCount === 1 ? 'line' : 'lines'}
           </span>
         </div>
         <button
           type="button"
           onClick={copy}
           className={[
-            "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.22em] transition",
+            'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.22em] transition',
             copied
-              ? "border-[var(--color-signal)]/40 bg-[var(--color-signal)]/10 text-[var(--color-signal)]"
-              : "border-white/10 bg-white/[0.02] text-bone/55 hover:border-[var(--color-wire)]/40 hover:text-bone",
-          ].join(" ")}
+              ? 'border-[var(--color-signal)]/40 bg-[var(--color-signal)]/10 text-[var(--color-signal)]'
+              : 'border-white/10 bg-white/[0.02] text-bone/55 hover:border-[var(--color-wire)]/40 hover:text-bone'
+          ].join(' ')}
           aria-label="Copy code"
         >
-          {copied ? "copied" : "copy"}
+          {copied ? 'copied' : 'copy'}
         </button>
       </div>
       <div className="relative overflow-x-auto">
@@ -868,9 +830,7 @@ function CodeBlock({ code, lang }: { code: string; lang: string }) {
             dangerouslySetInnerHTML={{ __html: html }}
           />
         ) : (
-          <pre className="px-5 py-4 font-mono text-[13px] leading-[1.65] text-bone/85">
-            {code}
-          </pre>
+          <pre className="px-5 py-4 font-mono text-[13px] leading-[1.65] text-bone/85">{code}</pre>
         )}
       </div>
     </div>
@@ -881,9 +841,7 @@ function CodeBlock({ code, lang }: { code: string; lang: string }) {
 // Markdown component overrides
 // ---------------------------------------------------------------------------
 
-const mdComponents: NonNullable<
-  Parameters<typeof ReactMarkdown>[0]["components"]
-> = {
+const mdComponents: NonNullable<Parameters<typeof ReactMarkdown>[0]['components']> = {
   h1: ({ children, ...props }) => (
     <h1
       {...props}
@@ -904,10 +862,7 @@ const mdComponents: NonNullable<
           id={id}
           className="group mt-2 scroll-mt-28 font-display text-[36px] leading-[1.05] tracking-[-0.025em] text-bone"
         >
-          <a
-            href={anchorHref(id)}
-            className="relative inline-block no-underline"
-          >
+          <a href={anchorHref(id)} className="relative inline-block no-underline">
             <span
               aria-hidden
               className="pointer-events-none absolute -left-7 top-1/2 -translate-y-1/2 font-mono text-[14px] tracking-tight text-[var(--color-wire-bright)]/0 transition-opacity group-hover:text-[var(--color-wire-bright)]/70"
@@ -958,13 +913,8 @@ const mdComponents: NonNullable<
     </a>
   ),
   ul: ({ children, ...props }) => (
-    <ul
-      {...props}
-      className="mt-5 list-none space-y-2.5 pl-0 text-bone/75"
-    >
-      {Children.map(children, (child) =>
-        isValidElement(child) ? child : null,
-      )}
+    <ul {...props} className="mt-5 list-none space-y-2.5 pl-0 text-bone/75">
+      {Children.map(children, (child) => (isValidElement(child) ? child : null))}
     </ul>
   ),
   ol: ({ children, ...props }) => (
@@ -983,20 +933,12 @@ const mdComponents: NonNullable<
       {children}
     </li>
   ),
-  strong: ({ children }) => (
-    <strong className="font-semibold text-bone">{children}</strong>
-  ),
+  strong: ({ children }) => <strong className="font-semibold text-bone">{children}</strong>,
   em: ({ children }) => <em className="text-bone/85">{children}</em>,
   hr: () => (
-    <div
-      role="separator"
-      className="my-16 flex items-center gap-3"
-      aria-hidden
-    >
+    <div role="separator" className="my-16 flex items-center gap-3" aria-hidden>
       <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/[0.08] to-transparent" />
-      <span className="font-mono text-[10px] uppercase tracking-[0.32em] text-bone/30">
-        ·
-      </span>
+      <span className="font-mono text-[10px] uppercase tracking-[0.32em] text-bone/30">·</span>
       <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/[0.08] to-transparent" />
     </div>
   ),
@@ -1008,18 +950,15 @@ const mdComponents: NonNullable<
   pre: ({ children }) => {
     // Pull the wrapped <code> child to extract raw text + language.
     const child = Children.toArray(children).find(
-      (c): c is ReactElement<{ className?: string; children?: ReactNode }> =>
-        isValidElement(c),
+      (c): c is ReactElement<{ className?: string; children?: ReactNode }> => isValidElement(c)
     );
-    const className =
-      (child?.props as { className?: string } | undefined)?.className ?? "";
-    const lang = /language-(\w+)/.exec(className)?.[1] ?? "text";
+    const className = (child?.props as { className?: string } | undefined)?.className ?? '';
+    const lang = /language-(\w+)/.exec(className)?.[1] ?? 'text';
     const raw =
-      typeof (child?.props as { children?: ReactNode } | undefined)
-        ?.children === "string"
+      typeof (child?.props as { children?: ReactNode } | undefined)?.children === 'string'
         ? ((child!.props as { children: string }).children as string)
-        : "";
-    const code = raw.replace(/\n$/, "");
+        : '';
+    const code = raw.replace(/\n$/, '');
     return <CodeBlock code={code} lang={lang} />;
   },
   code: ({ className, children, ...props }: any) => {
@@ -1028,9 +967,9 @@ const mdComponents: NonNullable<
       <code
         {...props}
         className={[
-          "rounded-md border border-white/[0.08] bg-black/35 px-[6px] py-[2px] font-mono text-[0.86em] text-[var(--color-wire-bright)]",
-          className ?? "",
-        ].join(" ")}
+          'rounded-md border border-white/[0.08] bg-black/35 px-[6px] py-[2px] font-mono text-[0.86em] text-[var(--color-wire-bright)]',
+          className ?? ''
+        ].join(' ')}
       >
         {children}
       </code>
@@ -1038,14 +977,10 @@ const mdComponents: NonNullable<
   },
   table: ({ children }) => (
     <div className="mt-7 overflow-x-auto rounded-xl border border-white/[0.08] bg-white/[0.015]">
-      <table className="w-full border-collapse text-left text-[13.5px]">
-        {children}
-      </table>
+      <table className="w-full border-collapse text-left text-[13.5px]">{children}</table>
     </div>
   ),
-  thead: ({ children }) => (
-    <thead className="bg-white/[0.025]">{children}</thead>
-  ),
+  thead: ({ children }) => <thead className="bg-white/[0.025]">{children}</thead>,
   th: ({ children }) => (
     <th className="border-b border-white/[0.08] px-4 py-3 font-mono text-[10px] uppercase tracking-[0.28em] text-[var(--color-wire-bright)]/80">
       {children}
@@ -1056,7 +991,7 @@ const mdComponents: NonNullable<
       {children}
     </td>
   ),
-  tr: ({ children }) => <tr className="last:[&_td]:border-b-0">{children}</tr>,
+  tr: ({ children }) => <tr className="last:[&_td]:border-b-0">{children}</tr>
 };
 
 // ---------------------------------------------------------------------------
@@ -1068,38 +1003,36 @@ function idFromChildren(children: ReactNode): string {
 }
 
 function extractText(node: ReactNode): string {
-  if (typeof node === "string" || typeof node === "number") return String(node);
-  if (Array.isArray(node)) return node.map(extractText).join("");
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(extractText).join('');
   if (
     node &&
-    typeof node === "object" &&
-    "props" in node &&
+    typeof node === 'object' &&
+    'props' in node &&
     (node as { props: { children?: ReactNode } }).props
   ) {
-    return extractText(
-      (node as { props: { children?: ReactNode } }).props.children,
-    );
+    return extractText((node as { props: { children?: ReactNode } }).props.children);
   }
-  return "";
+  return '';
 }
 
 function slugify(s: string): string {
   return s
     .toLowerCase()
-    .replace(/`/g, "")
-    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/`/g, '')
+    .replace(/[^a-z0-9\s-]/g, '')
     .trim()
-    .replace(/\s+/g, "-");
+    .replace(/\s+/g, '-');
 }
 
 function buildToc(md: string): TocSection[] {
   const sections: TocSection[] = [];
-  const lines = md.split("\n");
+  const lines = md.split('\n');
   let inFence = false;
   let current: TocSection | null = null;
   let counter = 0;
   for (const line of lines) {
-    if (line.startsWith("```")) {
+    if (line.startsWith('```')) {
       inFence = !inFence;
       continue;
     }
@@ -1111,8 +1044,8 @@ function buildToc(md: string): TocSection[] {
       current = {
         id,
         text,
-        number: String(counter).padStart(2, "0"),
-        children: [],
+        number: String(counter).padStart(2, '0'),
+        children: []
       };
       sections.push(current);
       counter++;
@@ -1128,11 +1061,11 @@ function buildToc(md: string): TocSection[] {
 }
 
 function stripBackticks(s: string): string {
-  return s.replace(/`/g, "");
+  return s.replace(/`/g, '');
 }
 
 function stripFirstHeading(md: string): string {
   // The hero renders our own title — peel the first H1 off the markdown so
   // it doesn't double up.
-  return md.replace(/^#\s.+\n+/, "");
+  return md.replace(/^#\s.+\n+/, '');
 }

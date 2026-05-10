@@ -1,43 +1,40 @@
-import { useMemo, useState } from "react";
-import { motion, useScroll, useTransform } from "motion/react";
+import { useMemo, useState } from 'react';
+import { motion, useScroll, useTransform } from 'motion/react';
 import {
   RELEASES,
   type Change,
   type ChangeKind,
   type Release,
-  type Surface,
-} from "../data/changelog";
-import { SiteHeader } from "../components/SiteHeader";
+  type Surface
+} from '../data/changelog';
+import { SiteHeader } from '../components/SiteHeader';
 
-const KIND_META: Record<
-  ChangeKind,
-  { label: string; color: string; symbol: string }
-> = {
+const KIND_META: Record<ChangeKind, { label: string; color: string; symbol: string }> = {
   added: {
-    label: "added",
-    color: "var(--color-signal)",
-    symbol: "+",
+    label: 'added',
+    color: 'var(--color-signal)',
+    symbol: '+'
   },
   changed: {
-    label: "changed",
-    color: "var(--color-wire-bright)",
-    symbol: "~",
+    label: 'changed',
+    color: 'var(--color-wire-bright)',
+    symbol: '~'
   },
   fixed: {
-    label: "fixed",
-    color: "var(--color-amber)",
-    symbol: "✓",
+    label: 'fixed',
+    color: 'var(--color-amber)',
+    symbol: '✓'
   },
   removed: {
-    label: "removed",
-    color: "var(--color-rose)",
-    symbol: "−",
+    label: 'removed',
+    color: 'var(--color-rose)',
+    symbol: '−'
   },
   security: {
-    label: "security",
-    color: "var(--color-rose)",
-    symbol: "!",
-  },
+    label: 'security',
+    color: 'var(--color-rose)',
+    symbol: '!'
+  }
 };
 
 /**
@@ -45,36 +42,20 @@ const KIND_META: Record<
  * color. Used in the filter bar and as a small chip on every change row.
  * Order here is the order surfaces appear in the filter bar.
  */
-const SURFACE_META: Record<
-  Surface,
-  { label: string; short: string; color: string }
-> = {
-  app: { label: "ios app", short: "app", color: "#79c0ff" },
-  web: { label: "web · docs", short: "web", color: "#5be9b9" },
-  api: { label: "http api", short: "api", color: "#4da3ff" },
-  sdk: { label: "sdk", short: "sdk", color: "#ffb547" },
-  cli: { label: "pushrsh cli", short: "cli", color: "#ff6b8b" },
+const SURFACE_META: Record<Surface, { label: string; short: string; color: string }> = {
+  app: { label: 'ios app', short: 'app', color: '#79c0ff' },
+  web: { label: 'web · docs', short: 'web', color: '#5be9b9' },
+  api: { label: 'http api', short: 'api', color: '#4da3ff' },
+  sdk: { label: 'sdk', short: 'sdk', color: '#ffb547' },
+  cli: { label: 'pushrsh cli', short: 'cli', color: '#ff6b8b' }
 };
 
-const SURFACE_ORDER: Surface[] = ["app", "web", "api", "sdk", "cli"];
+const SURFACE_ORDER: Surface[] = ['app', 'web', 'api', 'sdk', 'cli'];
 
-const MONTHS = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
-];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function versionAnchor(v: string): string {
-  return v.replace(/[^a-z0-9]/gi, "-");
+  return v.replace(/[^a-z0-9]/gi, '-');
 }
 
 function changelogHref(version: string): string {
@@ -91,10 +72,7 @@ export function Changelog() {
   // Apply the filter to each release: keep changes whose `surfaces` either
   // contain the active filter, or are unscoped (apply everywhere). A
   // release with zero matching changes drops out entirely.
-  const filteredReleases = useMemo(
-    () => filterReleases(RELEASES, filter),
-    [filter],
-  );
+  const filteredReleases = useMemo(() => filterReleases(RELEASES, filter), [filter]);
   const grouped = useMemo(() => groupByYear(filteredReleases), [filteredReleases]);
 
   const latest = RELEASES[0];
@@ -111,25 +89,18 @@ export function Changelog() {
       <SiteHeader
         tag="log"
         nav={[
-          { kind: "route", label: "docs", to: "/docs" },
-          { kind: "route", label: "log", to: "/changelog" },
+          { kind: 'route', label: 'docs', to: '/docs' },
+          { kind: 'route', label: 'log', to: '/changelog' }
         ]}
       />
 
       <div className="relative mx-auto max-w-[920px] px-6 pt-14 pb-32 lg:pt-20">
         <Hero latest={latest} totalReleases={RELEASES.length} />
 
-        <SurfaceFilter
-          available={availableSurfaces}
-          active={filter}
-          onChange={setFilter}
-        />
+        <SurfaceFilter available={availableSurfaces} active={filter} onChange={setFilter} />
 
         {grouped.length === 0 ? (
-          <EmptyFilterState
-            surface={filter}
-            onReset={() => setFilter(null)}
-          />
+          <EmptyFilterState surface={filter} onReset={() => setFilter(null)} />
         ) : (
           <div className="mt-14 space-y-24">
             {grouped.map(({ year, releases }) => (
@@ -137,11 +108,7 @@ export function Changelog() {
                 <YearMarker year={year} />
                 <div className="mt-10 space-y-16">
                   {releases.map((r) => (
-                    <ReleaseEntry
-                      key={r.version}
-                      release={r}
-                      filter={filter}
-                    />
+                    <ReleaseEntry key={r.version} release={r} filter={filter} />
                   ))}
                 </div>
               </section>
@@ -164,19 +131,13 @@ function ScrollProgressWire() {
   const scaleX = useTransform(scrollYProgress, [0, 1], [0, 1]);
   return (
     <motion.div
-      style={{ scaleX, transformOrigin: "0% 50%" }}
+      style={{ scaleX, transformOrigin: '0% 50%' }}
       className="fixed left-0 right-0 top-0 z-40 h-[2px] bg-gradient-to-r from-[var(--color-wire-deep)] via-[var(--color-wire-bright)] to-[var(--color-signal)] shadow-[0_0_18px_-2px_var(--color-wire)]"
     />
   );
 }
 
-function Hero({
-  latest,
-  totalReleases,
-}: {
-  latest: Release;
-  totalReleases: number;
-}) {
+function Hero({ latest, totalReleases }: { latest: Release; totalReleases: number }) {
   return (
     <section>
       <div className="font-mono text-[11px] uppercase tracking-[0.32em] text-[var(--color-wire-bright)]">
@@ -206,27 +167,15 @@ function Hero({
   );
 }
 
-function Stat({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: string;
-  accent?: boolean;
-}) {
+function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
     <div className="bg-[color-mix(in_oklab,var(--color-ink)_75%,transparent)] px-5 py-4">
-      <div className="font-mono text-[9.5px] uppercase tracking-[0.32em] text-bone/45">
-        {label}
-      </div>
+      <div className="font-mono text-[9.5px] uppercase tracking-[0.32em] text-bone/45">{label}</div>
       <div
         className={[
-          "mt-2 font-mono tabular-nums",
-          accent
-            ? "text-[20px] text-[var(--color-wire-bright)]"
-            : "text-[18px] text-bone",
-        ].join(" ")}
+          'mt-2 font-mono tabular-nums',
+          accent ? 'text-[20px] text-[var(--color-wire-bright)]' : 'text-[18px] text-bone'
+        ].join(' ')}
       >
         {value}
       </div>
@@ -259,7 +208,7 @@ function Coda() {
 function SurfaceFilter({
   available,
   active,
-  onChange,
+  onChange
 }: {
   available: Set<Surface>;
   active: Surface | null;
@@ -268,11 +217,7 @@ function SurfaceFilter({
   const surfaces = SURFACE_ORDER.filter((s) => available.has(s));
   return (
     <div className="mt-12 flex flex-wrap items-center gap-2 overflow-hidden rounded-xl border border-white/[0.07] bg-white/[0.015] p-1.5">
-      <FilterChip
-        label="all"
-        active={active === null}
-        onClick={() => onChange(null)}
-      />
+      <FilterChip label="all" active={active === null} onClick={() => onChange(null)} />
       <span className="mx-1 h-4 w-px bg-white/10" />
       {surfaces.map((s) => {
         const meta = SURFACE_META[s];
@@ -295,7 +240,7 @@ function FilterChip({
   label,
   dot,
   active,
-  onClick,
+  onClick
 }: {
   label: string;
   dot?: string;
@@ -308,11 +253,11 @@ function FilterChip({
       onClick={onClick}
       aria-pressed={active}
       className={[
-        "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-mono text-[10.5px] uppercase tracking-[0.22em] transition-colors",
+        'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-mono text-[10.5px] uppercase tracking-[0.22em] transition-colors',
         active
-          ? "bg-white/[0.07] text-bone shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]"
-          : "text-bone/45 hover:bg-white/[0.025] hover:text-bone/75",
-      ].join(" ")}
+          ? 'bg-white/[0.07] text-bone shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]'
+          : 'text-bone/45 hover:bg-white/[0.025] hover:text-bone/75'
+      ].join(' ')}
     >
       {dot && (
         <span
@@ -325,13 +270,7 @@ function FilterChip({
   );
 }
 
-function EmptyFilterState({
-  surface,
-  onReset,
-}: {
-  surface: Surface | null;
-  onReset: () => void;
-}) {
+function EmptyFilterState({ surface, onReset }: { surface: Surface | null; onReset: () => void }) {
   const meta = surface ? SURFACE_META[surface] : null;
   return (
     <div className="mt-16 rounded-2xl border border-white/[0.07] bg-white/[0.02] p-10 text-center">
@@ -339,13 +278,9 @@ function EmptyFilterState({
         no entries yet
       </div>
       <p className="mt-4 max-w-[440px] mx-auto text-[15px] leading-relaxed text-bone/65">
-        Nothing has shipped to{" "}
-        {meta ? (
-          <span style={{ color: meta.color }}>{meta.label}</span>
-        ) : (
-          "this surface"
-        )}{" "}
-        yet. Check back, or browse every change.
+        Nothing has shipped to{' '}
+        {meta ? <span style={{ color: meta.color }}>{meta.label}</span> : 'this surface'} yet. Check
+        back, or browse every change.
       </p>
       <button
         type="button"
@@ -369,9 +304,7 @@ function YearMarker({ year }: { year: number }) {
         {year}
       </div>
       <div className="h-px flex-1 bg-gradient-to-r from-white/[0.08] via-white/[0.04] to-transparent" />
-      <span className="font-mono text-[10px] uppercase tracking-[0.32em] text-bone/30">
-        ▾
-      </span>
+      <span className="font-mono text-[10px] uppercase tracking-[0.32em] text-bone/30">▾</span>
     </div>
   );
 }
@@ -380,17 +313,11 @@ function YearMarker({ year }: { year: number }) {
 // Release entry
 // ---------------------------------------------------------------------------
 
-function ReleaseEntry({
-  release,
-  filter,
-}: {
-  release: Release;
-  filter: Surface | null;
-}) {
+function ReleaseEntry({ release, filter }: { release: Release; filter: Surface | null }) {
   const id = versionAnchor(release.version);
   const visibleChanges = useMemo(
     () => release.changes.filter((c) => matchesFilter(c, filter)),
-    [release.changes, filter],
+    [release.changes, filter]
   );
   const summary = useMemo(() => summarize(visibleChanges), [visibleChanges]);
   return (
@@ -477,7 +404,7 @@ function ChangeRow({ change }: { change: Change }) {
         {change.text}
         {change.pr !== undefined && (
           <>
-            {" "}
+            {' '}
             <a
               href={`https://github.com/cpreston/pushr/pull/${change.pr}`}
               className="font-mono text-[11.5px] text-bone/40 underline decoration-bone/20 underline-offset-[3px] transition hover:text-bone hover:decoration-bone/60"
@@ -503,10 +430,7 @@ function SurfaceChips({ surfaces }: { surfaces?: Surface[] }) {
             className="inline-flex items-center gap-1 rounded border border-white/[0.07] bg-white/[0.025] px-1.5 py-px font-mono text-[9.5px] uppercase tracking-[0.22em] text-bone/75"
             title={meta.label}
           >
-            <span
-              className="h-1 w-1 rounded-full"
-              style={{ backgroundColor: meta.color }}
-            />
+            <span className="h-1 w-1 rounded-full" style={{ backgroundColor: meta.color }} />
             {meta.short}
           </span>
         );
@@ -521,7 +445,7 @@ function SurfaceChips({ surfaces }: { surfaces?: Surface[] }) {
 
 function formatDate(iso: string): string {
   // ISO YYYY-MM-DD parsed without a time zone (treat as a calendar date).
-  const [y, m, d] = iso.split("-").map(Number);
+  const [y, m, d] = iso.split('-').map(Number);
   if (!y || !m || !d) return iso;
   return `${MONTHS[m - 1]} ${d}, ${y}`;
 }
@@ -534,7 +458,7 @@ function groupByYear(releases: Release[]): { year: number; releases: Release[] }
     buckets.get(year)!.push(r);
   }
   return [...buckets.entries()]
-    .sort((a, b) => b[0] - a[0])
+    .toSorted((a, b) => b[0] - a[0])
     .map(([year, releases]) => ({ year, releases }));
 }
 
@@ -572,14 +496,6 @@ function summarize(changes: Change[]): { kind: ChangeKind; count: number }[] {
   for (const c of changes) {
     counts.set(c.kind, (counts.get(c.kind) ?? 0) + 1);
   }
-  const order: ChangeKind[] = [
-    "added",
-    "changed",
-    "fixed",
-    "removed",
-    "security",
-  ];
-  return order
-    .filter((k) => counts.has(k))
-    .map((k) => ({ kind: k, count: counts.get(k)! }));
+  const order: ChangeKind[] = ['added', 'changed', 'fixed', 'removed', 'security'];
+  return order.filter((k) => counts.has(k)).map((k) => ({ kind: k, count: counts.get(k)! }));
 }

@@ -55,15 +55,15 @@ Narrower reads mean fewer false conflicts.
 
 ```ts
 // Bad: broad scan creates a wide conflict surface
-const allTasks = await ctx.db.query("tasks").collect();
+const allTasks = await ctx.db.query('tasks').collect();
 const mine = allTasks.filter((t) => t.ownerId === userId);
 ```
 
 ```ts
 // Good: indexed query touches only relevant documents
 const mine = await ctx.db
-  .query("tasks")
-  .withIndex("by_owner", (q) => q.eq("ownerId", userId))
+  .query('tasks')
+  .withIndex('by_owner', (q) => q.eq('ownerId', userId))
   .collect();
 ```
 
@@ -96,10 +96,10 @@ transaction's lifetime and read/write set.
 ```ts
 // Bad: canonical write and derived work happen in the same transaction
 await ctx.db.patch(userId, { name: args.name });
-await ctx.db.insert("userUpdateAnalytics", {
+await ctx.db.insert('userUpdateAnalytics', {
   userId,
-  kind: "name_changed",
-  name: args.name,
+  kind: 'name_changed',
+  name: args.name
 });
 ```
 
@@ -108,7 +108,7 @@ await ctx.db.insert("userUpdateAnalytics", {
 await ctx.db.patch(userId, { name: args.name });
 await ctx.scheduler.runAfter(0, internal.users.recordNameChangeAnalytics, {
   userId,
-  name: args.name,
+  name: args.name
 });
 ```
 

@@ -1,6 +1,6 @@
-import { motion } from "motion/react";
+import { motion } from 'motion/react';
 
-type Verdict = "yes" | "no" | "partial" | "free" | "paid";
+type Verdict = 'yes' | 'no' | 'partial' | 'free' | 'paid';
 
 type Row = {
   feature: string;
@@ -12,84 +12,84 @@ type Row = {
 
 const ROWS: Row[] = [
   {
-    feature: "Native iOS app",
-    pushr: "yes",
-    ntfy: "yes",
-    igotify: "yes",
+    feature: 'Native iOS app',
+    pushr: 'yes',
+    ntfy: 'yes',
+    igotify: 'yes'
   },
   {
-    feature: "Free iOS app",
-    pushr: "free",
-    ntfy: "free",
-    igotify: "free",
+    feature: 'Free iOS app',
+    pushr: 'free',
+    ntfy: 'free',
+    igotify: 'free'
   },
   {
-    feature: "Open source",
-    pushr: "yes",
-    ntfy: "yes",
-    igotify: "yes",
+    feature: 'Open source',
+    pushr: 'yes',
+    ntfy: 'yes',
+    igotify: 'yes'
   },
   {
-    feature: "Connect your own instance",
-    hint: "Point the iOS app at any backend URL",
-    pushr: "yes",
-    ntfy: "yes",
-    igotify: "yes",
+    feature: 'Connect your own instance',
+    hint: 'Point the iOS app at any backend URL',
+    pushr: 'yes',
+    ntfy: 'yes',
+    igotify: 'yes'
   },
   {
-    feature: "Self-host the backend",
-    hint: "Run the server end-to-end",
-    pushr: "yes",
-    ntfy: "yes",
-    igotify: "yes",
+    feature: 'Self-host the backend',
+    hint: 'Run the server end-to-end',
+    pushr: 'yes',
+    ntfy: 'yes',
+    igotify: 'yes'
   },
   {
-    feature: "Hosted backend available",
+    feature: 'Hosted backend available',
     hint: "Skip self-hosting if you don't want it",
-    pushr: "yes",
-    ntfy: "yes",
-    igotify: "no",
+    pushr: 'yes',
+    ntfy: 'yes',
+    igotify: 'no'
   },
   {
-    feature: "Live Activities + Dynamic Island",
-    hint: "Lock-screen progress driven from a webhook",
-    pushr: "yes",
-    ntfy: "no",
-    igotify: "no",
+    feature: 'Live Activities + Dynamic Island',
+    hint: 'Lock-screen progress driven from a webhook',
+    pushr: 'yes',
+    ntfy: 'no',
+    igotify: 'no'
   },
   {
-    feature: "Badge count synced across devices",
-    pushr: "yes",
-    ntfy: "no",
-    igotify: "no",
+    feature: 'Badge count synced across devices',
+    pushr: 'yes',
+    ntfy: 'no',
+    igotify: 'no'
   },
   {
-    feature: "Custom sounds per source",
-    hint: "A different chime per project, not per priority",
-    pushr: "yes",
-    ntfy: "partial",
-    igotify: "partial",
+    feature: 'Custom sounds per source',
+    hint: 'A different chime per project, not per priority',
+    pushr: 'yes',
+    ntfy: 'partial',
+    igotify: 'partial'
   },
   {
-    feature: "Per-source icons + color",
-    hint: "Brand each app sending notifications",
-    pushr: "yes",
-    ntfy: "partial",
-    igotify: "yes",
+    feature: 'Per-source icons + color',
+    hint: 'Brand each app sending notifications',
+    pushr: 'yes',
+    ntfy: 'partial',
+    igotify: 'yes'
   },
   {
-    feature: "Numeric priorities 1–10",
-    hint: "Gotify-compatible scale",
-    pushr: "yes",
-    ntfy: "partial",
-    igotify: "yes",
+    feature: 'Numeric priorities 1–10',
+    hint: 'Gotify-compatible scale',
+    pushr: 'yes',
+    ntfy: 'partial',
+    igotify: 'yes'
   },
   {
-    feature: "Per-source bearer tokens",
-    pushr: "yes",
-    ntfy: "yes",
-    igotify: "yes",
-  },
+    feature: 'Per-source bearer tokens',
+    pushr: 'yes',
+    ntfy: 'yes',
+    igotify: 'yes'
+  }
 ];
 
 export function Compared() {
@@ -110,28 +110,24 @@ export function Compared() {
             <motion.h2
               initial={{ opacity: 0, y: 16 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-100px" }}
+              viewport={{ once: true, margin: '-100px' }}
               transition={{ duration: 0.6 }}
               className="font-display text-[clamp(48px,7vw,96px)] leading-[0.92] tracking-[-0.02em] text-balance text-bone"
             >
-              ntfy.{" "}
-              <span className="text-bone/40">iGotify.</span>{" "}
-              <span className="block text-[var(--color-wire-bright)]">
-                pushr.sh.
-              </span>
+              ntfy. <span className="text-bone/40">iGotify.</span>{' '}
+              <span className="block text-[var(--color-wire-bright)]">pushr.sh.</span>
             </motion.h2>
             <motion.p
               initial={{ opacity: 0, y: 12 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-100px" }}
+              viewport={{ once: true, margin: '-100px' }}
               transition={{ duration: 0.6, delay: 0.1 }}
               className="mt-6 max-w-[640px] text-[17px] leading-relaxed text-bone/65"
             >
-              ntfy and iGotify already nail the basics — free apps, open source,
-              point them at your own server. We built pushr.sh for the parts iOS
-              has that the others haven't shipped yet:{" "}
-              <span className="text-bone">Live Activities</span>,{" "}
-              <span className="text-bone">Dynamic Island</span>, and{" "}
+              ntfy and iGotify already nail the basics — free apps, open source, point them at your
+              own server. We built pushr.sh for the parts iOS has that the others haven't shipped
+              yet: <span className="text-bone">Live Activities</span>,{' '}
+              <span className="text-bone">Dynamic Island</span>, and{' '}
               <span className="text-bone">badge sync across devices</span>.
             </motion.p>
           </div>
@@ -141,7 +137,7 @@ export function Compared() {
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-80px" }}
+          viewport={{ once: true, margin: '-80px' }}
           transition={{ duration: 0.55 }}
           className="relative mt-16 overflow-hidden rounded-3xl border border-[var(--color-wire)]/40 bg-gradient-to-br from-[var(--color-wire-deep)]/15 via-transparent to-[var(--color-signal)]/10 p-8 ring-wire"
         >
@@ -152,15 +148,13 @@ export function Compared() {
                 BYO instance · $0 forever
               </div>
               <h3 className="mt-3 font-display text-[clamp(32px,4.4vw,56px)] leading-[1] tracking-[-0.04em] text-bone">
-                Spin up Convex.{" "}
-                <span className="text-[var(--color-wire-bright)]">
-                  Point the app at it.
-                </span>
+                Spin up Convex.{' '}
+                <span className="text-[var(--color-wire-bright)]">Point the app at it.</span>
               </h3>
               <p className="mt-4 max-w-[560px] text-[15px] leading-relaxed text-bone/70">
-                The whole stack is open source. Run the backend on your own
-                domain, drop the URL into settings, and we never touch your
-                payloads — no per-message fees, no usage caps, no upsell.
+                The whole stack is open source. Run the backend on your own domain, drop the URL
+                into settings, and we never touch your payloads — no per-message fees, no usage
+                caps, no upsell.
               </p>
             </div>
             <div className="col-span-12 lg:col-span-4">
@@ -168,9 +162,7 @@ export function Compared() {
                 <div className="text-bone/40">$ in app settings → server</div>
                 <div className="mt-1">
                   <span className="text-[var(--color-wire-bright)]">URL </span>
-                  <span className="text-[var(--color-amber)]">
-                    https://pushr.you.dev
-                  </span>
+                  <span className="text-[var(--color-amber)]">https://pushr.you.dev</span>
                 </div>
                 <div className="mt-2 flex items-center gap-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-signal)] animate-pulse-wire" />
@@ -185,7 +177,7 @@ export function Compared() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-80px" }}
+          viewport={{ once: true, margin: '-80px' }}
           transition={{ duration: 0.6 }}
           className="mt-16 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.02]"
         >
@@ -203,16 +195,12 @@ export function Compared() {
             <div
               key={row.feature}
               className={`grid grid-cols-[1.6fr_1fr_1fr_1fr] gap-0 ${
-                i !== ROWS.length - 1 ? "border-b border-white/[0.06]" : ""
+                i !== ROWS.length - 1 ? 'border-b border-white/[0.06]' : ''
               }`}
             >
               <div className="px-6 py-5">
                 <div className="text-[14.5px] text-bone">{row.feature}</div>
-                {row.hint && (
-                  <div className="mt-0.5 text-[12.5px] text-bone/45">
-                    {row.hint}
-                  </div>
-                )}
+                {row.hint && <div className="mt-0.5 text-[12.5px] text-bone/45">{row.hint}</div>}
               </div>
               <Cell value={row.pushr} highlight />
               <Cell value={row.ntfy} />
@@ -229,26 +217,16 @@ export function Compared() {
   );
 }
 
-function HeaderCell({
-  name,
-  tag,
-  highlight,
-}: {
-  name: string;
-  tag: string;
-  highlight?: boolean;
-}) {
+function HeaderCell({ name, tag, highlight }: { name: string; tag: string; highlight?: boolean }) {
   return (
     <div
       className={`px-6 py-5 ${
-        highlight
-          ? "bg-gradient-to-b from-[var(--color-wire-deep)]/15 to-transparent"
-          : ""
+        highlight ? 'bg-gradient-to-b from-[var(--color-wire-deep)]/15 to-transparent' : ''
       }`}
     >
       <div
         className={`font-display text-[22px] leading-none tracking-tight ${
-          highlight ? "text-[var(--color-wire-bright)] glow-wire" : "text-bone"
+          highlight ? 'text-[var(--color-wire-bright)] glow-wire' : 'text-bone'
         }`}
       >
         {name}
@@ -260,18 +238,12 @@ function HeaderCell({
   );
 }
 
-function Cell({
-  value,
-  highlight,
-}: {
-  value: Verdict | string;
-  highlight?: boolean;
-}) {
-  const isVerdict = ["yes", "no", "partial", "free", "paid"].includes(value);
+function Cell({ value, highlight }: { value: Verdict | string; highlight?: boolean }) {
+  const isVerdict = ['yes', 'no', 'partial', 'free', 'paid'].includes(value);
   return (
     <div
       className={`flex items-center px-6 py-5 ${
-        highlight ? "bg-[var(--color-wire-deep)]/[0.06]" : ""
+        highlight ? 'bg-[var(--color-wire-deep)]/[0.06]' : ''
       }`}
     >
       {isVerdict ? <Mark v={value as Verdict} /> : <span className="text-bone/80">{value}</span>}
@@ -280,13 +252,15 @@ function Cell({
 }
 
 function Mark({ v }: { v: Verdict }) {
-  if (v === "yes") {
+  if (v === 'yes') {
     return (
       <span className="inline-flex items-center gap-2 text-[14px] text-bone">
         <span
           aria-hidden
           className="grid h-5 w-5 place-items-center rounded-full bg-[var(--color-signal)]/15 text-[var(--color-signal)]"
-          style={{ boxShadow: "inset 0 0 0 1px color-mix(in oklab, var(--color-signal) 40%, transparent)" }}
+          style={{
+            boxShadow: 'inset 0 0 0 1px color-mix(in oklab, var(--color-signal) 40%, transparent)'
+          }}
         >
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
             <path
@@ -301,13 +275,16 @@ function Mark({ v }: { v: Verdict }) {
       </span>
     );
   }
-  if (v === "free") {
+  if (v === 'free') {
     return (
       <span className="inline-flex items-center gap-2">
         <span
           aria-hidden
           className="grid h-5 w-5 place-items-center rounded-full bg-[var(--color-wire-bright)]/15 text-[var(--color-wire-bright)]"
-          style={{ boxShadow: "inset 0 0 0 1px color-mix(in oklab, var(--color-wire-bright) 40%, transparent)" }}
+          style={{
+            boxShadow:
+              'inset 0 0 0 1px color-mix(in oklab, var(--color-wire-bright) 40%, transparent)'
+          }}
         >
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
             <path
@@ -325,7 +302,7 @@ function Mark({ v }: { v: Verdict }) {
       </span>
     );
   }
-  if (v === "partial") {
+  if (v === 'partial') {
     return (
       <span
         aria-label="partial support"
@@ -333,7 +310,7 @@ function Mark({ v }: { v: Verdict }) {
       />
     );
   }
-  if (v === "paid") {
+  if (v === 'paid') {
     return (
       <span className="font-mono text-[10.5px] uppercase tracking-[0.22em] text-[var(--color-amber)]">
         paid
@@ -342,9 +319,6 @@ function Mark({ v }: { v: Verdict }) {
   }
   // no
   return (
-    <span
-      aria-label="not supported"
-      className="inline-block h-1.5 w-1.5 rounded-full bg-bone/20"
-    />
+    <span aria-label="not supported" className="inline-block h-1.5 w-1.5 rounded-full bg-bone/20" />
   );
 }

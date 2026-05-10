@@ -1,12 +1,12 @@
-import { motion } from "motion/react";
-import { useEffect, useState } from "react";
-import { getHighlighter, normalizeLang, SHIKI_THEME } from "../lib/shiki";
+import { motion } from 'motion/react';
+import { useEffect, useState } from 'react';
+import { getHighlighter, normalizeLang, SHIKI_THEME } from '../lib/shiki';
 
-type Tab = "curl" | "cli" | "sdk" | "live-activity";
+type Tab = 'curl' | 'cli' | 'sdk' | 'live-activity';
 
 const SAMPLES: Record<Tab, { lang: string; code: string }> = {
   curl: {
-    lang: "bash",
+    lang: 'bash',
     code: `# wire any project to your phone in one shot
 curl -X POST "$PUSHR_URL/notify" \\
   -H "Authorization: Bearer $PUSHR_TOKEN" \\
@@ -16,10 +16,10 @@ curl -X POST "$PUSHR_URL/notify" \\
     "body":  "main → production · build #482",
     "priority": "high",
     "url": "https://acme.com/admin"
-  }'`,
+  }'`
   },
   cli: {
-    lang: "bash",
+    lang: 'bash',
     code: `# brew install pushrsh — single-binary, built with Bun
 # bare-mode: first arg is the title, second the body
 pushrsh "shipped 🚀" "main → prod · build #482" -p high
@@ -33,10 +33,10 @@ pushrsh "PR ready" "+812 / -96" -a "View=https://gh.io/318"
 # drive the Dynamic Island in three commands
 pushrsh la start  deploy-482 --title "Deploy #482" --status Building --progress 0
 pushrsh la update deploy-482 --status "Tests pass" --progress 0.6
-pushrsh la end    deploy-482 --status Live`,
+pushrsh la end    deploy-482 --status Live`
   },
   sdk: {
-    lang: "typescript",
+    lang: 'typescript',
     code: `// bun add pushr — zero deps, any fetch runtime
 import { notify, liveActivity } from "pushr";
 
@@ -51,10 +51,10 @@ await notify({
 const la = liveActivity("deploy-482");
 await la.start({ status: "Building", progress: 0 });
 await la.update({ status: "Tests pass", progress: 0.6 });
-await la.end({ status: "Live" });`,
+await la.end({ status: "Live" });`
   },
-  "live-activity": {
-    lang: "jsonc",
+  'live-activity': {
+    lang: 'jsonc',
     code: `// drive the Dynamic Island from /notify
 {
   "title": "Deploy #482",
@@ -70,8 +70,8 @@ await la.end({ status: "Live" });`,
       "icon": "hammer.fill"
     }
   }
-}`,
-  },
+}`
+  }
 };
 
 // Cache shared across renders + tab switches so re-highlighting is instant.
@@ -79,9 +79,7 @@ const highlightCache = new Map<string, string>();
 
 function useShiki(code: string, lang: string): string | null {
   const key = `${lang}::${code}`;
-  const [html, setHtml] = useState<string | null>(
-    () => highlightCache.get(key) ?? null,
-  );
+  const [html, setHtml] = useState<string | null>(() => highlightCache.get(key) ?? null);
 
   useEffect(() => {
     if (highlightCache.has(key)) {
@@ -94,7 +92,7 @@ function useShiki(code: string, lang: string): string | null {
         if (cancel) return;
         const out = hl.codeToHtml(code, {
           lang: normalizeLang(lang),
-          theme: SHIKI_THEME,
+          theme: SHIKI_THEME
         });
         highlightCache.set(key, out);
         setHtml(out);
@@ -111,11 +109,11 @@ function useShiki(code: string, lang: string): string | null {
 }
 
 export function CodeShowcase() {
-  const [tab, setTab] = useState<Tab>("curl");
+  const [tab, setTab] = useState<Tab>('curl');
   const [copied, setCopied] = useState(false);
   const current = SAMPLES[tab];
   const html = useShiki(current.code, current.lang);
-  const lineCount = current.code.split("\n").length;
+  const lineCount = current.code.split('\n').length;
 
   const onCopy = async () => {
     try {
@@ -147,17 +145,15 @@ export function CodeShowcase() {
 
           <ul className="mt-10 space-y-4">
             {[
-              ["POST /notify", "Single endpoint for everything."],
-              ["Idempotent", "Safe to retry. Dedupe by request id."],
-              ["Multi-device", "Fan-out to every signed-in iPhone."],
-              ["Typed errors", "4xx with reason codes, never silent drops."],
+              ['POST /notify', 'Single endpoint for everything.'],
+              ['Idempotent', 'Safe to retry. Dedupe by request id.'],
+              ['Multi-device', 'Fan-out to every signed-in iPhone.'],
+              ['Typed errors', '4xx with reason codes, never silent drops.']
             ].map(([label, desc]) => (
               <li key={label as string} className="flex gap-4">
                 <span className="mt-1 h-1.5 w-1.5 flex-none rounded-full bg-[var(--color-wire)] shadow-[0_0_12px_var(--color-wire)]" />
                 <div>
-                  <div className="font-mono text-[12.5px] tracking-tight text-bone">
-                    {label}
-                  </div>
+                  <div className="font-mono text-[12.5px] tracking-tight text-bone">{label}</div>
                   <div className="text-[13.5px] text-bone/55">{desc}</div>
                 </div>
               </li>
@@ -168,7 +164,7 @@ export function CodeShowcase() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-100px" }}
+          viewport={{ once: true, margin: '-100px' }}
           transition={{ duration: 0.6 }}
           className="col-span-12 lg:col-span-7"
         >
@@ -177,10 +173,10 @@ export function CodeShowcase() {
             <div className="flex items-center gap-1">
               {(
                 [
-                  ["curl", "curl"],
-                  ["cli", "cli"],
-                  ["sdk", "sdk"],
-                  ["live-activity", "live activity"],
+                  ['curl', 'curl'],
+                  ['cli', 'cli'],
+                  ['sdk', 'sdk'],
+                  ['live-activity', 'live activity']
                 ] as [Tab, string][]
               ).map(([t, label]) => (
                 <button
@@ -189,8 +185,8 @@ export function CodeShowcase() {
                   onClick={() => setTab(t)}
                   className={`rounded-md px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.2em] transition ${
                     tab === t
-                      ? "bg-[var(--color-wire)]/20 text-bone"
-                      : "text-bone/50 hover:bg-white/5 hover:text-bone/80"
+                      ? 'bg-[var(--color-wire)]/20 text-bone'
+                      : 'text-bone/50 hover:bg-white/5 hover:text-bone/80'
                   }`}
                 >
                   {label}
@@ -202,7 +198,7 @@ export function CodeShowcase() {
               onClick={onCopy}
               className="flex items-center gap-1.5 rounded-md border border-white/10 px-2.5 py-1.5 font-mono text-[10.5px] uppercase tracking-[0.2em] text-bone/70 transition hover:bg-white/5 hover:text-bone"
             >
-              {copied ? "✓ copied" : "⌘ copy"}
+              {copied ? '✓ copied' : '⌘ copy'}
             </button>
           </div>
 
@@ -228,7 +224,7 @@ export function CodeShowcase() {
                 {current.lang}
               </span>
               <span>
-                {lineCount} {lineCount === 1 ? "line" : "lines"} · 200 OK
+                {lineCount} {lineCount === 1 ? 'line' : 'lines'} · 200 OK
               </span>
             </div>
           </div>

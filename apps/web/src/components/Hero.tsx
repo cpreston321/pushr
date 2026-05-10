@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
-import { motion } from "motion/react";
-import { PhoneFrame } from "./PhoneFrame";
-import { DynamicIsland, LockScreenLiveActivity } from "./DynamicIsland";
-import { makeNotification, sequenceNotification, type Notification } from "../lib/notifications";
+import { useCallback, useEffect, useState } from 'react';
+import { motion } from 'motion/react';
+import { PhoneFrame } from './PhoneFrame';
+import { DynamicIsland, LockScreenLiveActivity } from './DynamicIsland';
+import { makeNotification, sequenceNotification, type Notification } from '../lib/notifications';
 
 const MAX_STACK = 4;
 
@@ -60,9 +60,7 @@ export function Hero() {
             className="mt-6 font-display text-[clamp(72px,11vw,176px)] leading-[0.86] tracking-[-0.02em] text-bone"
           >
             <span className="block">your phone,</span>
-            <span className="block glow-wire text-[var(--color-wire-bright)]">
-              on the wire.
-            </span>
+            <span className="block glow-wire text-[var(--color-wire-bright)]">on the wire.</span>
           </motion.h1>
 
           <motion.p
@@ -71,9 +69,10 @@ export function Hero() {
             transition={{ duration: 0.6, delay: 0.18 }}
             className="mt-7 max-w-[520px] text-pretty text-[18px] leading-relaxed text-bone/75"
           >
-            <span className="font-mono text-[var(--color-wire-bright)]">pushr.sh</span> is a personal
-            push-notification hub for builders. Any project POSTs a payload to a single URL — your
-            iPhone lights up. Deploys, payments, doorbells, trading bots — wired to the same wrist-flick.
+            <span className="font-mono text-[var(--color-wire-bright)]">pushr.sh</span> is a
+            personal push-notification hub for builders. Any project POSTs a payload to a single URL
+            — your iPhone lights up. Deploys, payments, doorbells, trading bots — wired to the same
+            wrist-flick.
           </motion.p>
 
           {/* CTA row with the LIVE FIRE button */}
@@ -93,7 +92,7 @@ export function Hero() {
                 className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
                 style={{
                   background:
-                    "radial-gradient(120% 120% at 50% 0%, rgba(10,132,255,0.35), transparent 60%)",
+                    'radial-gradient(120% 120% at 50% 0%, rgba(10,132,255,0.35), transparent 60%)'
                 }}
               />
               <span className="relative flex items-center gap-2">
@@ -107,7 +106,7 @@ export function Hero() {
                 aria-live="polite"
                 className="relative font-mono text-[11px] tabular-nums text-ink/60"
               >
-                {pulse.toString().padStart(3, "0")}
+                {pulse.toString().padStart(3, '0')}
               </span>
             </button>
 
@@ -141,16 +140,18 @@ export function Hero() {
             transition={{ duration: 0.6, delay: 0.7 }}
             className="mt-12 max-w-[560px] overflow-x-auto rounded-2xl border border-white/10 bg-black/40 p-4 font-mono text-[12.5px] leading-relaxed text-bone/85 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.02)]"
           >
-            <span className="text-[var(--color-wire-bright)]">$</span>{" "}
-            <span className="text-bone">curl</span> -X POST{" "}
-            <span className="text-[var(--color-signal)]">"$PUSHR_URL/notify"</span>{" "}
+            <span className="text-[var(--color-wire-bright)]">$</span>{' '}
+            <span className="text-bone">curl</span> -X POST{' '}
+            <span className="text-[var(--color-signal)]">"$PUSHR_URL/notify"</span>{' '}
             <span className="text-bone/50">\</span>
-            {"\n  "}-H{" "}
-            <span className="text-[var(--color-amber)]">"Authorization: Bearer $TOKEN"</span>{" "}
+            {'\n  '}-H{' '}
+            <span className="text-[var(--color-amber)]">"Authorization: Bearer $TOKEN"</span>{' '}
             <span className="text-bone/50">\</span>
-            {"\n  "}-d{" "}
+            {'\n  '}-d{' '}
             <span className="text-[var(--color-amber)]">
-              {"'"}{`{"title":"shipped 🚀","body":"build #482","priority":"high"}`}{"'"}
+              {"'"}
+              {`{"title":"shipped 🚀","body":"build #482","priority":"high"}`}
+              {"'"}
             </span>
             <span className="ml-1 inline-block h-[1em] w-[7px] -translate-y-[1px] bg-[var(--color-wire-bright)] align-middle animate-cursor" />
           </motion.pre>
@@ -161,7 +162,7 @@ export function Hero() {
           <motion.div
             initial={{ opacity: 0, y: 40, rotate: -3 }}
             animate={{ opacity: 1, y: 0, rotate: 0 }}
-            transition={{ type: "spring", stiffness: 120, damping: 18, delay: 0.2 }}
+            transition={{ type: 'spring', stiffness: 120, damping: 18, delay: 0.2 }}
             className="relative"
           >
             <PhoneFrame
@@ -205,7 +206,15 @@ function AppleGlyph() {
 
 function Arrow() {
   return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 14 14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      aria-hidden
+    >
       <path d="M3 7h8M7 3l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
@@ -213,16 +222,16 @@ function Arrow() {
 
 function Marquee() {
   const items = [
-    "POST /notify",
-    "Bearer auth",
-    "Live Activities",
-    "Dynamic Island",
-    "Priority routing",
-    "Custom sounds",
-    "Badge sync",
-    "Source apps",
-    "iOS 16.2+",
-    "Convex backend",
+    'POST /notify',
+    'Bearer auth',
+    'Live Activities',
+    'Dynamic Island',
+    'Priority routing',
+    'Custom sounds',
+    'Badge sync',
+    'Source apps',
+    'iOS 16.2+',
+    'Convex backend'
   ];
   const seq = [...items, ...items];
   return (

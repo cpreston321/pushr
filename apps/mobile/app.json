@@ -1,0 +1,92 @@
+{
+  "expo": {
+    "name": "pushr",
+    "slug": "pushr",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/pushr-light.png",
+    "scheme": "pushr",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "dev.cpreston.pushr",
+      "appleTeamId": "39MSHURBYT",
+      "icon": {
+        "light": "./assets/images/pushr-light.png",
+        "dark": "./assets/images/pushr-dark.png"
+      },
+      "entitlements": {
+        "com.apple.developer.usernotifications.communication": true
+      },
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSUserActivityTypes": ["INSendMessageIntent"]
+      }
+    },
+    "android": {
+      "package": "dev.cpreston.pushr",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon-light.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#278ee8",
+          "dark": {
+            "image": "./assets/images/splash-icon-dark.png",
+            "backgroundColor": "#0f2847"
+          }
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/pushr-light.png",
+          "color": "#ffffff",
+          "defaultChannel": "default",
+          "sounds": [
+            "./assets/sounds/pulse.caf",
+            "./assets/sounds/wire.caf",
+            "./assets/sounds/tap.caf",
+            "./assets/sounds/bell.caf",
+            "./assets/sounds/escalate.caf",
+            "./assets/sounds/klaxon.caf"
+          ],
+          "enableBackgroundRemoteNotifications": true
+        }
+      ],
+      "../../packages/live-activity/plugin.js",
+      "../../packages/widget-data/plugin.js",
+      "@bacons/apple-targets",
+      "expo-font",
+      "expo-image",
+      "expo-web-browser"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "1064386c-a985-4879-87fe-199c45190129"
+      },
+      "router": {}
+    },
+    "owner": "cpreston"
+  }
+}

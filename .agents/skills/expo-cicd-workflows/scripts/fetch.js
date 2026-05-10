@@ -22,8 +22,8 @@ export async function fetchCached(url) {
   const response = await fetch(url, {
     headers: {
       'Cache-Control': 'max-age=0',
-      ...(cached?.etag && { 'If-None-Match': cached.etag }),
-    },
+      ...(cached?.etag && { 'If-None-Match': cached.etag })
+    }
   });
 
   if (response.status === 304 && cached) {

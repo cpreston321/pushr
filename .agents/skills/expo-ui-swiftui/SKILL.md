@@ -1,6 +1,6 @@
 ---
 name: Expo UI SwiftUI
-description: "`@expo/ui/swift-ui` package lets you use SwiftUI Views and modifiers in your app."
+description: '`@expo/ui/swift-ui` package lets you use SwiftUI Views and modifiers in your app.'
 ---
 
 > The instructions in this skill apply to SDK 55 only. For other SDK versions, refer to the Expo UI SwiftUI docs for that version for the most accurate information.
@@ -23,8 +23,8 @@ A native rebuild is required after installation (`npx expo run:ios`).
 - `RNHostView` is specifically for embedding RN components inside a SwiftUI tree. Example:
 
 ```jsx
-import { Host, VStack, RNHostView } from "@expo-ui/swift-ui";
-import { Pressable } from "react-native";
+import { Host, VStack, RNHostView } from '@expo-ui/swift-ui';
+import { Pressable } from 'react-native';
 
 <Host matchContents>
   <VStack>

@@ -1,0 +1,18 @@
+{
+  "name": "@pushr/cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "pushrsh — send notifications from the shell",
+  "bin": {
+    "pushrsh": "./pushrsh.ts"
+  },
+  "type": "module",
+  "main": "pushrsh.ts",
+  "scripts": {
+    "start": "bun pushrsh.ts",
+    "build": "bun build --compile --minify --target=bun --outfile=../../dist/pushrsh pushrsh.ts",
+    "lint": "oxlint .",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check ."
+  }
+}

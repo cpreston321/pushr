@@ -1,0 +1,22 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "singleQuote": true,
+  "jsxSingleQuote": false,
+  "trailingComma": "none",
+  "semi": true,
+  "tabWidth": 2,
+  "printWidth": 100,
+  "endOfLine": "lf",
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/_generated/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/.expo/**",
+    "**/ios/**",
+    "**/android/**",
+    "public-mirror/**",
+    "**/*.lock",
+    "bun.lock"
+  ]
+}

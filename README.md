@@ -116,16 +116,32 @@ Ship up to 4 action buttons with each notification. Three kinds:
   "title": "Staging deploy ready",
   "body": "Merge main → staging?",
   "actions": [
-    { "kind": "callback", "id": "approve", "label": "Approve",
-      "callbackUrl": "https://ci.example.com/deploy/42/approve" },
-    { "kind": "callback", "id": "reject", "label": "Reject",
+    {
+      "kind": "callback",
+      "id": "approve",
+      "label": "Approve",
+      "callbackUrl": "https://ci.example.com/deploy/42/approve"
+    },
+    {
+      "kind": "callback",
+      "id": "reject",
+      "label": "Reject",
       "callbackUrl": "https://ci.example.com/deploy/42/reject",
-      "destructive": true },
-    { "kind": "open_url", "id": "logs", "label": "View logs",
-      "url": "https://ci.example.com/deploy/42" },
-    { "kind": "reply", "id": "comment", "label": "Reply",
+      "destructive": true
+    },
+    {
+      "kind": "open_url",
+      "id": "logs",
+      "label": "View logs",
+      "url": "https://ci.example.com/deploy/42"
+    },
+    {
+      "kind": "reply",
+      "id": "comment",
+      "label": "Reply",
       "callbackUrl": "https://ci.example.com/deploy/42/comment",
-      "placeholder": "Add a note…" }
+      "placeholder": "Add a note…"
+    }
   ]
 }
 ```
@@ -134,7 +150,7 @@ Ship up to 4 action buttons with each notification. Three kinds:
 | ---------- | ------------------------------------------------------------------------ |
 | `open_url` | Opens the URL when tapped. Also recorded as an event.                    |
 | `callback` | POSTs to `callbackUrl`. Result (HTTP status) stored on the action event. |
-| `reply`    | iOS inline text reply. POSTs `{ reply, ... }` to `callbackUrl`.           |
+| `reply`    | iOS inline text reply. POSTs `{ reply, ... }` to `callbackUrl`.          |
 
 **Callback request** (`POST` to your `callbackUrl`):
 
@@ -220,12 +236,12 @@ Add an Internal Integration (or legacy plugin webhook) pointing at
 `/hooks/sentry?token=…`. Severity maps to pushr priority:
 
 | sentry level | priority |
-| --- | --- |
-| debug | 2 |
-| info | 4 |
-| warning | 6 |
-| error | 8 |
-| fatal | 9 |
+| ------------ | -------- |
+| debug        | 2        |
+| info         | 4        |
+| warning      | 6        |
+| error        | 8        |
+| fatal        | 9        |
 
 **Signature verification.** In **API & token → Webhook integrations →
 Sentry**, paste the same client secret you set on the Sentry side. Pushr
@@ -264,7 +280,7 @@ Query per-device status for a notification from the mobile client:
 
 ```ts
 const rows = useQuery(api.deliveries.listForNotification, {
-  notificationId,
+  notificationId
 });
 ```
 

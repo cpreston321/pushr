@@ -1,7 +1,7 @@
-import { AnimatePresence } from "motion/react";
-import type { ReactNode } from "react";
-import { NotificationCard } from "./NotificationCard";
-import type { Notification } from "../lib/notifications";
+import { AnimatePresence } from 'motion/react';
+import type { ReactNode } from 'react';
+import { NotificationCard } from './NotificationCard';
+import type { Notification } from '../lib/notifications';
 
 type Props = {
   notifications: Notification[];
@@ -17,7 +17,7 @@ export function PhoneFrame({ notifications, island, lockWidget }: Props) {
         className="pointer-events-none absolute -inset-12 -z-10 rounded-[64px] blur-3xl"
         style={{
           background:
-            "radial-gradient(60% 60% at 50% 30%, color-mix(in oklab, var(--color-wire) 35%, transparent), transparent 70%)",
+            'radial-gradient(60% 60% at 50% 30%, color-mix(in oklab, var(--color-wire) 35%, transparent), transparent 70%)'
         }}
       />
 
@@ -37,7 +37,7 @@ export function PhoneFrame({ notifications, island, lockWidget }: Props) {
             className="absolute inset-0"
             style={{
               background:
-                "radial-gradient(120% 80% at 50% 0%, #173266 0%, #0d1a36 38%, #06091a 75%, #04060f 100%)",
+                'radial-gradient(120% 80% at 50% 0%, #173266 0%, #0d1a36 38%, #06091a 75%, #04060f 100%)'
             }}
           />
           <div className="absolute inset-0 bg-noise opacity-[0.18] mix-blend-overlay" />
@@ -86,9 +86,7 @@ export function PhoneFrame({ notifications, island, lockWidget }: Props) {
           </div>
 
           {/* Lock-screen Live Activity widget — pinned above the home indicator */}
-          {lockWidget && (
-            <div className="absolute bottom-7 left-4 right-4">{lockWidget}</div>
-          )}
+          {lockWidget && <div className="absolute bottom-7 left-4 right-4">{lockWidget}</div>}
 
           {/* Home indicator */}
           <div className="absolute bottom-2 left-1/2 h-1 w-32 -translate-x-1/2 rounded-full bg-bone/40" />
@@ -98,8 +96,8 @@ export function PhoneFrame({ notifications, island, lockWidget }: Props) {
   );
 }
 
-function Glyph({ name }: { name: "signal" | "wifi" | "battery" }) {
-  if (name === "signal") {
+function Glyph({ name }: { name: 'signal' | 'wifi' | 'battery' }) {
+  if (name === 'signal') {
     return (
       <svg width="16" height="10" viewBox="0 0 16 10" fill="currentColor" aria-hidden>
         <rect x="0" y="6" width="3" height="4" rx="0.5" />
@@ -109,9 +107,17 @@ function Glyph({ name }: { name: "signal" | "wifi" | "battery" }) {
       </svg>
     );
   }
-  if (name === "wifi") {
+  if (name === 'wifi') {
     return (
-      <svg width="14" height="10" viewBox="0 0 14 10" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+      <svg
+        width="14"
+        height="10"
+        viewBox="0 0 14 10"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        aria-hidden
+      >
         <path d="M1 4.2a8.5 8.5 0 0 1 12 0" strokeLinecap="round" />
         <path d="M3 6.4a5.5 5.5 0 0 1 8 0" strokeLinecap="round" />
         <circle cx="7" cy="9" r="1" fill="currentColor" />
@@ -119,7 +125,15 @@ function Glyph({ name }: { name: "signal" | "wifi" | "battery" }) {
     );
   }
   return (
-    <svg width="22" height="10" viewBox="0 0 22 10" fill="none" stroke="currentColor" strokeWidth="1" aria-hidden>
+    <svg
+      width="22"
+      height="10"
+      viewBox="0 0 22 10"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1"
+      aria-hidden
+    >
       <rect x="0.5" y="0.5" width="18" height="9" rx="2" />
       <rect x="2" y="2" width="14" height="6" rx="1" fill="currentColor" />
       <rect x="19.5" y="3.5" width="1.5" height="3" rx="0.5" fill="currentColor" />

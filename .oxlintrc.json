@@ -1,0 +1,70 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["react", "vitest", "import", "promise"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "warn",
+    "style": "off",
+    "pedantic": "off",
+    "restriction": "off",
+    "nursery": "off"
+  },
+  "rules": {
+    "no-console": "warn",
+    "no-debugger": "error",
+    "no-empty": ["warn", { "allowEmptyCatch": true }],
+    "no-unused-vars": [
+      "warn",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+        "caughtErrorsIgnorePattern": "^_"
+      }
+    ],
+    "no-underscore-dangle": "off",
+    "no-shadow": "warn",
+    "no-await-in-loop": "warn",
+    "unicorn/no-array-sort": "off",
+    "unicorn/consistent-function-scoping": "warn",
+    "react/react-in-jsx-scope": "off",
+    "react/no-array-index-key": "warn",
+    "promise/always-return": "off",
+    "vitest/require-mock-type-parameters": "off",
+    "vitest/no-conditional-expect": "warn",
+    "import/no-unassigned-import": "off"
+  },
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/_generated/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/.expo/**",
+    "**/.claude/**",
+    "**/.agents/**",
+    "**/ios/**",
+    "**/android/**",
+    "public-mirror/**",
+    "**/*.lock"
+  ],
+  "overrides": [
+    {
+      "files": ["apps/backend/convex/**/*.ts"],
+      "rules": {
+        "no-console": "off"
+      }
+    },
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx"],
+      "rules": {
+        "no-console": "off"
+      }
+    },
+    {
+      "files": ["packages/cli/**/*.ts"],
+      "rules": {
+        "no-console": "off"
+      }
+    }
+  ]
+}

@@ -1,12 +1,9 @@
-import { motion } from "motion/react";
-import { Link } from "@tanstack/react-router";
+import { motion } from 'motion/react';
+import { Link } from '@tanstack/react-router';
 
 export function Footer() {
   return (
-    <section
-      id="install"
-      className="relative overflow-hidden border-t border-white/[0.06] py-32"
-    >
+    <section id="install" className="relative overflow-hidden border-t border-white/[0.06] py-32">
       <div className="absolute inset-0 -z-20 gradient-aurora opacity-70" />
       <div className="absolute inset-0 -z-10 bg-blueprint opacity-30" />
 
@@ -22,25 +19,23 @@ export function Footer() {
             <motion.h2
               initial={{ opacity: 0, y: 16 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-100px" }}
+              viewport={{ once: true, margin: '-100px' }}
               transition={{ duration: 0.6 }}
               className="font-display text-[clamp(48px,7vw,96px)] leading-[0.92] tracking-[-0.04em] text-balance text-bone"
             >
-              one app.{" "}
-              <span className="text-[var(--color-wire-bright)] glow-wire">
-                three doorways.
-              </span>
+              one app.{' '}
+              <span className="text-[var(--color-wire-bright)] glow-wire">three doorways.</span>
             </motion.h2>
 
             <motion.p
               initial={{ opacity: 0, y: 12 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-100px" }}
+              viewport={{ once: true, margin: '-100px' }}
               transition={{ duration: 0.6, delay: 0.1 }}
               className="mt-6 max-w-[640px] text-[17px] leading-relaxed text-bone/65"
             >
-              Receive on iPhone. Send from your shell. Wire it into any
-              codebase with the SDK. Pick one — or use all three.
+              Receive on iPhone. Send from your shell. Wire it into any codebase with the SDK. Pick
+              one — or use all three.
             </motion.p>
           </div>
         </div>
@@ -69,9 +64,9 @@ export function Footer() {
             href="#"
             snippet={
               <>
-                <span className="text-[var(--color-wire-bright)]">$</span>{" "}
-                <span className="text-bone">pushrsh</span>{" "}
-                <span className="text-[var(--color-amber)]">"shipped"</span>{" "}
+                <span className="text-[var(--color-wire-bright)]">$</span>{' '}
+                <span className="text-bone">pushrsh</span>{' '}
+                <span className="text-[var(--color-amber)]">"shipped"</span>{' '}
                 <span className="text-bone/60">-p high</span>
               </>
             }
@@ -86,9 +81,9 @@ export function Footer() {
             href="#"
             snippet={
               <>
-                <span className="text-[var(--color-wire-bright)]">await</span>{" "}
+                <span className="text-[var(--color-wire-bright)]">await</span>{' '}
                 <span className="text-bone">notify</span>
-                <span className="text-bone/60">{"({ title, body })"}</span>
+                <span className="text-bone/60">{'({ title, body })'}</span>
               </>
             }
             accent="amber"
@@ -103,24 +98,22 @@ export function Footer() {
             <div>
               <div className="text-bone">iOS app</div>
               <p className="mt-1 leading-snug text-bone/55">
-                Live feed, Dynamic Island, badge sync, source-app and device
-                management.
+                Live feed, Dynamic Island, badge sync, source-app and device management.
               </p>
             </div>
             <div>
               <div className="text-bone">CLI · pushrsh</div>
               <p className="mt-1 leading-snug text-bone/55">
-                Send, schedule, pipe stdin, drive Live Activities, attach
-                actions — all from the shell.
+                Send, schedule, pipe stdin, drive Live Activities, attach actions — all from the
+                shell.
               </p>
             </div>
             <div>
               <div className="text-bone">SDK · pushr</div>
               <p className="mt-1 leading-snug text-bone/55">
-                Typed{" "}
-                <span className="font-mono text-bone">notify()</span> +{" "}
-                <span className="font-mono text-bone">liveActivity()</span>.
-                Node, Bun, Deno, edge — anywhere fetch runs.
+                Typed <span className="font-mono text-bone">notify()</span> +{' '}
+                <span className="font-mono text-bone">liveActivity()</span>. Node, Bun, Deno, edge —
+                anywhere fetch runs.
               </p>
             </div>
           </div>
@@ -139,36 +132,36 @@ export function Footer() {
               <span className="font-mono text-[13px] tracking-tight text-bone">pushr.sh</span>
             </div>
             <p className="mt-4 max-w-[360px] text-[13.5px] leading-relaxed text-bone/55">
-              A personal push-notification hub. Built on Convex + Apple Push. Made by builders,
-              for builders.
+              A personal push-notification hub. Built on Convex + Apple Push. Made by builders, for
+              builders.
             </p>
           </div>
 
           <FootCol
             title="Product"
             items={[
-              ["App Store", "#install"],
-              ["Features", "#features"],
-              ["API", "/docs"],
-              ["Changelog", "/changelog"],
+              ['App Store', '#install'],
+              ['Features', '#features'],
+              ['API', '/docs'],
+              ['Changelog', '/changelog']
             ]}
           />
           <FootCol
             title="Developers"
             items={[
-              ["Docs", "/docs"],
-              ["GitHub", "#"],
-              ["CLI · pushrsh", "#"],
-              ["SDK · pushr", "#"],
+              ['Docs', '/docs'],
+              ['GitHub', '#'],
+              ['CLI · pushrsh', '#'],
+              ['SDK · pushr', '#']
             ]}
           />
           <FootCol
             title="Connect"
             items={[
-              ["Twitter", "#"],
-              ["Email", "#"],
-              ["Privacy", "#"],
-              ["Terms", "#"],
+              ['Twitter', '#'],
+              ['Email', '#'],
+              ['Privacy', '#'],
+              ['Terms', '#']
             ]}
           />
         </div>
@@ -192,7 +185,7 @@ export function Footer() {
   );
 }
 
-type InstallAccent = "wire" | "signal" | "amber";
+type InstallAccent = 'wire' | 'signal' | 'amber';
 
 function InstallCard({
   kind,
@@ -202,7 +195,7 @@ function InstallCard({
   cta,
   href,
   snippet,
-  accent,
+  accent
 }: {
   kind: string;
   title: string;
@@ -214,20 +207,20 @@ function InstallCard({
   accent: InstallAccent;
 }) {
   const tints: Record<InstallAccent, string> = {
-    wire: "rgba(77,163,255,0.10)",
-    signal: "rgba(91,233,185,0.08)",
-    amber: "rgba(255,181,71,0.06)",
+    wire: 'rgba(77,163,255,0.10)',
+    signal: 'rgba(91,233,185,0.08)',
+    amber: 'rgba(255,181,71,0.06)'
   };
   const accentColor: Record<InstallAccent, string> = {
-    wire: "var(--color-wire-bright)",
-    signal: "var(--color-signal)",
-    amber: "var(--color-amber)",
+    wire: 'var(--color-wire-bright)',
+    signal: 'var(--color-signal)',
+    amber: 'var(--color-amber)'
   };
   return (
     <div
       className="group relative flex flex-col gap-3 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02] p-5 transition-colors hover:border-white/20"
       style={{
-        backgroundImage: `radial-gradient(140% 100% at 0% 0%, ${tints[accent]}, transparent 65%)`,
+        backgroundImage: `radial-gradient(140% 100% at 0% 0%, ${tints[accent]}, transparent 65%)`
       }}
     >
       <div className="flex items-center justify-between">
@@ -242,9 +235,7 @@ function InstallCard({
         </span>
       </div>
       <div>
-        <div
-          className="font-display text-[28px] leading-none tracking-[-0.03em] text-bone"
-        >
+        <div className="font-display text-[28px] leading-none tracking-[-0.03em] text-bone">
           {title}
         </div>
         <div className="mt-1 text-[12.5px] text-bone/55">{tagline}</div>
@@ -273,18 +264,12 @@ function FootCol({ title, items }: { title: string; items: [string, string][] })
       <ul className="mt-4 space-y-2.5">
         {items.map(([label, href]) => (
           <li key={label}>
-            {href.startsWith("/") ? (
-              <Link
-                to={href}
-                className="text-[14px] text-bone/70 transition hover:text-bone"
-              >
+            {href.startsWith('/') ? (
+              <Link to={href} className="text-[14px] text-bone/70 transition hover:text-bone">
                 {label}
               </Link>
             ) : (
-              <a
-                href={href}
-                className="text-[14px] text-bone/70 transition hover:text-bone"
-              >
+              <a href={href} className="text-[14px] text-bone/70 transition hover:text-bone">
                 {label}
               </a>
             )}

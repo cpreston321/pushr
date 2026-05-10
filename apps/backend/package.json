@@ -1,0 +1,34 @@
+{
+  "name": "@pushr/backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "convex/_generated/api.js",
+  "types": "convex/_generated/api.d.ts",
+  "exports": {
+    ".": "./convex/_generated/api.js",
+    "./_generated/api": "./convex/_generated/api.js",
+    "./_generated/dataModel": "./convex/_generated/dataModel.js",
+    "./_generated/server": "./convex/_generated/server.js",
+    "./lib/*": "./convex/lib/*.ts"
+  },
+  "scripts": {
+    "dev": "bunx convex dev",
+    "push": "bunx convex dev --once",
+    "deploy": "bunx convex deploy",
+    "tsc": "bunx tsc --noEmit",
+    "seed": "bunx convex run seed:createAdmin",
+    "lint": "oxlint .",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check ."
+  },
+  "dependencies": {
+    "@convex-dev/better-auth": "^0.12.2",
+    "@convex-dev/workpool": "^0.4.6",
+    "better-auth": "1.6.9",
+    "convex": "^1.38.0"
+  },
+  "devDependencies": {
+    "convex-test": "^0.0.51"
+  }
+}

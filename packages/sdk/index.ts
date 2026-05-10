@@ -23,18 +23,18 @@
  *   await pushr.notify({ title: "…", body: "…" });
  */
 
-export type Priority = "low" | "normal" | "high" | number;
+export type Priority = 'low' | 'normal' | 'high' | number;
 
 export type Action =
   | {
-      kind: "open_url";
+      kind: 'open_url';
       id: string;
       label: string;
       url: string;
       destructive?: boolean;
     }
   | {
-      kind: "callback";
+      kind: 'callback';
       id: string;
       label: string;
       callbackUrl: string;
@@ -42,7 +42,7 @@ export type Action =
       authRequired?: boolean;
     }
   | {
-      kind: "reply";
+      kind: 'reply';
       id: string;
       label: string;
       callbackUrl: string;
@@ -71,7 +71,7 @@ export interface LiveActivityAttributes {
 }
 
 export interface LiveActivityPayload {
-  action: "start" | "update" | "end";
+  action: 'start' | 'update' | 'end';
   activityId: string;
   state: LiveActivityState;
   attributes?: LiveActivityAttributes;
@@ -120,14 +120,9 @@ export class PushrError extends Error {
   readonly status: number;
   readonly code?: string;
   readonly data?: Record<string, unknown>;
-  constructor(
-    message: string,
-    status: number,
-    code?: string,
-    data?: Record<string, unknown>,
-  ) {
+  constructor(message: string, status: number, code?: string, data?: Record<string, unknown>) {
     super(message);
-    this.name = "PushrError";
+    this.name = 'PushrError';
     this.status = status;
     this.code = code;
     this.data = data;
@@ -140,15 +135,13 @@ export class Pushr {
   readonly #fetch: typeof fetch;
 
   constructor(opts: PushrOptions) {
-    if (!opts.url) throw new TypeError("Pushr: url is required");
-    if (!opts.token) throw new TypeError("Pushr: token is required");
+    if (!opts.url) throw new TypeError('Pushr: url is required');
+    if (!opts.token) throw new TypeError('Pushr: token is required');
     const candidate = opts.fetch ?? globalThis.fetch;
     if (!candidate) {
-      throw new TypeError(
-        "Pushr: no global fetch available — pass opts.fetch (Node <18, etc.)",
-      );
+      throw new TypeError('Pushr: no global fetch available — pass opts.fetch (Node <18, etc.)');
     }
-    this.#url = opts.url.replace(/\/+$/, "");
+    this.#url = opts.url.replace(/\/+$/, '');
     this.#token = opts.token;
     this.#fetch = candidate;
   }
@@ -158,32 +151,29 @@ export class Pushr {
     if (input.deliverAt instanceof Date) {
       payload.deliverAt = input.deliverAt.getTime();
     }
-    return this.#post<NotifyResponse>("/notify", payload);
+    return this.#post<NotifyResponse>('/notify', payload);
   }
 
   async ping(): Promise<{ ok: true }> {
-    const res = await this.#fetch(this.#url + "/healthz");
-    if (!res.ok) throw await errorFor(res, "Health check failed");
+    const res = await this.#fetch(this.#url + '/healthz');
+    if (!res.ok) throw await errorFor(res, 'Health check failed');
     return (await res.json()) as { ok: true };
   }
 
-  liveActivity(
-    activityId: string,
-    attributes?: LiveActivityAttributes,
-  ): LiveActivityHandle {
+  liveActivity(activityId: string, attributes?: LiveActivityAttributes): LiveActivityHandle {
     return new LiveActivityHandle(this, activityId, attributes);
   }
 
   async #post<T>(path: string, body: unknown): Promise<T> {
     const res = await this.#fetch(this.#url + path, {
-      method: "POST",
+      method: 'POST',
       headers: {
         authorization: `Bearer ${this.#token}`,
-        "content-type": "application/json",
+        'content-type': 'application/json'
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(body)
     });
-    if (!res.ok) throw await errorFor(res, "Request failed");
+    if (!res.ok) throw await errorFor(res, 'Request failed');
     return (await res.json()) as T;
   }
 }
@@ -193,11 +183,7 @@ export class LiveActivityHandle {
   readonly #activityId: string;
   readonly #attributes?: LiveActivityAttributes;
 
-  constructor(
-    pushr: Pushr,
-    activityId: string,
-    attributes?: LiveActivityAttributes,
-  ) {
+  constructor(pushr: Pushr, activityId: string, attributes?: LiveActivityAttributes) {
     this.#pushr = pushr;
     this.#activityId = activityId;
     this.#attributes = attributes;
@@ -205,31 +191,31 @@ export class LiveActivityHandle {
 
   start(
     state: LiveActivityState,
-    opts?: { staleDate?: number; relevanceScore?: number },
+    opts?: { staleDate?: number; relevanceScore?: number }
   ): Promise<NotifyResponse> {
-    return this.#dispatch("start", state, opts);
+    return this.#dispatch('start', state, opts);
   }
 
   update(
     state: LiveActivityState,
-    opts?: { staleDate?: number; relevanceScore?: number },
+    opts?: { staleDate?: number; relevanceScore?: number }
   ): Promise<NotifyResponse> {
-    return this.#dispatch("update", state, opts);
+    return this.#dispatch('update', state, opts);
   }
 
   end(state?: LiveActivityState): Promise<NotifyResponse> {
-    return this.#dispatch("end", state ?? {});
+    return this.#dispatch('end', state ?? {});
   }
 
   #dispatch(
-    action: LiveActivityPayload["action"],
+    action: LiveActivityPayload['action'],
     state: LiveActivityState,
-    opts?: { staleDate?: number; relevanceScore?: number },
+    opts?: { staleDate?: number; relevanceScore?: number }
   ): Promise<NotifyResponse> {
     const liveActivity: LiveActivityPayload = {
       action,
       activityId: this.#activityId,
-      state,
+      state
     };
     if (this.#attributes) liveActivity.attributes = this.#attributes;
     if (opts?.staleDate !== undefined) liveActivity.staleDate = opts.staleDate;
@@ -239,7 +225,7 @@ export class LiveActivityHandle {
     return this.#pushr.notify({
       title: state.title ?? this.#activityId,
       body: state.status ?? action,
-      liveActivity,
+      liveActivity
     });
   }
 }
@@ -251,9 +237,8 @@ async function errorFor(res: Response, fallback: string): Promise<PushrError> {
   } catch {
     // Non-JSON body — leave data undefined.
   }
-  const message =
-    (typeof data?.error === "string" ? data.error : undefined) ?? fallback;
-  const code = typeof data?.code === "string" ? data.code : undefined;
+  const message = (typeof data?.error === 'string' ? data.error : undefined) ?? fallback;
+  const code = typeof data?.code === 'string' ? data.code : undefined;
   return new PushrError(message, res.status, code, data);
 }
 
@@ -271,14 +256,14 @@ async function errorFor(res: Response, fallback: string): Promise<PushrError> {
 let cached: Pushr | undefined;
 
 const readEnv = (name: string): string | undefined =>
-  typeof process !== "undefined" ? process.env?.[name] : undefined;
+  typeof process !== 'undefined' ? process.env?.[name] : undefined;
 
 const defaultClient = (): Pushr => {
   if (cached) return cached;
-  const url = readEnv("PUSHR_URL");
-  const token = readEnv("PUSHR_TOKEN");
-  if (!url) throw new TypeError("pushr: PUSHR_URL is not set");
-  if (!token) throw new TypeError("pushr: PUSHR_TOKEN is not set");
+  const url = readEnv('PUSHR_URL');
+  const token = readEnv('PUSHR_TOKEN');
+  if (!url) throw new TypeError('pushr: PUSHR_URL is not set');
+  if (!token) throw new TypeError('pushr: PUSHR_TOKEN is not set');
   cached = new Pushr({ url, token });
   return cached;
 };
@@ -295,5 +280,5 @@ export const ping = (): Promise<{ ok: true }> => defaultClient().ping();
 
 export const liveActivity = (
   activityId: string,
-  attributes?: LiveActivityAttributes,
+  attributes?: LiveActivityAttributes
 ): LiveActivityHandle => defaultClient().liveActivity(activityId, attributes);

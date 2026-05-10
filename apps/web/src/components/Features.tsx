@@ -1,5 +1,5 @@
-import { motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { motion } from 'motion/react';
+import { useEffect, useState } from 'react';
 
 export function Features() {
   return (
@@ -12,20 +12,15 @@ export function Features() {
           eyebrow="01 / Capabilities"
           title={
             <>
-              everything iOS can do,{" "}
-              <span className="text-[var(--color-wire-bright)]">
-                on a webhook.
-              </span>
+              everything iOS can do,{' '}
+              <span className="text-[var(--color-wire-bright)]">on a webhook.</span>
             </>
           }
           lede="Twelve lines of curl is all it takes. Behind it, a full pipeline: Convex, Apple Push, Live Activities — production-grade plumbing the app hides from you."
         />
 
         <div className="mt-20 grid grid-cols-12 gap-4 lg:gap-5">
-          <BentoCard
-            className="col-span-12 lg:col-span-7 lg:row-span-2 min-h-[420px]"
-            tone="wire"
-          >
+          <BentoCard className="col-span-12 lg:col-span-7 lg:row-span-2 min-h-[420px]" tone="wire">
             <PriorityCard />
           </BentoCard>
 
@@ -36,31 +31,19 @@ export function Features() {
             <LiveActivityCard />
           </BentoCard>
 
-          <BentoCard
-            className="col-span-12 sm:col-span-6 lg:col-span-5 min-h-[200px]"
-            tone="amber"
-          >
+          <BentoCard className="col-span-12 sm:col-span-6 lg:col-span-5 min-h-[200px]" tone="amber">
             <BearerCard />
           </BentoCard>
 
-          <BentoCard
-            className="col-span-12 sm:col-span-6 lg:col-span-4 min-h-[260px]"
-            tone="rose"
-          >
+          <BentoCard className="col-span-12 sm:col-span-6 lg:col-span-4 min-h-[260px]" tone="rose">
             <SourceAppsCard />
           </BentoCard>
 
-          <BentoCard
-            className="col-span-12 sm:col-span-6 lg:col-span-4 min-h-[260px]"
-            tone="bone"
-          >
+          <BentoCard className="col-span-12 sm:col-span-6 lg:col-span-4 min-h-[260px]" tone="bone">
             <SoundsCard />
           </BentoCard>
 
-          <BentoCard
-            className="col-span-12 lg:col-span-4 min-h-[260px]"
-            tone="wire"
-          >
+          <BentoCard className="col-span-12 lg:col-span-4 min-h-[260px]" tone="wire">
             <BadgeCard />
           </BentoCard>
         </div>
@@ -72,7 +55,7 @@ export function Features() {
 function SectionHeader({
   eyebrow,
   title,
-  lede,
+  lede
 }: {
   eyebrow: string;
   title: React.ReactNode;
@@ -90,7 +73,7 @@ function SectionHeader({
         <motion.h2
           initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-100px" }}
+          viewport={{ once: true, margin: '-100px' }}
           transition={{ duration: 0.6 }}
           className="font-display text-[clamp(48px,7vw,96px)] leading-[0.92] tracking-[-0.02em] text-balance text-bone"
         >
@@ -99,7 +82,7 @@ function SectionHeader({
         <motion.p
           initial={{ opacity: 0, y: 12 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-100px" }}
+          viewport={{ once: true, margin: '-100px' }}
           transition={{ duration: 0.6, delay: 0.1 }}
           className="mt-6 max-w-[640px] text-[17px] leading-relaxed text-bone/65"
         >
@@ -110,33 +93,33 @@ function SectionHeader({
   );
 }
 
-type Tone = "wire" | "signal" | "amber" | "rose" | "bone";
+type Tone = 'wire' | 'signal' | 'amber' | 'rose' | 'bone';
 
 function BentoCard({
   children,
-  className = "",
-  tone = "wire",
+  className = '',
+  tone = 'wire'
 }: {
   children: React.ReactNode;
   className?: string;
   tone?: Tone;
 }) {
   const tints: Record<Tone, string> = {
-    wire: "rgba(77,163,255,0.08)",
-    signal: "rgba(91,233,185,0.06)",
-    amber: "rgba(255,181,71,0.05)",
-    rose: "rgba(255,107,139,0.05)",
-    bone: "rgba(244,236,216,0.04)",
+    wire: 'rgba(77,163,255,0.08)',
+    signal: 'rgba(91,233,185,0.06)',
+    amber: 'rgba(255,181,71,0.05)',
+    rose: 'rgba(255,107,139,0.05)',
+    bone: 'rgba(244,236,216,0.04)'
   };
   return (
     <motion.div
       initial={{ opacity: 0, y: 24 }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-80px" }}
+      viewport={{ once: true, margin: '-80px' }}
       transition={{ duration: 0.5 }}
       className={`group relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.02] p-7 transition-colors hover:border-white/20 ${className}`}
       style={{
-        backgroundImage: `radial-gradient(140% 100% at 0% 0%, ${tints[tone]}, transparent 65%)`,
+        backgroundImage: `radial-gradient(140% 100% at 0% 0%, ${tints[tone]}, transparent 65%)`
       }}
     >
       <div className="absolute inset-0 -z-10 bg-noise opacity-30 mix-blend-overlay" />
@@ -162,9 +145,7 @@ function FeatureTitle({ children }: { children: React.ReactNode }) {
 }
 
 function FeatureBody({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="text-[14.5px] leading-relaxed text-bone/65">{children}</p>
-  );
+  return <p className="text-[14.5px] leading-relaxed text-bone/65">{children}</p>;
 }
 
 /* ─── Cards ───────────────────────────────────────────── */
@@ -178,23 +159,23 @@ function PriorityCard() {
 
   const levels = [
     {
-      name: "low",
-      num: "1–6",
-      desc: "Quiet delivery",
-      color: "var(--color-wire)",
+      name: 'low',
+      num: '1–6',
+      desc: 'Quiet delivery',
+      color: 'var(--color-wire)'
     },
     {
-      name: "normal",
-      num: "7",
-      desc: "Default banner",
-      color: "var(--color-signal)",
+      name: 'normal',
+      num: '7',
+      desc: 'Default banner',
+      color: 'var(--color-signal)'
     },
     {
-      name: "high",
-      num: "8–10",
-      desc: "Wakes the screen",
-      color: "var(--color-rose)",
-    },
+      name: 'high',
+      num: '8–10',
+      desc: 'Wakes the screen',
+      color: 'var(--color-rose)'
+    }
   ];
   return (
     <div className="flex h-full flex-col">
@@ -209,12 +190,10 @@ function PriorityCard() {
         <span className="block text-[var(--color-wire-bright)]">one wire.</span>
       </FeatureTitle>
       <FeatureBody>
-        Every payload picks a lane:{" "}
-        <span className="font-mono text-bone">low</span>,{" "}
-        <span className="font-mono text-bone">normal</span>, or{" "}
-        <span className="font-mono text-bone">high</span>. High-priority pushes
-        wake the device and surface as banners. Numbers 1–10 work too,
-        Gotify-style.
+        Every payload picks a lane: <span className="font-mono text-bone">low</span>,{' '}
+        <span className="font-mono text-bone">normal</span>, or{' '}
+        <span className="font-mono text-bone">high</span>. High-priority pushes wake the device and
+        surface as banners. Numbers 1–10 work too, Gotify-style.
       </FeatureBody>
 
       <div className="mt-auto grid grid-cols-3 gap-3 pt-8">
@@ -225,14 +204,14 @@ function PriorityCard() {
               key={l.name}
               animate={{
                 y: isActive ? -4 : 0,
-                opacity: isActive ? 1 : 0.55,
+                opacity: isActive ? 1 : 0.55
               }}
-              transition={{ type: "spring", stiffness: 250, damping: 22 }}
+              transition={{ type: 'spring', stiffness: 250, damping: 22 }}
               className="rounded-2xl border border-white/10 bg-black/30 p-4"
               style={{
                 boxShadow: isActive
                   ? `0 12px 36px -12px ${l.color}, inset 0 0 0 1px ${l.color}`
-                  : undefined,
+                  : undefined
               }}
             >
               <div className="flex items-center justify-between">
@@ -242,29 +221,19 @@ function PriorityCard() {
                 >
                   {l.name}
                 </span>
-                <span className="font-mono text-[10px] tabular-nums text-bone/45">
-                  {l.num}
-                </span>
+                <span className="font-mono text-[10px] tabular-nums text-bone/45">{l.num}</span>
               </div>
               <div className="mt-3 h-1 w-full rounded-full bg-white/10">
                 <motion.div
                   className="h-full rounded-full"
                   style={{ background: l.color }}
                   animate={{
-                    width: isActive
-                      ? "100%"
-                      : i === 0
-                        ? "30%"
-                        : i === 1
-                          ? "60%"
-                          : "90%",
+                    width: isActive ? '100%' : i === 0 ? '30%' : i === 1 ? '60%' : '90%'
                   }}
                   transition={{ duration: 0.6 }}
                 />
               </div>
-              <div className="mt-3 text-[12.5px] leading-snug text-bone/60">
-                {l.desc}
-              </div>
+              <div className="mt-3 text-[12.5px] leading-snug text-bone/60">{l.desc}</div>
             </motion.div>
           );
         })}
@@ -315,7 +284,7 @@ function LiveActivityCard() {
               className="h-full rounded-full bg-[var(--color-signal)]"
               style={{
                 width: `${pct * 100}%`,
-                transition: "width 80ms linear",
+                transition: 'width 80ms linear'
               }}
             />
           </div>
@@ -333,8 +302,8 @@ function BearerCard() {
         One token per source app. Revoke in a tap.
       </h3>
       <FeatureBody>
-        Generate a token for every project that talks to your phone. Roll it,
-        scope it, kill it from the app — no shared secrets.
+        Generate a token for every project that talks to your phone. Roll it, scope it, kill it from
+        the app — no shared secrets.
       </FeatureBody>
       <div className="mt-auto flex items-center gap-2 rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 font-mono text-[12px] text-bone/80">
         <span className="text-[var(--color-amber)]">Bearer</span>
@@ -352,12 +321,12 @@ function BearerCard() {
 
 function SourceAppsCard() {
   const apps = [
-    { name: "ci.acme", glyph: "✦", color: "var(--color-signal)" },
-    { name: "stripe", glyph: "$", color: "var(--color-amber)" },
-    { name: "linear", glyph: "◆", color: "var(--color-wire-bright)" },
-    { name: "uptime", glyph: "▲", color: "var(--color-rose)" },
-    { name: "convex", glyph: "≈", color: "var(--color-wire)" },
-    { name: "github", glyph: "❖", color: "var(--color-bone)" },
+    { name: 'ci.acme', glyph: '✦', color: 'var(--color-signal)' },
+    { name: 'stripe', glyph: '$', color: 'var(--color-amber)' },
+    { name: 'linear', glyph: '◆', color: 'var(--color-wire-bright)' },
+    { name: 'uptime', glyph: '▲', color: 'var(--color-rose)' },
+    { name: 'convex', glyph: '≈', color: 'var(--color-wire)' },
+    { name: 'github', glyph: '❖', color: 'var(--color-bone)' }
   ];
   return (
     <div className="flex h-full flex-col gap-4">
@@ -375,14 +344,12 @@ function SourceAppsCard() {
               className="grid h-7 w-7 flex-none place-items-center rounded-md text-[13px] font-semibold"
               style={{
                 background: `linear-gradient(135deg, ${a.color} 0%, color-mix(in oklab, ${a.color} 55%, #0a0f1c) 100%)`,
-                color: "#0a0f1c",
+                color: '#0a0f1c'
               }}
             >
               {a.glyph}
             </div>
-            <span className="truncate font-mono text-[10.5px] text-bone/70">
-              {a.name}
-            </span>
+            <span className="truncate font-mono text-[10.5px] text-bone/70">{a.name}</span>
           </div>
         ))}
       </div>
@@ -399,8 +366,7 @@ function SoundsCard() {
         A different chime per source.
       </h3>
       <FeatureBody>
-        Bundle your own .caf files at build time, then reference them by name on
-        the wire.
+        Bundle your own .caf files at build time, then reference them by name on the wire.
       </FeatureBody>
       <div className="mt-auto flex items-end gap-1 rounded-xl border border-white/10 bg-black/40 px-3 py-3">
         {bars.map((_, i) => (
@@ -409,7 +375,7 @@ function SoundsCard() {
             className="block w-1 rounded-full bg-[var(--color-bone)]/70"
             style={{
               height: `${10 + Math.abs(Math.sin(i * 0.7)) * 26}px`,
-              animation: `pulse-wire ${1.6 + (i % 4) * 0.2}s ease-in-out ${i * 0.06}s infinite`,
+              animation: `pulse-wire ${1.6 + (i % 4) * 0.2}s ease-in-out ${i * 0.06}s infinite`
             }}
           />
         ))}
@@ -426,8 +392,7 @@ function BadgeCard() {
         Unread count, kept in sync.
       </h3>
       <FeatureBody>
-        Mark a notification read on any device — the home-screen badge updates
-        everywhere.
+        Mark a notification read on any device — the home-screen badge updates everywhere.
       </FeatureBody>
       <div className="relative mt-auto flex items-center justify-center">
         <img

@@ -1,0 +1,13 @@
+{
+  "name": "@pushr/widget-data",
+  "version": "0.1.0",
+  "private": true,
+  "description": "App Group bridge for the pushr Home Screen widget",
+  "main": "index.ts",
+  "types": "index.ts",
+  "scripts": {
+    "lint": "oxlint .",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check ."
+  }
+}

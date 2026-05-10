@@ -1,7 +1,7 @@
 {
   "name": "@pushr/web",
-  "private": true,
   "version": "0.1.0",
+  "private": true,
   "type": "module",
   "sideEffects": false,
   "scripts": {
@@ -9,7 +9,10 @@
     "build": "vite build && tsc -b --noEmit",
     "preview": "vite preview",
     "start": "node .output/server/index.mjs",
-    "typecheck": "tsc -b --noEmit"
+    "typecheck": "tsc -b --noEmit",
+    "lint": "oxlint .",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check ."
   },
   "dependencies": {
     "@tanstack/ai": "^0.15.0",

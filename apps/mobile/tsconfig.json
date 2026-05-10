@@ -1,0 +1,19 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "@/*": ["./*"],
+      "@pushr/backend": ["../backend/convex/_generated/api.d.ts"],
+      "@pushr/backend/_generated/*": ["../backend/convex/_generated/*"],
+      "@pushr/backend/lib/*": ["../backend/convex/lib/*"]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts",
+    "../backend/convex/_generated/**/*.d.ts"
+  ]
+}

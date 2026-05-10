@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
-import { motion } from "motion/react";
-import { Link } from "@tanstack/react-router";
-import { SiteHeader } from "./SiteHeader";
+import { useEffect, useMemo, useState } from 'react';
+import { motion } from 'motion/react';
+import { Link } from '@tanstack/react-router';
+import { SiteHeader } from './SiteHeader';
 
 /**
  * 404 — "dead letter office".
@@ -17,17 +17,15 @@ export function NotFound({ error }: { error?: Error } = {}) {
   // request id from a header — we fake one for visual flavor.
   const packetId = useMemo(
     () =>
-      "0x" +
-      Array.from({ length: 8 }, () =>
-        Math.floor(Math.random() * 16).toString(16),
-      )
-        .join("")
+      '0x' +
+      Array.from({ length: 8 }, () => Math.floor(Math.random() * 16).toString(16))
+        .join('')
         .toUpperCase(),
-    [],
+    []
   );
 
   const attemptedPath = useMemo(() => {
-    if (typeof window === "undefined") return "/lost";
+    if (typeof window === 'undefined') return '/lost';
     return window.location.pathname + window.location.search;
   }, []);
 
@@ -54,20 +52,15 @@ export function NotFound({ error }: { error?: Error } = {}) {
       <div className="anim-hairline absolute left-0 right-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--color-rose)] to-transparent" />
 
       <SiteHeader
-        tag={isError ? "err" : "404"}
+        tag={isError ? 'err' : '404'}
         nav={[
-          { kind: "route", label: "docs", to: "/docs" },
-          { kind: "route", label: "log", to: "/changelog" },
+          { kind: 'route', label: 'docs', to: '/docs' },
+          { kind: 'route', label: 'log', to: '/changelog' }
         ]}
       />
 
       <section className="relative mx-auto max-w-[1320px] px-6 pt-12 pb-32 lg:pt-20">
-        <StatusRow
-          packetId={packetId}
-          msSince={msSince}
-          path={attemptedPath}
-          isError={isError}
-        />
+        <StatusRow packetId={packetId} msSince={msSince} path={attemptedPath} isError={isError} />
 
         <div className="mt-14 grid grid-cols-1 gap-x-12 gap-y-16 lg:grid-cols-[1fr_minmax(0,440px)] lg:gap-x-16">
           {/* LEFT — the giant typographic carcass */}
@@ -83,17 +76,15 @@ export function NotFound({ error }: { error?: Error } = {}) {
             <div className="mt-3 flex items-center gap-3">
               <div className="h-px w-12 bg-[var(--color-rose)]/60" />
               <span className="font-mono text-[10.5px] uppercase tracking-[0.28em] text-bone/40">
-                {isError
-                  ? "the wire returned an exception"
-                  : "this push never landed"}
+                {isError ? 'the wire returned an exception' : 'this push never landed'}
               </span>
             </div>
 
             <h1 className="relative mt-6 select-none font-display leading-[0.82] tracking-[-0.06em] text-bone">
               <span className="block text-[clamp(112px,20vw,300px)]">
-                <Digit char={isError ? "E" : "4"} delay={0.0} />
-                <Digit char={isError ? "R" : "0"} delay={0.08} broken />
-                <Digit char={isError ? "R" : "4"} delay={0.16} />
+                <Digit char={isError ? 'E' : '4'} delay={0.0} />
+                <Digit char={isError ? 'R' : '0'} delay={0.08} broken />
+                <Digit char={isError ? 'R' : '4'} delay={0.16} />
               </span>
             </h1>
 
@@ -107,18 +98,17 @@ export function NotFound({ error }: { error?: Error } = {}) {
             >
               {isError ? (
                 <>
-                  Something on the wire threw, and we couldn't deliver this
-                  view. The render aborted — no payload made it through.{" "}
+                  Something on the wire threw, and we couldn't deliver this view. The render aborted
+                  — no payload made it through.{' '}
                   <span className="font-mono text-[var(--color-rose)]">
                     the connection is intact. the route is not.
                   </span>
                 </>
               ) : (
                 <>
-                  The route you tried to reach isn't in our delivery table.
-                  Either the wire was cut, the URL got mistyped, or you
-                  wandered into a corner of the system that hasn't been built
-                  yet.{" "}
+                  The route you tried to reach isn't in our delivery table. Either the wire was cut,
+                  the URL got mistyped, or you wandered into a corner of the system that hasn't been
+                  built yet.{' '}
                   <span className="font-mono text-[var(--color-rose)]">
                     no payload was delivered.
                   </span>
@@ -141,7 +131,7 @@ export function NotFound({ error }: { error?: Error } = {}) {
                   className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
                   style={{
                     background:
-                      "radial-gradient(120% 120% at 50% 0%, rgba(255,107,139,0.35), transparent 60%)",
+                      'radial-gradient(120% 120% at 50% 0%, rgba(255,107,139,0.35), transparent 60%)'
                   }}
                 />
                 <span className="relative flex items-center gap-2">
@@ -186,7 +176,7 @@ function StatusRow({
   packetId,
   msSince,
   path,
-  isError,
+  isError
 }: {
   packetId: string;
   msSince: number;
@@ -204,35 +194,31 @@ function StatusRow({
       </span>
       <Sep />
       <span className="text-bone/55">
-        packet{" "}
-        <span className="text-[var(--color-wire-bright)] tabular-nums">
-          {packetId}
-        </span>
+        packet <span className="text-[var(--color-wire-bright)] tabular-nums">{packetId}</span>
       </span>
       <Sep />
       <span className="text-bone/55">
-        ms since lost{" "}
+        ms since lost{' '}
         <span className="tabular-nums text-[var(--color-amber)]">
-          {String(msSince).padStart(5, "0")}
+          {String(msSince).padStart(5, '0')}
         </span>
       </span>
       <Sep />
       <span className="hidden truncate text-bone/40 md:inline">
-        attempted{" "}
+        attempted{' '}
         <span className="tracking-tight text-bone/65">
-          {path.length > 36 ? path.slice(0, 35) + "…" : path}
+          {path.length > 36 ? path.slice(0, 35) + '…' : path}
         </span>
       </span>
       <Sep className="hidden md:inline" />
       <span className="hidden text-bone/35 md:inline">
-        kind{" "}
-        <span className="text-bone/70">{isError ? "exception" : "no-route"}</span>
+        kind <span className="text-bone/70">{isError ? 'exception' : 'no-route'}</span>
       </span>
     </div>
   );
 }
 
-function Sep({ className = "" }: { className?: string }) {
+function Sep({ className = '' }: { className?: string }) {
   return <span className={`text-bone/20 ${className}`}>·</span>;
 }
 
@@ -240,34 +226,21 @@ function Sep({ className = "" }: { className?: string }) {
 // Glitching display digit
 // ---------------------------------------------------------------------------
 
-function Digit({
-  char,
-  delay,
-  broken,
-}: {
-  char: string;
-  delay: number;
-  broken?: boolean;
-}) {
+function Digit({ char, delay, broken }: { char: string; delay: number; broken?: boolean }) {
   return (
     <motion.span
-      initial={{ opacity: 0, y: 28, filter: "blur(8px)" }}
-      animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+      initial={{ opacity: 0, y: 28, filter: 'blur(8px)' }}
+      animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
       transition={{ duration: 0.7, delay, ease: [0.2, 0.7, 0.2, 1] }}
-      className={[
-        "relative inline-block",
-        broken ? "anim-static-flicker" : "",
-      ].join(" ")}
+      className={['relative inline-block', broken ? 'anim-static-flicker' : ''].join(' ')}
       style={
         broken
           ? {
-              color: "var(--color-rose)",
-              textShadow:
-                "0 0 60px color-mix(in oklab, var(--color-rose) 40%, transparent)",
+              color: 'var(--color-rose)',
+              textShadow: '0 0 60px color-mix(in oklab, var(--color-rose) 40%, transparent)'
             }
           : {
-              textShadow:
-                "0 0 50px color-mix(in oklab, var(--color-wire) 22%, transparent)",
+              textShadow: '0 0 50px color-mix(in oklab, var(--color-wire) 22%, transparent)'
             }
       }
       data-char={char}
@@ -278,27 +251,24 @@ function Digit({
           <span
             aria-hidden
             className="anim-glitch-cyan absolute inset-0 mix-blend-screen"
-            style={{ color: "var(--color-wire-bright)" }}
+            style={{ color: 'var(--color-wire-bright)' }}
           >
             {char}
           </span>
           <span
             aria-hidden
             className="anim-glitch-rose absolute inset-0 mix-blend-screen"
-            style={{ color: "var(--color-amber)" }}
+            style={{ color: 'var(--color-amber)' }}
           >
             {char}
           </span>
           {/* horizontal "tear" — a slice that occasionally jumps */}
-          <span
-            aria-hidden
-            className="absolute left-0 right-0 top-[42%] h-[6%] overflow-hidden"
-          >
+          <span aria-hidden className="absolute left-0 right-0 top-[42%] h-[6%] overflow-hidden">
             <motion.span
               animate={{ x: [-6, 4, -2, 5, 0, -3] }}
               transition={{ duration: 1.4, repeat: Infinity }}
               className="block"
-              style={{ color: "var(--color-rose)" }}
+              style={{ color: 'var(--color-rose)' }}
             >
               {char}
             </motion.span>
@@ -348,7 +318,7 @@ function BrokenWire() {
           stroke="var(--color-rose)"
           strokeWidth="1"
           className="anim-spark-ring"
-          style={{ transformOrigin: "center" }}
+          style={{ transformOrigin: 'center' }}
         />
         <circle
           r="14"
@@ -356,7 +326,7 @@ function BrokenWire() {
           stroke="var(--color-amber)"
           strokeWidth="0.6"
           className="anim-spark-ring"
-          style={{ transformOrigin: "center", animationDelay: "0.5s" }}
+          style={{ transformOrigin: 'center', animationDelay: '0.5s' }}
         />
       </g>
       {/* Ghost continuation — where the wire SHOULD have continued */}
@@ -403,7 +373,7 @@ function PhantomNotification({ packetId }: { packetId: string }) {
 
       <motion.div
         animate={{ opacity: [1, 0.7, 1, 0.85, 1, 0.55, 1] }}
-        transition={{ duration: 3.2, repeat: Infinity, ease: "linear" }}
+        transition={{ duration: 3.2, repeat: Infinity, ease: 'linear' }}
         className="relative overflow-hidden rounded-[28px] border border-white/10 bg-gradient-to-b from-[#1a1f2c] to-[#0a0f1c] p-5 shadow-[0_30px_90px_-30px_rgba(255,107,139,0.45)]"
       >
         {/* Static noise overlay */}
@@ -412,17 +382,14 @@ function PhantomNotification({ packetId }: { packetId: string }) {
           className="pointer-events-none absolute inset-0 bg-noise opacity-50 mix-blend-overlay"
         />
         {/* Rolling glitch bar */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 overflow-hidden"
-        >
+        <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
           <div
             className="anim-scanline-roll absolute left-0 right-0 h-[3px] bg-[var(--color-wire-bright)]/30 blur-[2px]"
-            style={{ animationDuration: "3.2s" }}
+            style={{ animationDuration: '3.2s' }}
           />
           <div
             className="anim-scanline-roll absolute left-0 right-0 h-[1px] bg-[var(--color-rose)]/40"
-            style={{ animationDuration: "5.1s", animationDelay: "1.2s" }}
+            style={{ animationDuration: '5.1s', animationDelay: '1.2s' }}
           />
         </div>
         {/* Internal scanlines */}
@@ -433,18 +400,14 @@ function PhantomNotification({ packetId }: { packetId: string }) {
 
         <div className="relative flex items-start gap-3">
           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[var(--color-rose)]/15 ring-1 ring-[var(--color-rose)]/30">
-            <span className="font-mono text-[16px] text-[var(--color-rose)] leading-none">
-              ▮▯▮
-            </span>
+            <span className="font-mono text-[16px] text-[var(--color-rose)] leading-none">▮▯▮</span>
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-2">
               <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-bone/55">
                 pushr · undelivered
               </span>
-              <span className="font-mono text-[10px] tabular-nums text-bone/40">
-                --:--
-              </span>
+              <span className="font-mono text-[10px] tabular-nums text-bone/40">--:--</span>
             </div>
             <div className="mt-2 font-mono text-[14.5px] font-semibold leading-snug text-bone/85">
               ▓▓▓▓▓ ▓▓ ▓ ▓▓▓▓▓▓▓
@@ -462,12 +425,7 @@ function PhantomNotification({ packetId }: { packetId: string }) {
         <DiagnoseRow label="ttl" value="expired" tone="amber" />
         <DiagnoseRow label="payload" value="—" />
         <DiagnoseRow label="retries" value="0 / ∞" />
-        <DiagnoseRow
-          label="packet"
-          value={packetId}
-          tone="wire"
-          mono
-        />
+        <DiagnoseRow label="packet" value={packetId} tone="wire" mono />
       </dl>
     </motion.div>
   );
@@ -477,31 +435,26 @@ function DiagnoseRow({
   label,
   value,
   tone,
-  mono,
+  mono
 }: {
   label: string;
   value: string;
-  tone?: "rose" | "amber" | "wire";
+  tone?: 'rose' | 'amber' | 'wire';
   mono?: boolean;
 }) {
   const color =
-    tone === "rose"
-      ? "var(--color-rose)"
-      : tone === "amber"
-        ? "var(--color-amber)"
-        : tone === "wire"
-          ? "var(--color-wire-bright)"
-          : "var(--color-bone)";
+    tone === 'rose'
+      ? 'var(--color-rose)'
+      : tone === 'amber'
+        ? 'var(--color-amber)'
+        : tone === 'wire'
+          ? 'var(--color-wire-bright)'
+          : 'var(--color-bone)';
   return (
     <div className="grid grid-cols-[110px_minmax(0,1fr)] items-baseline gap-3 border-b border-white/[0.04] px-4 py-2.5 last:border-b-0">
-      <dt className="font-mono text-[9.5px] uppercase tracking-[0.28em] text-bone/40">
-        {label}
-      </dt>
+      <dt className="font-mono text-[9.5px] uppercase tracking-[0.28em] text-bone/40">{label}</dt>
       <dd
-        className={[
-          mono ? "font-mono tabular-nums" : "",
-          "text-[12.5px]",
-        ].join(" ")}
+        className={[mono ? 'font-mono tabular-nums' : '', 'text-[12.5px]'].join(' ')}
         style={{ color }}
       >
         {value}
@@ -514,20 +467,12 @@ function DiagnoseRow({
 // Failed cURL transcript
 // ---------------------------------------------------------------------------
 
-function FailedCurl({
-  path,
-  packetId,
-  error,
-}: {
-  path: string;
-  packetId: string;
-  error?: Error;
-}) {
+function FailedCurl({ path, packetId, error }: { path: string; packetId: string; error?: Error }) {
   const isError = !!error;
-  const status = isError ? "500 internal error" : "404 not found";
+  const status = isError ? '500 internal error' : '404 not found';
   const tagline = isError
-    ? "the wire is intact. the handler is not."
-    : "the wire is intact. the destination is not.";
+    ? 'the wire is intact. the handler is not.'
+    : 'the wire is intact. the destination is not.';
   return (
     <motion.pre
       initial={{ opacity: 0 }}
@@ -535,31 +480,33 @@ function FailedCurl({
       transition={{ duration: 0.6, delay: 0.85 }}
       className="relative mt-12 max-w-[640px] overflow-x-auto rounded-2xl border border-white/10 bg-black/55 p-5 font-mono text-[12.5px] leading-relaxed text-bone/85 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.02)]"
     >
-      <span className="text-[var(--color-wire-bright)]">$</span>{" "}
-      <span className="text-bone">curl</span> -i{" "}
+      <span className="text-[var(--color-wire-bright)]">$</span>{' '}
+      <span className="text-bone">curl</span> -i{' '}
       <span className="text-[var(--color-amber)]">"https://pushr.sh{path}"</span>
-      {"\n"}
+      {'\n'}
       <span className="text-bone/55">
-        {">"} GET {path} HTTP/2
+        {'>'} GET {path} HTTP/2
       </span>
-      {"\n"}
-      <span className="text-bone/55">{">"} accept: */*</span>
-      {"\n"}
-      <span className="text-[var(--color-rose)]">{"<"} HTTP/2 {status}</span>
-      {"\n"}
-      <span className="text-bone/55">{"<"} content-type: text/plain</span>
-      {"\n"}
-      <span className="text-bone/55">{"<"} x-pushr-packet: {packetId}</span>
-      {"\n"}
-      <span className="text-bone/55">{"<"} x-pushr-route: ?</span>
-      {"\n\n"}
+      {'\n'}
+      <span className="text-bone/55">{'>'} accept: */*</span>
+      {'\n'}
+      <span className="text-[var(--color-rose)]">
+        {'<'} HTTP/2 {status}
+      </span>
+      {'\n'}
+      <span className="text-bone/55">{'<'} content-type: text/plain</span>
+      {'\n'}
+      <span className="text-bone/55">
+        {'<'} x-pushr-packet: {packetId}
+      </span>
+      {'\n'}
+      <span className="text-bone/55">{'<'} x-pushr-route: ?</span>
+      {'\n\n'}
       <span className="text-bone/70">{tagline}</span>
       {isError && error?.message ? (
         <>
-          {"\n"}
-          <span className="text-[var(--color-rose)]/80">
-            ↳ {truncate(error.message, 140)}
-          </span>
+          {'\n'}
+          <span className="text-[var(--color-rose)]/80">↳ {truncate(error.message, 140)}</span>
         </>
       ) : null}
       <span className="ml-1 inline-block h-[1em] w-[7px] -translate-y-[1px] bg-[var(--color-wire-bright)] align-middle animate-cursor" />
@@ -568,7 +515,7 @@ function FailedCurl({
 }
 
 function truncate(s: string, n: number): string {
-  return s.length <= n ? s : s.slice(0, n - 1) + "…";
+  return s.length <= n ? s : s.slice(0, n - 1) + '…';
 }
 
 // ---------------------------------------------------------------------------
@@ -584,23 +531,18 @@ function Diagnostics({ path, isError }: { path: string; isError: boolean }) {
       <div className="mt-3 h-px w-12 bg-[var(--color-wire)]" />
 
       <dl className="mt-8 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.02] sm:grid-cols-4">
-        <Stat
-          label="dropped"
-          value="1"
-          sub="(this one)"
-          tone="rose"
-        />
+        <Stat label="dropped" value="1" sub="(this one)" tone="rose" />
         <Stat label="uptime" value="99.97%" sub="last 30 days" />
         <Stat
           label="route"
           value="?"
-          sub={path.length > 18 ? path.slice(0, 17) + "…" : path}
+          sub={path.length > 18 ? path.slice(0, 17) + '…' : path}
           tone="amber"
         />
         <Stat
           label="kind"
-          value={isError ? "ERR" : "404"}
-          sub={isError ? "exception" : "no-route"}
+          value={isError ? 'ERR' : '404'}
+          sub={isError ? 'exception' : 'no-route'}
           tone="wire"
         />
       </dl>
@@ -616,26 +558,24 @@ function Stat({
   label,
   value,
   sub,
-  tone,
+  tone
 }: {
   label: string;
   value: string;
   sub?: string;
-  tone?: "rose" | "amber" | "wire";
+  tone?: 'rose' | 'amber' | 'wire';
 }) {
   const color =
-    tone === "rose"
-      ? "var(--color-rose)"
-      : tone === "amber"
-        ? "var(--color-amber)"
-        : tone === "wire"
-          ? "var(--color-wire-bright)"
-          : "var(--color-bone)";
+    tone === 'rose'
+      ? 'var(--color-rose)'
+      : tone === 'amber'
+        ? 'var(--color-amber)'
+        : tone === 'wire'
+          ? 'var(--color-wire-bright)'
+          : 'var(--color-bone)';
   return (
     <div className="bg-[color-mix(in_oklab,var(--color-ink)_75%,transparent)] px-5 py-5">
-      <div className="font-mono text-[9.5px] uppercase tracking-[0.32em] text-bone/45">
-        {label}
-      </div>
+      <div className="font-mono text-[9.5px] uppercase tracking-[0.32em] text-bone/45">{label}</div>
       <div
         className="mt-2 font-display text-[30px] tabular-nums leading-none tracking-tight"
         style={{ color }}

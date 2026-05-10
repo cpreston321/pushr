@@ -1,18 +1,18 @@
-import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { AnimatePresence, motion } from 'motion/react';
+import { useEffect, useState } from 'react';
 
 type Stage =
-  | { kind: "idle" }
-  | { kind: "compact"; label: string; pct: number; status: string; icon: string }
-  | { kind: "expanded"; label: string; pct: number; status: string; icon: string };
+  | { kind: 'idle' }
+  | { kind: 'compact'; label: string; pct: number; status: string; icon: string }
+  | { kind: 'expanded'; label: string; pct: number; status: string; icon: string };
 
 const SCRIPT: Stage[] = [
-  { kind: "idle" },
-  { kind: "compact", label: "Deploy #482", pct: 12, status: "Building", icon: "▴" },
-  { kind: "expanded", label: "Deploy #482", pct: 28, status: "Running tests", icon: "✓" },
-  { kind: "expanded", label: "Deploy #482", pct: 64, status: "Pushing image", icon: "✦" },
-  { kind: "expanded", label: "Deploy #482", pct: 92, status: "Warming pods", icon: "❖" },
-  { kind: "compact", label: "Deploy #482", pct: 100, status: "Live", icon: "✓" },
+  { kind: 'idle' },
+  { kind: 'compact', label: 'Deploy #482', pct: 12, status: 'Building', icon: '▴' },
+  { kind: 'expanded', label: 'Deploy #482', pct: 28, status: 'Running tests', icon: '✓' },
+  { kind: 'expanded', label: 'Deploy #482', pct: 64, status: 'Pushing image', icon: '✦' },
+  { kind: 'expanded', label: 'Deploy #482', pct: 92, status: 'Warming pods', icon: '❖' },
+  { kind: 'compact', label: 'Deploy #482', pct: 100, status: 'Live', icon: '✓' }
 ];
 
 const STEP_MS = 2400;
@@ -23,7 +23,7 @@ const subscribers = new Set<() => void>();
 let timerStarted = false;
 
 function ensureTimer() {
-  if (timerStarted || typeof window === "undefined") return;
+  if (timerStarted || typeof window === 'undefined') return;
   timerStarted = true;
   setInterval(() => {
     subscribers.forEach((s) => s());
@@ -50,22 +50,21 @@ export function DynamicIsland() {
   return (
     <motion.div
       layout
-      transition={{ type: "spring", stiffness: 320, damping: 30, mass: 0.8 }}
+      transition={{ type: 'spring', stiffness: 320, damping: 30, mass: 0.8 }}
       className="relative overflow-hidden bg-black"
       style={{
         borderRadius: 28,
-        boxShadow:
-          "0 8px 24px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.04)",
-        width: stage.kind === "expanded" ? 320 : stage.kind === "compact" ? 200 : 124,
-        height: stage.kind === "expanded" ? 78 : 36,
+        boxShadow: '0 8px 24px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.04)',
+        width: stage.kind === 'expanded' ? 320 : stage.kind === 'compact' ? 200 : 124,
+        height: stage.kind === 'expanded' ? 78 : 36
       }}
     >
       <AnimatePresence mode="popLayout">
-        {stage.kind === "idle" && <IdleView key="idle" />}
-        {stage.kind === "compact" && (
+        {stage.kind === 'idle' && <IdleView key="idle" />}
+        {stage.kind === 'compact' && (
           <CompactView key="compact" pct={stage.pct} icon={stage.icon} label={stage.label} />
         )}
-        {stage.kind === "expanded" && (
+        {stage.kind === 'expanded' && (
           <ExpandedView
             key="expanded"
             pct={stage.pct}
@@ -113,7 +112,7 @@ function ExpandedView({
   pct,
   icon,
   label,
-  status,
+  status
 }: {
   pct: number;
   icon: string;
@@ -144,7 +143,7 @@ function ExpandedView({
             className="h-full rounded-full bg-[var(--color-wire)]"
             initial={false}
             animate={{ width: `${pct}%` }}
-            transition={{ type: "spring", stiffness: 120, damping: 24 }}
+            transition={{ type: 'spring', stiffness: 120, damping: 24 }}
           />
         </div>
       </div>
@@ -160,7 +159,7 @@ function ExpandedView({
 export function LockScreenLiveActivity() {
   const stage = useSharedScript();
 
-  if (stage.kind === "idle") {
+  if (stage.kind === 'idle') {
     return (
       <AnimatePresence>
         <motion.div
@@ -182,14 +181,14 @@ export function LockScreenLiveActivity() {
   return (
     <motion.div
       key="active"
-      initial={{ opacity: 0, y: 12, scale: 0.97, filter: "blur(8px)" }}
-      animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+      initial={{ opacity: 0, y: 12, scale: 0.97, filter: 'blur(8px)' }}
+      animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
       transition={{
-        type: "spring",
+        type: 'spring',
         stiffness: 320,
         damping: 30,
         opacity: { duration: 0.3, ease: [0.23, 1, 0.32, 1] },
-        filter: { duration: 0.3, ease: [0.23, 1, 0.32, 1] },
+        filter: { duration: 0.3, ease: [0.23, 1, 0.32, 1] }
       }}
       className="relative overflow-hidden rounded-[28px] border border-white/15 bg-black/55 backdrop-blur-2xl shadow-[0_30px_60px_-30px_rgba(10,132,255,0.55)]"
     >
@@ -198,7 +197,7 @@ export function LockScreenLiveActivity() {
         className="pointer-events-none absolute inset-0 opacity-60"
         style={{
           background:
-            "radial-gradient(120% 100% at 0% 0%, color-mix(in oklab, var(--color-wire-deep) 35%, transparent), transparent 65%)",
+            'radial-gradient(120% 100% at 0% 0%, color-mix(in oklab, var(--color-wire-deep) 35%, transparent), transparent 65%)'
         }}
       />
       <div className="relative flex items-center gap-3.5 p-4">
@@ -210,9 +209,7 @@ export function LockScreenLiveActivity() {
             <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-bone/60">
               ci.acme · live
             </span>
-            <span className="font-mono text-[11px] tabular-nums text-bone">
-              {stage.pct}%
-            </span>
+            <span className="font-mono text-[11px] tabular-nums text-bone">{stage.pct}%</span>
           </div>
           <p className="mt-0.5 truncate text-[15px] font-medium leading-tight text-bone">
             {stage.label}
@@ -223,9 +220,9 @@ export function LockScreenLiveActivity() {
               className="h-full rounded-full bg-[var(--color-wire-bright)]"
               initial={false}
               animate={{ width: `${stage.pct}%` }}
-              transition={{ type: "spring", stiffness: 140, damping: 24 }}
+              transition={{ type: 'spring', stiffness: 140, damping: 24 }}
               style={{
-                boxShadow: "0 0 12px var(--color-wire-bright)",
+                boxShadow: '0 0 12px var(--color-wire-bright)'
               }}
             />
           </div>

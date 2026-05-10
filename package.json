@@ -2,43 +2,46 @@
   "name": "pushr.sh",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
-  "workspaces": [
-    "mobile",
-    "mobile/modules/*",
-    "apps/*",
-    "packages/*"
-  ],
-  "scripts": {
-    "dev": "bunx convex dev",
-    "deploy": "bunx convex deploy",
-    "tsc": "bunx tsc --noEmit",
-    "mobile": "cd mobile && bun run start",
-    "web": "cd apps/web && bun run dev",
-    "web:build": "cd apps/web && bun run build",
-    "cli": "bun packages/cli/pushrsh.ts",
-    "cli:build": "bun build --compile --minify --target=bun --outfile=dist/pushrsh packages/cli/pushrsh.ts",
-    "sdk:build": "bun build packages/sdk/index.ts --outdir=dist/sdk --target=node --format=esm --minify"
-  },
   "bin": {
     "pushrsh": "./packages/cli/pushrsh.ts"
   },
-  "dependencies": {
-    "convex": "^1.38.0",
-    "@convex-dev/better-auth": "^0.12.2",
-    "@convex-dev/workpool": "^0.4.6",
-    "better-auth": "1.6.9"
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "type": "module",
+  "scripts": {
+    "dev": "bun --filter @pushr/backend dev",
+    "deploy": "bun --filter @pushr/backend deploy",
+    "tsc": "bunx tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "format": "oxfmt --write",
+    "format:check": "oxfmt --check",
+    "mobile": "bun --filter @pushr/mobile start",
+    "web": "bun --filter @pushr/web dev",
+    "web:build": "bun --filter @pushr/web build",
+    "cli": "bun --filter @pushr/cli start",
+    "cli:build": "bun --filter @pushr/cli build",
+    "sdk:build": "bun --filter @pushr/sdk build"
   },
   "devDependencies": {
+    "@edge-runtime/vm": "^5.0.0",
     "@types/bun": "^1.3.12",
     "@types/node": "^25.6.2",
-    "typescript": "^6.0.3"
+    "@vitest/coverage-v8": "^4.1.5",
+    "oxfmt": "^0.48.0",
+    "oxlint": "^1.63.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5"
   },
   "overrides": {
-    "signal-exit": "^3.0.7",
+    "expo-constants": "55.0.16",
+    "expo-font": "55.0.7",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "expo-constants": "55.0.16",
-    "expo-font": "55.0.7"
+    "signal-exit": "^3.0.7"
   }
 }
