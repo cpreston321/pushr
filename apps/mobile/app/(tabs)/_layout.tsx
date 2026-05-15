@@ -1,9 +1,9 @@
-import { Redirect } from 'expo-router';
-import { NativeTabs } from 'expo-router/unstable-native-tabs';
-import { ActivityIndicator, View } from 'react-native';
-import { authClient } from '@/lib/auth-client';
-import { useTheme } from '@/lib/theme';
-import { useSyncWidget } from '@/lib/widget-sync';
+import { Redirect } from "expo-router";
+import { NativeTabs } from "expo-router/unstable-native-tabs";
+import { ActivityIndicator, View } from "react-native";
+import { authClient } from "@/lib/auth-client";
+import { useTheme } from "@/lib/theme";
+import { useSyncWidget } from "@/lib/widget-sync";
 
 export default function TabsLayout() {
   const { data, isPending } = authClient().useSession();
@@ -14,9 +14,9 @@ export default function TabsLayout() {
       <View
         style={{
           flex: 1,
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: colors.grouped
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: colors.grouped,
         }}
       >
         <ActivityIndicator color={colors.accent} />

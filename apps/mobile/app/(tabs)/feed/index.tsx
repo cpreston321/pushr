@@ -45,9 +45,15 @@ import { promptText } from '@/lib/prompt';
 import { openLink } from '@/lib/openLink';
 import { formatRelative, groupFeedItems, type FeedItem, type FeedEntry } from '@/lib/feed-helpers';
 
-// Distance (px) the row must travel before a release auto-fires delete.
-// Smaller = more sensitive. We want a deliberate full swipe.
-const FULL_SWIPE_THRESHOLD = 140;
+// Distance (px) the row must travel past which a release commits the
+// delete. Matches iOS Mail's behaviour — ~80pt is enough for a clear
+// "this is a swipe-to-delete" gesture without requiring a full-row drag.
+const SWIPE_DELETE_THRESHOLD = 80;
+// Resistance applied to the drag. Lower = snappier. iOS Mail sits near 1.
+const SWIPE_FRICTION = 1;
+// Resistance past the threshold. Lower = springier rubber-band. iOS Mail
+// barely overshoots once you're past the button width.
+const SWIPE_OVERSHOOT_FRICTION = 4;
 
 const FEED_PAGE_SIZE = 100;
 // Server caps at 500; mirror it so the client knows when to hide "Load older".
@@ -1114,21 +1120,30 @@ function FeedGroupRow({
       }}
     >
       <ReanimatedSwipeable
-        friction={1.6}
-        overshootFriction={8}
-        rightThreshold={FULL_SWIPE_THRESHOLD}
+        friction={SWIPE_FRICTION}
+        overshootFriction={SWIPE_OVERSHOOT_FRICTION}
+        rightThreshold={SWIPE_DELETE_THRESHOLD}
+        // Render the action against the row's full unswiped width so the
+        // destructive surface can grow with the gesture (iOS Mail style)
+        // rather than sitting as a fixed 96pt pill.
         renderRightActions={(progress) => (
           <SwipeAction
             progress={progress}
             tint={colors.destructive}
             label="Delete all"
             icon="trash.fill"
-            side="right"
             onPress={onDeleteGroup}
           />
         )}
+        // Fires when the release crosses the threshold and the snap-open
+        // animation kicks off. Commit immediately — Convex's mutation
+        // round-trip + LinearTransition row collapse happen in parallel,
+        // landing right as the snap-open finishes.
         onSwipeableWillOpen={(direction) => {
-          if (direction === 'right') onDeleteGroup();
+          if (direction === 'right') {
+            haptic.warning();
+            onDeleteGroup();
+          }
         }}
       >
         <View>
@@ -1370,16 +1385,15 @@ function FeedRow({
       }}
     >
       <ReanimatedSwipeable
-        friction={1.6}
-        overshootFriction={8}
-        rightThreshold={FULL_SWIPE_THRESHOLD}
+        friction={SWIPE_FRICTION}
+        overshootFriction={SWIPE_OVERSHOOT_FRICTION}
+        rightThreshold={SWIPE_DELETE_THRESHOLD}
         renderRightActions={(progress) => (
           <SwipeAction
             progress={progress}
             tint={colors.destructive}
             label="Delete"
             icon="trash.fill"
-            side="right"
             onPress={() => {
               haptic.warning();
               onDelete();
@@ -1645,29 +1659,33 @@ function LiveActivityBody({
   );
 }
 
+/**
+ * Right-side destructive swipe action. Fixed 96pt width so
+ * ReanimatedSwipeable has a well-defined snap target (it measures this
+ * intrinsic width to determine where the row settles when opened). Icon
+ * glides in from the right edge of the action so it feels anchored to
+ * the gesture rather than floating in mid-air.
+ */
 function SwipeAction({
   progress,
   tint,
   label,
   icon,
-  side,
   onPress
 }: {
   progress: SharedValue<number>;
   tint: string;
   label: string;
   icon: string;
-  side: 'left' | 'right';
   onPress: () => void;
 }) {
-  const from = side === 'left' ? -20 : 20;
-  const style = useAnimatedStyle(() => ({
+  const iconStyle = useAnimatedStyle(() => ({
     transform: [
       {
-        translateX: interpolate(progress.value, [0, 1], [from, 0], Extrapolation.CLAMP)
+        translateX: interpolate(progress.value, [0, 1], [20, 0], Extrapolation.CLAMP)
       }
     ],
-    opacity: interpolate(progress.value, [0, 0.5, 1], [0, 0.5, 1])
+    opacity: interpolate(progress.value, [0, 0.4, 1], [0, 0.6, 1], Extrapolation.CLAMP)
   }));
   return (
     <Pressable
@@ -1681,7 +1699,7 @@ function SwipeAction({
         justifyContent: 'center'
       }}
     >
-      <Animated.View style={[{ alignItems: 'center' }, style]}>
+      <Animated.View style={[{ alignItems: 'center' }, iconStyle]}>
         <SymbolView name={icon as any} size={22} tintColor="#FFFFFF" />
         <Text style={{ color: '#FFFFFF', ...type.caption1, marginTop: 4 }}>{label}</Text>
       </Animated.View>
