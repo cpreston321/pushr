@@ -28,8 +28,9 @@ struct PushrWidgetView: View {
 
     var body: some View {
         switch family {
-        case .systemLarge: FeedListView(entry: entry, maxRows: 8)
-        default: FeedListView(entry: entry, maxRows: 3)
+        case .systemLarge: FeedListView(entry: entry, maxRows: 6, bodyLineLimit: 2, compact: false)
+        case .systemMedium: FeedListView(entry: entry, maxRows: 2, bodyLineLimit: 1, compact: true)
+        default: FeedListView(entry: entry, maxRows: 2, bodyLineLimit: 1, compact: true)
         }
     }
 }
@@ -40,6 +41,8 @@ struct PushrWidgetView: View {
 private struct FeedListView: View {
     let entry: PushrEntry
     let maxRows: Int
+    let bodyLineLimit: Int
+    let compact: Bool
 
     var body: some View {
         let sources = entry.configuration.sources ?? []
@@ -49,7 +52,7 @@ private struct FeedListView: View {
         let accent = entry.snapshot.accentColor
         let isPlaceholder = entry.snapshot.updatedAt == 0
 
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: compact ? 6 : 8) {
             HeaderBar(
                 accent: accent,
                 count: unread.count,
@@ -64,14 +67,20 @@ private struct FeedListView: View {
             } else if rows.isEmpty {
                 EmptyCard(compact: false)
             } else {
-                GroupedList(rows: rows, snapshot: entry.snapshot, accent: accent)
+                GroupedList(
+                    rows: rows,
+                    snapshot: entry.snapshot,
+                    accent: accent,
+                    bodyLineLimit: bodyLineLimit,
+                    rowPaddingV: compact ? 6 : 8
+                )
             }
             Spacer(minLength: 0)
         }
         .unredacted()
         .padding(.horizontal, 16)
-        .padding(.top, 18)
-        .padding(.bottom, 12)
+        .padding(.top, compact ? 14 : 20)
+        .padding(.bottom, 10)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .containerBackground(Token.bg, for: .widget)
     }
@@ -82,18 +91,26 @@ private struct GroupedList: View {
     let rows: [Snapshot.Notif]
     let snapshot: Snapshot
     let accent: Color
+    let bodyLineLimit: Int
+    let rowPaddingV: CGFloat
 
     var body: some View {
         VStack(spacing: 0) {
             ForEach(Array(rows.enumerated()), id: \.element.id) { idx, item in
                 Link(destination: URL(string: "pushr://feed?notif=\(item.id)")!) {
-                    FeedRow(item: item, snapshot: snapshot, accent: accent)
+                    FeedRow(
+                        item: item,
+                        snapshot: snapshot,
+                        accent: accent,
+                        bodyLineLimit: bodyLineLimit,
+                        paddingV: rowPaddingV
+                    )
                 }
                 if idx < rows.count - 1 {
                     Rectangle()
                         .fill(Token.separator)
                         .frame(height: 0.5)
-                        .padding(.leading, 44) // align past the avatar
+                        .padding(.leading, 52) // align past the avatar
                 }
             }
         }
@@ -110,25 +127,31 @@ private struct FeedRow: View {
     let item: Snapshot.Notif
     let snapshot: Snapshot
     let accent: Color
+    let bodyLineLimit: Int
+    let paddingV: CGFloat
 
     var body: some View {
         let app = snapshot.app(for: item.sourceAppId)
-        // Pick the most informative single body line: prefer the body when
-        // we have a distinct title, otherwise the title (notifications
-        // sometimes come with title-only or body-only). Keeps each row to
-        // two text lines so all three rows + the header fit in the
-        // Medium widget budget without iOS clipping.
+        // Prefer title as the bold headline, body as the supporting detail
+        // line. Notifications occasionally arrive title-only or body-only,
+        // so we fall back to whichever one is populated for the headline
+        // and hide the secondary row when it would duplicate or be empty.
         let primary = item.title.isEmpty ? item.body : item.title
-        let secondary = item.title.isEmpty ? "" : item.body
+        let secondaryText: String? = {
+            guard !item.title.isEmpty else { return nil }
+            let trimmed = item.body.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, trimmed != item.title else { return nil }
+            return trimmed
+        }()
 
-        HStack(alignment: .top, spacing: 10) {
-            AppAvatar(appId: item.sourceAppId, name: app?.name ?? "?", size: 28)
+        HStack(alignment: .center, spacing: 10) {
+            AppAvatar(appId: item.sourceAppId, name: app?.name ?? "?", size: 36)
                 .overlay(alignment: .topLeading) {
                     UnreadDot(accent: accent, ringColor: Token.cell)
                         .offset(x: -3, y: -3)
                 }
 
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(app?.name ?? "")
                         .font(.system(size: 11, weight: .semibold))
@@ -139,14 +162,21 @@ private struct FeedRow: View {
                         .font(.system(size: 10, weight: .regular).monospacedDigit())
                         .foregroundStyle(Token.tertiary)
                 }
-                Text(primary.isEmpty ? secondary : primary)
-                    .font(.system(size: 12, weight: .semibold))
+                Text(primary)
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Token.label)
                     .lineLimit(1)
+                if let secondaryText {
+                    Text(secondaryText)
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundStyle(Token.secondary)
+                        .lineLimit(bodyLineLimit)
+                        .truncationMode(.tail)
+                }
             }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .padding(.vertical, paddingV)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

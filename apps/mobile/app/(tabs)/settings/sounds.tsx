@@ -1,6 +1,7 @@
+import { router } from 'expo-router';
 import { ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useConvexAuth, useMutation, useQuery } from 'convex/react';
+import { useConvexAuth, useQuery } from 'convex/react';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { api } from '@pushr/backend/_generated/api';
 import { DrawerHeader } from '@/components/DrawerHeader';
@@ -9,31 +10,21 @@ import { ListSection } from '@/components/ListSection';
 import { ListRow } from '@/components/ListRow';
 import { useTheme, spacing, radius, type } from '@/lib/theme';
 import { haptic } from '@/lib/haptics';
-import { showActionSheet } from '@/lib/actionSheet';
-import { SOUNDS, soundLabel } from '@/lib/sounds';
-
-type SoundKey = 'soundLow' | 'soundNormal' | 'soundHigh';
+import { soundLabel } from '@/lib/sounds';
 
 export default function SoundsScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { isAuthenticated } = useConvexAuth();
   const prefs = useQuery(api.userPrefs.getMine, isAuthenticated ? {} : 'skip');
-  const updatePrefs = useMutation(api.userPrefs.update);
 
-  function pickSound(key: SoundKey, title: string) {
-    haptic.light();
-    const current = soundLabel(prefs?.[key] ?? 'default');
-    showActionSheet({
-      title,
-      message: 'Choose the sound played when a notification of this priority arrives.',
-      options: SOUNDS.map((s) => ({
-        label: current === s.label ? `✓ ${s.label}` : s.label,
-        onPress: () => {
-          haptic.success();
-          updatePrefs({ [key]: s.value });
-        }
-      }))
+  function open(paramKey: 'low' | 'normal' | 'high') {
+    haptic.selection();
+    // Cast: typed-routes regenerate on next `expo start`; the runtime path is
+    // valid (file is sibling to this one).
+    router.push({
+      pathname: '/(tabs)/settings/sound-picker' as never,
+      params: { key: paramKey }
     });
   }
 
@@ -47,14 +38,14 @@ export default function SoundsScreen() {
           paddingBottom: insets.bottom + spacing.xxl
         }}
       >
-        <ListSection footer="Pick the sound each priority plays on arrival. Custom sounds beyond Default and Silent require a dev build.">
+        <ListSection footer="Pick the sound each priority plays on arrival. Tap a priority to preview and choose.">
           <SoundRow
             title="Low priority"
             subtitle={'priority ≤ 4  /  "low"'}
             icon="bell.slash"
             tint={colors.secondaryLabel}
             value={prefs ? soundLabel(prefs.soundLow) : '—'}
-            onPress={() => pickSound('soundLow', 'Low-priority sound')}
+            onPress={() => open('low')}
           />
           <SoundRow
             title="Normal"
@@ -62,7 +53,7 @@ export default function SoundsScreen() {
             icon="bell"
             tint={colors.accent}
             value={prefs ? soundLabel(prefs.soundNormal) : '—'}
-            onPress={() => pickSound('soundNormal', 'Normal-priority sound')}
+            onPress={() => open('normal')}
           />
           <SoundRow
             title="High priority"
@@ -70,7 +61,7 @@ export default function SoundsScreen() {
             icon="bell.badge.fill"
             tint={colors.destructive}
             value={prefs ? soundLabel(prefs.soundHigh) : '—'}
-            onPress={() => pickSound('soundHigh', 'High-priority sound')}
+            onPress={() => open('high')}
           />
         </ListSection>
       </ScrollView>

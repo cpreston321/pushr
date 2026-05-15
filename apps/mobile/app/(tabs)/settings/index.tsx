@@ -1,18 +1,18 @@
-import { router } from 'expo-router';
-import { Pressable, ScrollView, Text, View } from 'react-native';
-import { useRef } from 'react';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery } from 'convex/react';
-import { api } from '@pushr/backend/_generated/api';
-import { authClient } from '@/lib/auth-client';
-import { ScreenHeader, ScreenBody } from '@/components/ScreenHeader';
-import { ScreenTransition } from '@/components/ScreenTransition';
-import { currentServerLabel } from '@/lib/backend';
-import { ListSection } from '@/components/ListSection';
-import { ListRow } from '@/components/ListRow';
-import { useProState, ProBadge } from '@/components/Pro';
-import type { DrawerRef } from '@/components/Drawer';
-import { ChangePasswordDrawer } from '@/components/drawers/ChangePasswordDrawer';
+import { router } from "expo-router";
+import { Pressable, ScrollView, Text, View } from "react-native";
+import { useRef } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useQuery } from "convex/react";
+import { api } from "@pushr/backend/_generated/api";
+import { authClient } from "@/lib/auth-client";
+import { ScreenHeader, ScreenBody } from "@/components/ScreenHeader";
+import { ScreenTransition } from "@/components/ScreenTransition";
+import { currentServerLabel } from "@/lib/backend";
+import { ListSection } from "@/components/ListSection";
+import { ListRow } from "@/components/ListRow";
+import { useProState, ProBadge } from "@/components/Pro";
+import type { DrawerRef } from "@/components/Drawer";
+import { ChangePasswordDrawer } from "@/components/drawers/ChangePasswordDrawer";
 import {
   useTheme,
   useThemePreferences,
@@ -21,11 +21,13 @@ import {
   radius,
   ACCENT_PRESETS,
   ACCENT_ORDER,
-  type AccentKey
-} from '@/lib/theme';
-import { SymbolView, type SFSymbol } from 'expo-symbols';
-import { haptic } from '@/lib/haptics';
-import { showActionSheet } from '@/lib/actionSheet';
+  type AccentKey,
+} from "@/lib/theme";
+import { SymbolView, type SFSymbol } from "expo-symbols";
+import { Gauge, Host } from "@expo/ui/swift-ui";
+import { gaugeStyle, tint as uiTint } from "@expo/ui/swift-ui/modifiers";
+import { haptic } from "@/lib/haptics";
+import { showActionSheet } from "@/lib/actionSheet";
 
 export default function Settings() {
   const { colors, isDark } = useTheme();
@@ -36,38 +38,46 @@ export default function Settings() {
 
   async function signOut() {
     showActionSheet({
-      title: 'Sign out?',
+      title: "Sign out?",
       options: [
         {
-          label: 'Sign out',
+          label: "Sign out",
           destructive: true,
           onPress: async () => {
             haptic.warning();
             await authClient().signOut();
-          }
-        }
-      ]
+          },
+        },
+      ],
     });
   }
 
   return (
     <ScreenTransition style={{ backgroundColor: colors.background }}>
-      <ScreenHeader eyebrow={user?.email ?? undefined} title={user?.name ?? 'Settings'} />
+      <ScreenHeader
+        eyebrow={user?.email ?? undefined}
+        title={user?.name ?? "Settings"}
+      />
       <ScreenBody>
         <ScrollView
           contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={{
-            paddingBottom: Math.max(120, insets.bottom + spacing.xxl + 60)
+            marginTop: spacing.md,
+            gap: spacing.xl,
+            paddingBottom: Math.max(120, insets.bottom),
           }}
         >
-          <SectionHeader label="Plan" />
-          <PlanCard />
+          <View>
+            <SectionHeader label="Plan" />
+            <PlanCard />
+          </View>
 
-          <SectionHeader label="Appearance" />
-          <AppearanceCard isDark={isDark} />
+          <View>
+            <SectionHeader label="Appearance" />
+            <AppearanceCard isDark={isDark} />
+          </View>
 
-          <SectionHeader label="Account" />
-          <ListSection>
+          <ListSection header="Account">
             <TintedRow
               icon="key.fill"
               title="Change password"
@@ -83,27 +93,19 @@ export default function Settings() {
               tint={colors.accent}
               onPress={() => {
                 haptic.selection();
-                router.push('/onboarding');
+                router.push("/onboarding");
               }}
-            />
-            <TintedRow
-              icon="rectangle.portrait.and.arrow.right"
-              title="Sign out"
-              tint={colors.destructive}
-              destructive
-              onPress={signOut}
             />
           </ListSection>
 
-          <SectionHeader label="More" />
-          <ListSection>
+          <ListSection header="More">
             <TintedRow
               icon="bell.badge.fill"
               title="Notification sounds"
               tint={colors.accent}
               onPress={() => {
                 haptic.selection();
-                router.push('/(tabs)/settings/sounds');
+                router.push("/(tabs)/settings/sounds");
               }}
             />
             <TintedRow
@@ -113,13 +115,25 @@ export default function Settings() {
               tint={colors.accent}
               onPress={() => {
                 haptic.selection();
-                router.push('/(tabs)/settings/advanced');
+                router.push("/(tabs)/settings/advanced");
               }}
             />
           </ListSection>
 
-          <View style={{ alignItems: 'center', paddingTop: spacing.xl }}>
-            <Text style={{ ...type.footnote, color: colors.tertiaryLabel }}>pushr · v1.0.0</Text>
+          <ListSection>
+            <TintedRow
+              icon="rectangle.portrait.and.arrow.right"
+              title="Sign out"
+              tint={colors.destructive}
+              destructive
+              onPress={signOut}
+            />
+          </ListSection>
+
+          <View style={{ alignItems: "center" }}>
+            <Text style={{ ...type.footnote, color: colors.tertiaryLabel }}>
+              pushr · v1.0.0
+            </Text>
           </View>
         </ScrollView>
       </ScreenBody>
@@ -135,11 +149,10 @@ function SectionHeader({ label }: { label: string }) {
       style={{
         ...type.footnote,
         color: colors.secondaryLabel,
-        textTransform: 'uppercase',
+        textTransform: "uppercase",
         letterSpacing: 0.5,
         marginHorizontal: spacing.xl,
-        marginTop: spacing.xl,
-        marginBottom: spacing.sm
+        marginBottom: spacing.sm,
       }}
     >
       {label}
@@ -157,42 +170,42 @@ function AppearanceCard({ isDark }: { isDark: boolean }) {
         marginHorizontal: spacing.lg,
         backgroundColor: colors.cell,
         borderRadius: radius.lg,
-        borderCurve: 'continuous',
-        overflow: 'hidden'
+        borderCurve: "continuous",
+        overflow: "hidden",
       }}
     >
       <View
         style={{
-          flexDirection: 'row',
+          flexDirection: "row",
           padding: spacing.md,
-          gap: spacing.sm
+          gap: spacing.sm,
         }}
       >
         <ModeCard
           label="System"
           icon="iphone"
-          selected={mode === 'system'}
+          selected={mode === "system"}
           onPress={() => {
             haptic.selection();
-            setMode('system');
+            setMode("system");
           }}
         />
         <ModeCard
           label="Light"
           icon="sun.max.fill"
-          selected={mode === 'light'}
+          selected={mode === "light"}
           onPress={() => {
             haptic.selection();
-            setMode('light');
+            setMode("light");
           }}
         />
         <ModeCard
           label="Dark"
           icon="moon.fill"
-          selected={mode === 'dark'}
+          selected={mode === "dark"}
           onPress={() => {
             haptic.selection();
-            setMode('dark');
+            setMode("dark");
           }}
         />
       </View>
@@ -201,21 +214,21 @@ function AppearanceCard({ isDark }: { isDark: boolean }) {
         style={{
           height: 0.5,
           backgroundColor: colors.separator,
-          marginHorizontal: spacing.md
+          marginHorizontal: spacing.md,
         }}
       />
 
       <View
         style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
           paddingHorizontal: spacing.lg,
-          paddingVertical: spacing.md
+          paddingVertical: spacing.md,
         }}
       >
         <Text style={{ ...type.body, color: colors.label }}>Theme</Text>
-        <View style={{ flexDirection: 'row', gap: spacing.md }}>
+        <View style={{ flexDirection: "row", gap: spacing.md }}>
           {ACCENT_ORDER.map((key) => (
             <AccentDot
               key={key}
@@ -238,7 +251,7 @@ function ModeCard({
   label,
   icon,
   selected,
-  onPress
+  onPress,
 }: {
   label: string;
   icon: SFSymbol;
@@ -253,14 +266,14 @@ function ModeCard({
         flex: 1,
         aspectRatio: 1.0,
         borderRadius: radius.md,
-        borderCurve: 'continuous',
+        borderCurve: "continuous",
         backgroundColor: selected ? tintBg(colors.accent) : colors.fill,
         borderWidth: 1.5,
-        borderColor: selected ? colors.accent : 'transparent',
-        alignItems: 'center',
-        justifyContent: 'center',
+        borderColor: selected ? colors.accent : "transparent",
+        alignItems: "center",
+        justifyContent: "center",
         gap: spacing.xs,
-        opacity: pressed ? 0.8 : 1
+        opacity: pressed ? 0.8 : 1,
       })}
     >
       <SymbolView
@@ -271,8 +284,8 @@ function ModeCard({
       <Text
         style={{
           ...type.footnote,
-          fontWeight: '600',
-          color: selected ? colors.accent : colors.secondaryLabel
+          fontWeight: "600",
+          color: selected ? colors.accent : colors.secondaryLabel,
         }}
       >
         {label}
@@ -285,14 +298,14 @@ function AccentDot({
   value,
   selected,
   isDark,
-  onPress
+  onPress,
 }: {
   value: AccentKey;
   selected: boolean;
   isDark: boolean;
   onPress: () => void;
 }) {
-  const color = ACCENT_PRESETS[value][isDark ? 'dark' : 'light'];
+  const color = ACCENT_PRESETS[value][isDark ? "dark" : "light"];
   return (
     <Pressable onPress={onPress} hitSlop={6}>
       <View
@@ -302,14 +315,14 @@ function AccentDot({
           borderRadius: 13,
           borderWidth: selected ? 2 : 0,
           borderColor: color,
-          padding: selected ? 3 : 0
+          padding: selected ? 3 : 0,
         }}
       >
         <View
           style={{
             flex: 1,
             borderRadius: radius.pill,
-            backgroundColor: color
+            backgroundColor: color,
           }}
         />
       </View>
@@ -323,7 +336,7 @@ function TintedRow({
   trailing,
   tint,
   destructive,
-  onPress
+  onPress,
 }: {
   icon: SFSymbol;
   title: string;
@@ -341,7 +354,9 @@ function TintedRow({
       chevron={!!onPress && !trailing}
       trailing={
         trailing ? (
-          <Text style={{ ...type.body, color: colors.secondaryLabel }}>{trailing}</Text>
+          <Text style={{ ...type.body, color: colors.secondaryLabel }}>
+            {trailing}
+          </Text>
         ) : undefined
       }
       leading={
@@ -351,8 +366,8 @@ function TintedRow({
             height: 32,
             borderRadius: radius.lg,
             backgroundColor: tintBg(tint),
-            alignItems: 'center',
-            justifyContent: 'center'
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
           <SymbolView name={icon} size={18} tintColor={tint} />
@@ -367,47 +382,55 @@ function PlanCard() {
   const { plan, isPro } = useProState();
 
   const pct =
-    plan && plan.pushesPerMonth > 0 ? Math.min(1, plan.pushesThisMonth / plan.pushesPerMonth) : 0;
+    plan && plan.pushesPerMonth > 0
+      ? Math.min(1, plan.pushesThisMonth / plan.pushesPerMonth)
+      : 0;
   const tint = isPro ? colors.accent : colors.secondaryLabel;
 
   return (
     <Pressable
       onPress={() => {
         haptic.selection();
-        router.push('/upgrade');
+        router.push("/upgrade");
       }}
       style={({ pressed }) => ({
         marginHorizontal: spacing.lg,
         backgroundColor: pressed ? colors.cellHighlight : colors.cell,
         borderRadius: radius.lg,
-        borderCurve: 'continuous',
+        borderCurve: "continuous",
         padding: spacing.lg,
-        gap: spacing.md
+        gap: spacing.md,
       })}
     >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+      <View
+        style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}
+      >
         <View
           style={{
             width: 40,
             height: 40,
             borderRadius: radius.xl,
             backgroundColor: tintBg(tint),
-            alignItems: 'center',
-            justifyContent: 'center'
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
-          <SymbolView name={isPro ? 'sparkles' : 'person.fill'} size={20} tintColor={tint} />
+          <SymbolView
+            name={isPro ? "sparkles" : "person.fill"}
+            size={20}
+            tintColor={tint}
+          />
         </View>
         <View style={{ flex: 1 }}>
           <View
             style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: spacing.xs
+              flexDirection: "row",
+              alignItems: "center",
+              gap: spacing.xs,
             }}
           >
             <Text style={{ ...type.headline, color: colors.label }}>
-              {isPro ? 'pushr' : 'Free plan'}
+              {isPro ? "pushr" : "Free plan"}
             </Text>
             {isPro && <ProBadge />}
           </View>
@@ -415,28 +438,32 @@ function PlanCard() {
             style={{
               ...type.footnote,
               color: colors.secondaryLabel,
-              marginTop: 1
+              marginTop: 1,
             }}
           >
             {plan
               ? isPro
                 ? plan.proUntil
                   ? `Active until ${new Date(plan.proUntil).toLocaleDateString()}`
-                  : 'Active'
-                : 'Upgrade for unlimited source apps and rich pushes'
-              : 'Loading plan…'}
+                  : "Active"
+                : "Upgrade for unlimited source apps and rich pushes"
+              : "Loading plan…"}
           </Text>
         </View>
-        <SymbolView name="chevron.right" size={14} tintColor={colors.tertiaryLabel} />
+        <SymbolView
+          name="chevron.right"
+          size={14}
+          tintColor={colors.tertiaryLabel}
+        />
       </View>
 
       {plan && (
         <View style={{ gap: spacing.xs }}>
           <View
             style={{
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              alignItems: 'baseline'
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "baseline",
             }}
           >
             <Text style={{ ...type.footnote, color: colors.secondaryLabel }}>
@@ -446,35 +473,34 @@ function PlanCard() {
               style={{
                 ...type.footnote,
                 color: colors.label,
-                fontWeight: '600',
-                fontVariant: ['tabular-nums']
+                fontWeight: "600",
+                fontVariant: ["tabular-nums"],
               }}
             >
-              {plan.pushesThisMonth.toLocaleString()} / {plan.pushesPerMonth.toLocaleString()}
+              {plan.pushesThisMonth.toLocaleString()} /{" "}
+              {plan.pushesPerMonth.toLocaleString()}
             </Text>
           </View>
-          <View
-            style={{
-              height: 6,
-              borderRadius: 3,
-              backgroundColor: colors.fill,
-              overflow: 'hidden'
-            }}
-          >
-            <View
-              style={{
-                width: `${pct * 100}%`,
-                height: '100%',
-                backgroundColor:
-                  pct >= 1 ? colors.destructive : pct >= 0.8 ? colors.warning : colors.accent
-              }}
+          <Host matchContents={{ vertical: true }} style={{ width: "100%" }}>
+            <Gauge
+              value={pct}
+              modifiers={[
+                gaugeStyle("linearCapacity"),
+                uiTint(
+                  pct >= 1
+                    ? colors.destructive
+                    : pct >= 0.8
+                      ? colors.warning
+                      : colors.accent,
+                ),
+              ]}
             />
-          </View>
+          </Host>
           <Text style={{ ...type.caption1, color: colors.tertiaryLabel }}>
             {plan.sourceAppLimit === null
-              ? `${plan.sourceAppCount} source app${plan.sourceAppCount === 1 ? '' : 's'} · unlimited`
-              : `${plan.sourceAppCount} / ${plan.sourceAppLimit} source app${plan.sourceAppLimit === 1 ? '' : 's'}`}
-            {' · '}
+              ? `${plan.sourceAppCount} source app${plan.sourceAppCount === 1 ? "" : "s"} · unlimited`
+              : `${plan.sourceAppCount} / ${plan.sourceAppLimit} source app${plan.sourceAppLimit === 1 ? "" : "s"}`}
+            {" · "}
             {plan.historyDays}-day history
           </Text>
         </View>
