@@ -107,13 +107,20 @@ export interface NotifyResponse {
   scheduledFor: number | null;
 }
 
+/**
+ * Cross-runtime fetch signature. `typeof fetch` differs between bun-types
+ * and @types/node (Node 20+ adds a `preconnect` method) — spelling the call
+ * shape explicitly keeps consumers compatible across both.
+ */
+export type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+
 export interface PushrOptions {
   /** Base URL of the Convex deployment, e.g. https://<slug>.convex.site */
   url: string;
   /** Source-app bearer token (pshr_…) */
   token: string;
   /** Override the fetch implementation (tests, polyfills). */
-  fetch?: typeof fetch;
+  fetch?: FetchLike;
 }
 
 export class PushrError extends Error {
@@ -132,7 +139,7 @@ export class PushrError extends Error {
 export class Pushr {
   readonly #url: string;
   readonly #token: string;
-  readonly #fetch: typeof fetch;
+  readonly #fetch: FetchLike;
 
   constructor(opts: PushrOptions) {
     if (!opts.url) throw new TypeError('Pushr: url is required');

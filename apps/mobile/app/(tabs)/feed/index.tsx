@@ -1,8 +1,8 @@
-import { useQuery, useMutation, useAction } from 'convex/react';
-import { api } from '@pushr/backend/_generated/api';
-import type { FunctionReturnType } from 'convex/server';
-import type { NotifAction } from '@pushr/backend/lib/actionsLayout';
-import type { Id } from '@pushr/backend/_generated/dataModel';
+import { useQuery, useMutation, useAction } from "convex/react";
+import { api } from "@pushr/backend/_generated/api";
+import type { FunctionReturnType } from "convex/server";
+import type { NotifAction } from "@pushr/backend/lib/actionsLayout";
+import type { Id } from "@pushr/backend/_generated/dataModel";
 import {
   ActivityIndicator,
   FlatList,
@@ -12,9 +12,9 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  View
-} from 'react-native';
-import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
+  View,
+} from "react-native";
+import ReanimatedSwipeable from "react-native-gesture-handler/ReanimatedSwipeable";
 import Animated, {
   Easing,
   Extrapolation,
@@ -27,23 +27,30 @@ import Animated, {
   useDerivedValue,
   useSharedValue,
   withTiming,
-  type SharedValue
-} from 'react-native-reanimated';
-import { SymbolView } from 'expo-symbols';
-import { Image } from 'expo-image';
-import { BlurView } from 'expo-blur';
-import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ScreenHeader, ScreenBody } from '@/components/ScreenHeader';
-import { ScreenTransition } from '@/components/ScreenTransition';
-import { Avatar } from '@/components/Avatar';
-import { useTheme, spacing, radius, type } from '@/lib/theme';
-import { haptic } from '@/lib/haptics';
-import { promptText } from '@/lib/prompt';
-import { openLink } from '@/lib/openLink';
-import { formatRelative, groupFeedItems, type FeedItem, type FeedEntry } from '@/lib/feed-helpers';
+  type SharedValue,
+} from "react-native-reanimated";
+import { SymbolView } from "expo-symbols";
+import { Host, Picker, Text as UIText } from "@expo/ui/swift-ui";
+import { fixedSize, pickerStyle, tag } from "@expo/ui/swift-ui/modifiers";
+import { Image } from "expo-image";
+import { BlurView } from "expo-blur";
+import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ScreenHeader, ScreenBody } from "@/components/ScreenHeader";
+import { ScreenTransition } from "@/components/ScreenTransition";
+import { Avatar } from "@/components/Avatar";
+import { useTheme, spacing, radius, type } from "@/lib/theme";
+import { haptic } from "@/lib/haptics";
+import { promptText } from "@/lib/prompt";
+import { openLink } from "@/lib/openLink";
+import {
+  formatRelative,
+  groupFeedItems,
+  type FeedItem,
+  type FeedEntry,
+} from "@/lib/feed-helpers";
 
 // Distance (px) the row must travel past which a release commits the
 // delete. Matches iOS Mail's behaviour — ~80pt is enough for a clear
@@ -59,6 +66,14 @@ const FEED_PAGE_SIZE = 100;
 // Server caps at 500; mirror it so the client knows when to hide "Load older".
 const FEED_MAX = 500;
 
+// Above this many source apps, the horizontal chip strip collapses into a
+// SwiftUI menu — scrolling 20 chips to find one is worse than tapping a
+// dropdown.
+const FILTER_CHIP_THRESHOLD = 6;
+// Sentinel tag for the "All apps" option in the SwiftUI Picker. Real app IDs
+// are Convex strings, so any plain-text sentinel that can't collide works.
+const FILTER_ALL_TAG = "__all__";
+
 export default function Feed() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -70,23 +85,28 @@ export default function Feed() {
   const markAllRead = useMutation(api.notifications.markAllRead);
   const deleteOne = useMutation(api.notifications.deleteOne);
   const clearAll = useMutation(api.notifications.clearAll);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
   const [filterAppId, setFilterAppId] = useState<string | null>(null);
-  const canLoadMore = items != null && items.length === limit && limit < FEED_MAX;
+  const canLoadMore =
+    items != null && items.length === limit && limit < FEED_MAX;
 
   const unreadCount = items?.filter((i) => !i.readAt).length ?? 0;
   const total = items?.length ?? 0;
 
   const sourceApps = (() => {
-    if (!items) return [] as { id: string; name: string; logoUrl: string | null }[];
-    const seen = new Map<string, { id: string; name: string; logoUrl: string | null }>();
+    if (!items)
+      return [] as { id: string; name: string; logoUrl: string | null }[];
+    const seen = new Map<
+      string,
+      { id: string; name: string; logoUrl: string | null }
+    >();
     for (const n of items) {
       const id = n.sourceAppId as unknown as string;
       if (!seen.has(id)) {
         seen.set(id, {
           id,
           name: n.sourceAppName,
-          logoUrl: n.sourceAppLogoUrl ?? null
+          logoUrl: n.sourceAppLogoUrl ?? null,
         });
       }
     }
@@ -142,7 +162,7 @@ export default function Feed() {
         total > 0
           ? unreadCount > 0
             ? `${unreadCount} unread`
-            : `${total} ${total === 1 ? 'item' : 'items'}`
+            : `${total} ${total === 1 ? "item" : "items"}`
           : `0 items`
       }
       title="Feed"
@@ -157,9 +177,9 @@ export default function Feed() {
           <View
             style={{
               flex: 1,
-              alignItems: 'center',
-              justifyContent: 'center',
-              paddingTop: spacing.xxl
+              alignItems: "center",
+              justifyContent: "center",
+              paddingTop: spacing.xxl,
             }}
           >
             <ActivityIndicator color={colors.accent} />
@@ -180,42 +200,52 @@ export default function Feed() {
     );
   }
 
-  const pendingAckCount = items?.filter((i) => i.ack && !i.acknowledgedAt).length ?? 0;
+  const pendingAckCount =
+    items?.filter((i) => i.ack && !i.acknowledgedAt).length ?? 0;
 
-  const entries = useMemo(() => groupFeedItems(filtered ?? undefined), [filtered]);
+  const entries = useMemo(
+    () => groupFeedItems(filtered ?? undefined),
+    [filtered],
+  );
 
   return (
     <ScreenTransition style={{ backgroundColor: colors.background }}>
       {header}
       <ScreenBody>
+        <FeedToolbar
+          search={search}
+          onSearchChange={setSearch}
+          sourceApps={sourceApps}
+          filterAppId={filterAppId}
+          onFilterChange={setFilterAppId}
+          pendingAckCount={pendingAckCount}
+        />
         <FlatList
+          style={{ flex: 1 }}
           data={entries}
-          keyExtractor={(e) => (e.kind === 'group' ? `g:${e.activityId}` : e.item._id)}
+          keyExtractor={(e) =>
+            e.kind === "group" ? `g:${e.activityId}` : e.item._id
+          }
           contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={{
-            paddingTop: spacing.md,
-            paddingBottom: Math.max(160, insets.bottom + 100)
+            paddingBottom: Math.max(160, insets.bottom + 100),
           }}
-          ListHeaderComponent={
-            <FeedToolbar
-              search={search}
-              onSearchChange={setSearch}
-              sourceApps={sourceApps}
-              filterAppId={filterAppId}
-              onFilterChange={setFilterAppId}
-              pendingAckCount={pendingAckCount}
-            />
-          }
           ListEmptyComponent={
             <View
               style={{
                 paddingTop: spacing.xxl,
-                alignItems: 'center',
-                gap: spacing.sm
+                alignItems: "center",
+                gap: spacing.sm,
               }}
             >
-              <SymbolView name="magnifyingglass" size={32} tintColor={colors.tertiaryLabel} />
-              <Text style={{ ...type.subhead, color: colors.secondaryLabel }}>No matches</Text>
+              <SymbolView
+                name="magnifyingglass"
+                size={32}
+                tintColor={colors.tertiaryLabel}
+              />
+              <Text style={{ ...type.subhead, color: colors.secondaryLabel }}>
+                No matches
+              </Text>
             </View>
           }
           ListFooterComponent={
@@ -233,7 +263,7 @@ export default function Feed() {
           renderItem={({ item: entry, index }) => {
             const isFirst = index === 0;
             const isLast = index === entries.length - 1;
-            if (entry.kind === 'group') {
+            if (entry.kind === "group") {
               return (
                 <FeedGroupRow
                   group={entry}
@@ -264,7 +294,7 @@ export default function Feed() {
                   if (entry.item.url || entry.item.appUrl) {
                     void openLink({
                       appUrl: entry.item.appUrl,
-                      url: entry.item.url
+                      url: entry.item.url,
                     });
                   }
                 }}
@@ -297,7 +327,7 @@ const CLEAR_CONFIRM_TIMEOUT_MS = 2500;
 function FloatingBar({
   unreadCount,
   onMarkAllRead,
-  onClear
+  onClear,
 }: {
   unreadCount: number;
   onMarkAllRead: () => void;
@@ -363,11 +393,11 @@ function FloatingBar({
     <View
       pointerEvents="box-none"
       style={{
-        position: 'absolute',
+        position: "absolute",
         left: 0,
         right: 0,
         bottom: Math.max(insets.bottom, 0) + spacing.lg,
-        alignItems: 'center'
+        alignItems: "center",
       }}
     >
       {liquid ? (
@@ -377,27 +407,27 @@ function FloatingBar({
         // tray — Control Center uses the same nested-glass pattern.
         <GlassView
           glassEffectStyle="regular"
-          tintColor={isDark ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.25)'}
+          colorScheme={isDark ? "dark" : "light"}
           style={{
-            flexDirection: 'row',
-            alignItems: 'center',
+            flexDirection: "row",
+            alignItems: "center",
             padding: 5,
             gap: 14,
             borderRadius: 22,
-            borderCurve: 'continuous'
+            borderCurve: "continuous",
           }}
         >
           <GlassView
             isInteractive
             glassEffectStyle="clear"
-            style={{ borderRadius: radius.lg, borderCurve: 'continuous' }}
+            style={{ borderRadius: radius.lg, borderCurve: "continuous" }}
           >
             {markRead}
           </GlassView>
           <GlassView
             isInteractive
             glassEffectStyle="clear"
-            style={{ borderRadius: radius.lg, borderCurve: 'continuous' }}
+            style={{ borderRadius: radius.lg, borderCurve: "continuous" }}
           >
             {clear}
           </GlassView>
@@ -406,34 +436,38 @@ function FloatingBar({
         <View
           style={{
             borderRadius: 28,
-            overflow: 'hidden',
+            overflow: "hidden",
             boxShadow: isDark
-              ? '0px 8px 20px rgba(0, 0, 0, 0.5)'
-              : '0px 8px 20px rgba(0, 0, 0, 0.18)',
-            borderCurve: 'continuous'
+              ? "0px 8px 20px rgba(0, 0, 0, 0.5)"
+              : "0px 8px 20px rgba(0, 0, 0, 0.18)",
+            borderCurve: "continuous",
           }}
         >
           <BlurView
-            intensity={process.env.EXPO_OS === 'ios' ? 70 : 100}
-            tint={isDark ? 'dark' : 'light'}
+            intensity={process.env.EXPO_OS === "ios" ? 70 : 100}
+            tint={isDark ? "dark" : "light"}
             style={{
-              flexDirection: 'row',
-              alignItems: 'stretch',
+              flexDirection: "row",
+              alignItems: "stretch",
               paddingHorizontal: 6,
               paddingVertical: 6,
               gap: 4,
               borderWidth: 0.5,
-              borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
-              borderRadius: 28
+              borderColor: isDark
+                ? "rgba(255,255,255,0.08)"
+                : "rgba(0,0,0,0.06)",
+              borderRadius: 28,
             }}
           >
             {markRead}
             <View
               style={{
                 width: 0.5,
-                backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
-                alignSelf: 'stretch',
-                marginVertical: 8
+                backgroundColor: isDark
+                  ? "rgba(255,255,255,0.12)"
+                  : "rgba(0,0,0,0.08)",
+                alignSelf: "stretch",
+                marginVertical: 8,
               }}
             />
             {clear}
@@ -454,7 +488,7 @@ function ClearPill({
   destructive,
   destructiveTint,
   confirming,
-  onPress
+  onPress,
 }: {
   destructive: string;
   destructiveTint: string;
@@ -471,17 +505,21 @@ function ClearPill({
   useEffect(() => {
     progress.value = withTiming(confirming ? 1 : 0, {
       duration: 280,
-      easing: ease
+      easing: ease,
     });
   }, [confirming, ease, progress]);
   const trashOpacity = useDerivedValue(() => 1 - progress.value);
   const warnOpacity = useDerivedValue(() => progress.value);
 
   const containerStyle = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(progress.value, [0, 1], ['rgba(0,0,0,0)', destructive])
+    backgroundColor: interpolateColor(
+      progress.value,
+      [0, 1],
+      ["rgba(0,0,0,0)", destructive],
+    ),
   }));
   const textStyle = useAnimatedStyle(() => ({
-    color: interpolateColor(progress.value, [0, 1], [destructive, '#FFFFFF'])
+    color: interpolateColor(progress.value, [0, 1], [destructive, "#FFFFFF"]),
   }));
   const trashStyle = useAnimatedStyle(() => ({ opacity: trashOpacity.value }));
   const warnStyle = useAnimatedStyle(() => ({ opacity: warnOpacity.value }));
@@ -497,18 +535,18 @@ function ClearPill({
   const [idleW, setIdleW] = useState(0);
   const [confirmW, setConfirmW] = useState(0);
   const measured = idleW > 0 && confirmW > 0;
-  const labelStyle = { ...type.footnote, fontWeight: '600' as const };
+  const labelStyle = { ...type.footnote, fontWeight: "600" as const };
   const textWidthStyle = useAnimatedStyle(() => {
     if (!measured) return {};
     return { width: idleW + (confirmW - idleW) * progress.value };
   });
   const idleTextStyle = useAnimatedStyle(() => ({
     opacity: 1 - progress.value,
-    color: destructive
+    color: destructive,
   }));
   const confirmTextStyle = useAnimatedStyle(() => ({
     opacity: progress.value,
-    color: '#FFFFFF'
+    color: "#FFFFFF",
   }));
 
   return (
@@ -516,36 +554,42 @@ function ClearPill({
       <Pressable
         onPress={onPress}
         accessibilityRole="button"
-        accessibilityLabel={confirming ? 'Confirm clear feed' : 'Clear feed'}
-        accessibilityHint={confirming ? 'Commits the clear' : 'Tap again to confirm'}
+        accessibilityLabel={confirming ? "Confirm clear feed" : "Clear feed"}
+        accessibilityHint={
+          confirming ? "Commits the clear" : "Tap again to confirm"
+        }
         style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
       >
         <Animated.View
           style={[
             {
-              flexDirection: 'row',
-              alignItems: 'center',
+              flexDirection: "row",
+              alignItems: "center",
               gap: 5,
               paddingHorizontal: 11,
               paddingVertical: 7,
-              borderRadius: radius.lg
+              borderRadius: radius.lg,
             },
-            containerStyle
+            containerStyle,
           ]}
         >
-          <View style={{ width: 15, height: 15, justifyContent: 'center' }}>
+          <View style={{ width: 15, height: 15, justifyContent: "center" }}>
             <Animated.View style={[StyleSheet.absoluteFill, trashStyle]}>
               <SymbolView name="trash" size={15} tintColor={destructive} />
             </Animated.View>
             <Animated.View style={[StyleSheet.absoluteFill, warnStyle]}>
-              <SymbolView name="exclamationmark.triangle.fill" size={15} tintColor="#FFFFFF" />
+              <SymbolView
+                name="exclamationmark.triangle.fill"
+                size={15}
+                tintColor="#FFFFFF"
+              />
             </Animated.View>
           </View>
 
           {/* One-shot offscreen measurement so we know the natural widths. */}
           {idleW === 0 && (
             <Text
-              style={[labelStyle, { position: 'absolute', opacity: 0 }]}
+              style={[labelStyle, { position: "absolute", opacity: 0 }]}
               onLayout={(e) => setIdleW(e.nativeEvent.layout.width)}
             >
               Clear
@@ -553,7 +597,7 @@ function ClearPill({
           )}
           {confirmW === 0 && (
             <Text
-              style={[labelStyle, { position: 'absolute', opacity: 0 }]}
+              style={[labelStyle, { position: "absolute", opacity: 0 }]}
               onLayout={(e) => setConfirmW(e.nativeEvent.layout.width)}
             >
               Confirm clear
@@ -579,7 +623,7 @@ function ClearPill({
             // First-frame placeholder before measurement completes — keeps
             // the pill from rendering at width=0 for one frame on cold mount.
             <Animated.Text style={[labelStyle, textStyle]} numberOfLines={1}>
-              {confirming ? 'Confirm clear' : 'Clear'}
+              {confirming ? "Confirm clear" : "Clear"}
             </Animated.Text>
           )}
         </Animated.View>
@@ -595,7 +639,7 @@ function BarAction({
   color,
   disabled,
   badge,
-  emphasized
+  emphasized,
 }: {
   icon: string;
   label: string;
@@ -610,27 +654,35 @@ function BarAction({
   emphasized?: boolean;
 }) {
   const { tintBg } = useTheme();
-  const fg = emphasized ? '#FFFFFF' : color;
+  const fg = emphasized ? "#FFFFFF" : color;
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="button"
-      accessibilityLabel={badge !== undefined ? `${label}, ${badge} unread` : label}
+      accessibilityLabel={
+        badge !== undefined ? `${label}, ${badge} unread` : label
+      }
       accessibilityState={{ disabled: !!disabled }}
       style={({ pressed }) => ({
-        flexDirection: 'row',
-        alignItems: 'center',
+        flexDirection: "row",
+        alignItems: "center",
         gap: 5,
         paddingHorizontal: 11,
         paddingVertical: 7,
         borderRadius: radius.lg,
-        backgroundColor: emphasized ? color : pressed ? tintBg(color) : 'transparent',
-        opacity: disabled ? 0.45 : 1
+        backgroundColor: emphasized
+          ? color
+          : pressed
+            ? tintBg(color)
+            : "transparent",
+        opacity: disabled ? 0.45 : 1,
       })}
     >
       <SymbolView name={icon as any} size={15} tintColor={fg} />
-      <Text style={{ ...type.footnote, color: fg, fontWeight: '600' }}>{label}</Text>
+      <Text style={{ ...type.footnote, color: fg, fontWeight: "600" }}>
+        {label}
+      </Text>
       {badge !== undefined && (
         <View
           style={{
@@ -639,17 +691,17 @@ function BarAction({
             height: 16,
             borderRadius: radius.sm,
             backgroundColor: color,
-            alignItems: 'center',
-            justifyContent: 'center'
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
           <Text
             style={{
-              color: '#FFFFFF',
+              color: "#FFFFFF",
               fontSize: 11,
-              fontWeight: '700',
+              fontWeight: "700",
               lineHeight: 14,
-              fontVariant: ['tabular-nums']
+              fontVariant: ["tabular-nums"],
             }}
           >
             {badge}
@@ -666,7 +718,7 @@ function FeedToolbar({
   sourceApps,
   filterAppId,
   onFilterChange,
-  pendingAckCount
+  pendingAckCount,
 }: {
   search: string;
   onSearchChange: (s: string) => void;
@@ -681,7 +733,7 @@ function FeedToolbar({
       style={{
         gap: spacing.sm,
         marginBottom: spacing.lg,
-        marginTop: spacing.md
+        marginTop: spacing.xl,
       }}
     >
       {pendingAckCount > 0 && (
@@ -691,14 +743,18 @@ function FeedToolbar({
             paddingHorizontal: spacing.md,
             paddingVertical: spacing.sm,
             borderRadius: radius.md,
-            borderCurve: 'continuous',
-            backgroundColor: tintBg(colors.destructive, '1F'),
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: spacing.sm
+            borderCurve: "continuous",
+            backgroundColor: tintBg(colors.destructive, "1F"),
+            flexDirection: "row",
+            alignItems: "center",
+            gap: spacing.sm,
           }}
         >
-          <SymbolView name="bell.badge.waveform" size={18} tintColor={colors.destructive} />
+          <SymbolView
+            name="bell.badge.waveform"
+            size={18}
+            tintColor={colors.destructive}
+          />
           <Text style={{ ...type.subhead, color: colors.destructive, flex: 1 }}>
             {pendingAckCount} awaiting acknowledgement — tap to stop alerting
           </Text>
@@ -706,18 +762,22 @@ function FeedToolbar({
       )}
       <View
         style={{
-          flexDirection: 'row',
-          alignItems: 'center',
+          flexDirection: "row",
+          alignItems: "center",
           marginHorizontal: spacing.lg,
           paddingHorizontal: spacing.md,
           height: 44,
           borderRadius: radius.md,
-          borderCurve: 'continuous',
+          borderCurve: "continuous",
           backgroundColor: colors.fill,
-          gap: spacing.sm
+          gap: spacing.sm,
         }}
       >
-        <SymbolView name="magnifyingglass" size={16} tintColor={colors.secondaryLabel} />
+        <SymbolView
+          name="magnifyingglass"
+          size={16}
+          tintColor={colors.secondaryLabel}
+        />
         <TextInput
           value={search}
           onChangeText={onSearchChange}
@@ -728,7 +788,7 @@ function FeedToolbar({
             fontSize: 17,
             lineHeight: 22,
             color: colors.label,
-            padding: 0
+            padding: 0,
           }}
           autoCorrect={false}
           autoCapitalize="none"
@@ -736,36 +796,62 @@ function FeedToolbar({
           returnKeyType="search"
         />
       </View>
-      {sourceApps.length > 1 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{
-            paddingHorizontal: spacing.lg,
-            gap: spacing.xs
-          }}
-        >
-          <FilterChip
-            label="All"
-            selected={filterAppId === null}
-            onPress={() => {
-              haptic.selection();
-              onFilterChange(null);
+      {sourceApps.length > 1 &&
+        (sourceApps.length > FILTER_CHIP_THRESHOLD ? (
+          <View
+            style={{ marginHorizontal: spacing.lg, alignSelf: "flex-start" }}
+          >
+            <Host matchContents>
+              <Picker
+                selection={filterAppId ?? FILTER_ALL_TAG}
+                onSelectionChange={(v) => {
+                  haptic.selection();
+                  onFilterChange(v === FILTER_ALL_TAG ? null : (v as string));
+                }}
+                modifiers={[
+                  pickerStyle("menu"),
+                  fixedSize({ horizontal: true }),
+                ]}
+              >
+                <UIText modifiers={[tag(FILTER_ALL_TAG)]}>All apps</UIText>
+                {sourceApps.map((a) => (
+                  <UIText key={a.id} modifiers={[tag(a.id)]}>
+                    {a.name}
+                  </UIText>
+                ))}
+              </Picker>
+            </Host>
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{
+              paddingHorizontal: spacing.lg,
+              gap: spacing.xs,
             }}
-          />
-          {sourceApps.map((a) => (
+          >
             <FilterChip
-              key={a.id}
-              label={a.name}
-              selected={filterAppId === a.id}
+              label="All"
+              selected={filterAppId === null}
               onPress={() => {
                 haptic.selection();
-                onFilterChange(filterAppId === a.id ? null : a.id);
+                onFilterChange(null);
               }}
             />
-          ))}
-        </ScrollView>
-      )}
+            {sourceApps.map((a) => (
+              <FilterChip
+                key={a.id}
+                label={a.name}
+                selected={filterAppId === a.id}
+                onPress={() => {
+                  haptic.selection();
+                  onFilterChange(filterAppId === a.id ? null : a.id);
+                }}
+              />
+            ))}
+          </ScrollView>
+        ))}
     </View>
   );
 }
@@ -773,7 +859,7 @@ function FeedToolbar({
 function FilterChip({
   label,
   selected,
-  onPress
+  onPress,
 }: {
   label: string;
   selected: boolean;
@@ -790,14 +876,18 @@ function FilterChip({
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: radius.lg,
-        backgroundColor: selected ? colors.accent : pressed ? colors.cellHighlight : colors.fill
+        backgroundColor: selected
+          ? colors.accent
+          : pressed
+            ? colors.cellHighlight
+            : colors.fill,
       })}
     >
       <Text
         style={{
           ...type.footnote,
-          fontWeight: '600',
-          color: selected ? colors.accentContrast : colors.label
+          fontWeight: "600",
+          color: selected ? colors.accentContrast : colors.label,
         }}
       >
         {label}
@@ -811,7 +901,7 @@ function FeedFooter({
   limit,
   max,
   shown,
-  onLoadMore
+  onLoadMore,
 }: {
   canLoadMore: boolean;
   limit: number;
@@ -831,13 +921,17 @@ function FeedFooter({
           marginHorizontal: spacing.lg,
           marginTop: spacing.md,
           paddingVertical: spacing.sm + 2,
-          alignItems: 'center',
+          alignItems: "center",
           borderRadius: radius.md,
-          borderCurve: 'continuous',
-          backgroundColor: pressed ? colors.cellHighlight : colors.fill
+          borderCurve: "continuous",
+          backgroundColor: pressed ? colors.cellHighlight : colors.fill,
         })}
       >
-        <Text style={{ ...type.subhead, color: colors.accent, fontWeight: '600' }}>Load older</Text>
+        <Text
+          style={{ ...type.subhead, color: colors.accent, fontWeight: "600" }}
+        >
+          Load older
+        </Text>
       </Pressable>
     );
   }
@@ -847,8 +941,8 @@ function FeedFooter({
         style={{
           ...type.caption1,
           color: colors.tertiaryLabel,
-          textAlign: 'center',
-          marginTop: spacing.lg
+          textAlign: "center",
+          marginTop: spacing.lg,
         }}
       >
         Showing the latest {max}. Older notifications stay on the server.
@@ -864,10 +958,10 @@ function EmptyState() {
     <View
       style={{
         flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
+        alignItems: "center",
+        justifyContent: "center",
         padding: spacing.xxl,
-        gap: spacing.md
+        gap: spacing.md,
       }}
     >
       <View
@@ -876,19 +970,25 @@ function EmptyState() {
           height: 88,
           borderRadius: 44,
           backgroundColor: colors.fill,
-          alignItems: 'center',
-          justifyContent: 'center'
+          alignItems: "center",
+          justifyContent: "center",
         }}
       >
-        <SymbolView name="bell.slash" size={40} tintColor={colors.tertiaryLabel} />
+        <SymbolView
+          name="bell.slash"
+          size={40}
+          tintColor={colors.tertiaryLabel}
+        />
       </View>
-      <Text style={{ ...type.title3, color: colors.label }}>Your feed is empty</Text>
+      <Text style={{ ...type.title3, color: colors.label }}>
+        Your feed is empty
+      </Text>
       <Text
         style={{
           ...type.subhead,
           color: colors.secondaryLabel,
-          textAlign: 'center',
-          maxWidth: 280
+          textAlign: "center",
+          maxWidth: 280,
         }}
       >
         Create a source app in the Apps tab and send your first push.
@@ -905,9 +1005,9 @@ function FeedGroupRow({
   isFirst,
   isLast,
   onOpenItem,
-  onDeleteGroup
+  onDeleteGroup,
 }: {
-  group: Extract<FeedEntry, { kind: 'group' }>;
+  group: Extract<FeedEntry, { kind: "group" }>;
   isFirst: boolean;
   isLast: boolean;
   onOpenItem: (item: FeedItem) => void;
@@ -916,7 +1016,7 @@ function FeedGroupRow({
   const { colors } = useTheme();
   const [expanded, setExpanded] = useState(false);
   const latest = group.latest;
-  const anyEnded = group.all.some((i) => i.liveActivity?.action === 'end');
+  const anyEnded = group.all.some((i) => i.liveActivity?.action === "end");
   const eventCount = group.all.length;
 
   const header = (
@@ -926,7 +1026,7 @@ function FeedGroupRow({
         setExpanded((e) => !e);
       }}
       accessibilityRole="button"
-      accessibilityLabel={`Live activity from ${latest.sourceAppName}, ${latest.title}, ${eventCount} ${eventCount === 1 ? 'event' : 'events'}${anyEnded ? ', ended' : ''}`}
+      accessibilityLabel={`Live activity from ${latest.sourceAppName}, ${latest.title}, ${eventCount} ${eventCount === 1 ? "event" : "events"}${anyEnded ? ", ended" : ""}`}
       accessibilityState={{ expanded }}
       accessibilityHint="Toggles event history"
       style={({ pressed }) => ({
@@ -934,19 +1034,23 @@ function FeedGroupRow({
         paddingLeft: spacing.md,
         paddingRight: spacing.lg,
         paddingVertical: spacing.md,
-        flexDirection: 'row',
-        alignItems: 'center',
+        flexDirection: "row",
+        alignItems: "center",
         gap: spacing.md,
         minHeight: 72,
-        opacity: anyEnded ? 0.85 : 1
+        opacity: anyEnded ? 0.85 : 1,
       })}
     >
       <View>
-        <Avatar url={latest.sourceAppLogoUrl} name={latest.sourceAppName} size={40} />
+        <Avatar
+          url={latest.sourceAppLogoUrl}
+          name={latest.sourceAppName}
+          size={40}
+        />
         {!latest.readAt && !anyEnded && (
           <View
             style={{
-              position: 'absolute',
+              position: "absolute",
               left: -2,
               top: -2,
               width: 12,
@@ -954,7 +1058,7 @@ function FeedGroupRow({
               borderRadius: 6,
               backgroundColor: colors.accent,
               borderWidth: 2,
-              borderColor: colors.cell
+              borderColor: colors.cell,
             }}
           />
         )}
@@ -962,42 +1066,47 @@ function FeedGroupRow({
       <View style={{ flex: 1 }}>
         <View
           style={{
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            alignItems: 'baseline'
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "baseline",
           }}
         >
           <View
             style={{
-              flexDirection: 'row',
-              alignItems: 'center',
+              flexDirection: "row",
+              alignItems: "center",
               gap: 6,
-              flex: 1
+              flex: 1,
             }}
           >
-            <Text style={{ ...type.footnote, color: colors.secondaryLabel }} numberOfLines={1}>
+            <Text
+              style={{ ...type.footnote, color: colors.secondaryLabel }}
+              numberOfLines={1}
+            >
               {latest.sourceAppName}
             </Text>
-            {latest.liveActivity && <LiveActivityBadge action={latest.liveActivity.action} />}
+            {latest.liveActivity && (
+              <LiveActivityBadge action={latest.liveActivity.action} />
+            )}
             <View
               style={{
-                flexDirection: 'row',
-                alignItems: 'center',
+                flexDirection: "row",
+                alignItems: "center",
                 gap: 3,
                 paddingHorizontal: 6,
                 paddingVertical: 2,
                 borderRadius: 6,
-                backgroundColor: colors.fill
+                backgroundColor: colors.fill,
               }}
             >
               <Text
                 style={{
                   ...type.caption2,
                   color: colors.secondaryLabel,
-                  fontWeight: '600'
+                  fontWeight: "600",
                 }}
               >
-                {eventCount} event{eventCount === 1 ? '' : 's'}
+                {eventCount} event{eventCount === 1 ? "" : "s"}
               </Text>
             </View>
           </View>
@@ -1005,7 +1114,10 @@ function FeedGroupRow({
             {formatRelative(latest.createdAt)}
           </Text>
         </View>
-        <Text style={{ ...type.headline, color: colors.label, marginTop: 1 }} numberOfLines={1}>
+        <Text
+          style={{ ...type.headline, color: colors.label, marginTop: 1 }}
+          numberOfLines={1}
+        >
           {latest.title}
         </Text>
         {latest.liveActivity ? (
@@ -1015,7 +1127,7 @@ function FeedGroupRow({
             style={{
               ...type.subhead,
               color: colors.secondaryLabel,
-              marginTop: 1
+              marginTop: 1,
             }}
             numberOfLines={2}
           >
@@ -1024,7 +1136,7 @@ function FeedGroupRow({
         )}
       </View>
       <SymbolView
-        name={expanded ? 'chevron.up' : 'chevron.down'}
+        name={expanded ? "chevron.up" : "chevron.down"}
         size={13}
         tintColor={colors.tertiaryLabel}
       />
@@ -1040,7 +1152,7 @@ function FeedGroupRow({
         backgroundColor: colors.fill,
         paddingHorizontal: spacing.md,
         paddingVertical: spacing.sm,
-        gap: spacing.sm
+        gap: spacing.sm,
       }}
     >
       {[...group.all].toReversed().map((item) => (
@@ -1051,14 +1163,14 @@ function FeedGroupRow({
             onOpenItem(item);
           }}
           style={({ pressed }) => ({
-            flexDirection: 'row',
-            alignItems: 'center',
+            flexDirection: "row",
+            alignItems: "center",
             gap: spacing.sm,
             paddingVertical: 6,
             paddingHorizontal: 6,
             borderRadius: radius.sm,
-            backgroundColor: pressed ? colors.cellHighlight : 'transparent',
-            opacity: item.liveActivity?.action === 'end' ? 0.7 : 1
+            backgroundColor: pressed ? colors.cellHighlight : "transparent",
+            opacity: item.liveActivity?.action === "end" ? 0.7 : 1,
           })}
         >
           <ActionBadge action={item.liveActivity?.action} />
@@ -1073,30 +1185,36 @@ function FeedGroupRow({
             style={{
               ...type.footnote,
               color: colors.label,
-              flex: 1
+              flex: 1,
             }}
             numberOfLines={1}
           >
-            {item.liveActivity?.state.status ?? item.liveActivity?.state.title ?? item.body}
+            {item.liveActivity?.state.status ??
+              item.liveActivity?.state.title ??
+              item.body}
           </Text>
-          {typeof item.liveActivity?.state.progress === 'number' && (
+          {typeof item.liveActivity?.state.progress === "number" && (
             <Text
               style={{
                 ...type.caption1,
                 color: colors.tertiaryLabel,
-                fontVariant: ['tabular-nums']
+                fontVariant: ["tabular-nums"],
               }}
             >
-              {Math.round(Math.max(0, Math.min(1, item.liveActivity.state.progress)) * 100)}%
+              {Math.round(
+                Math.max(0, Math.min(1, item.liveActivity.state.progress)) *
+                  100,
+              )}
+              %
             </Text>
           )}
           <Text
             style={{
               ...type.caption2,
               color: colors.tertiaryLabel,
-              fontVariant: ['tabular-nums'],
+              fontVariant: ["tabular-nums"],
               minWidth: 34,
-              textAlign: 'right'
+              textAlign: "right",
             }}
           >
             {formatRelative(item.createdAt)}
@@ -1114,9 +1232,9 @@ function FeedGroupRow({
         borderTopRightRadius: isFirst ? radius.lg : 0,
         borderBottomLeftRadius: isLast ? radius.lg : 0,
         borderBottomRightRadius: isLast ? radius.lg : 0,
-        overflow: 'hidden',
+        overflow: "hidden",
         backgroundColor: colors.cell,
-        borderCurve: 'continuous'
+        borderCurve: "continuous",
       }}
     >
       <ReanimatedSwipeable
@@ -1140,7 +1258,7 @@ function FeedGroupRow({
         // round-trip + LinearTransition row collapse happen in parallel,
         // landing right as the snap-open finishes.
         onSwipeableWillOpen={(direction) => {
-          if (direction === 'right') {
+          if (direction === "right") {
             haptic.warning();
             onDeleteGroup();
           }
@@ -1154,9 +1272,9 @@ function FeedGroupRow({
       {!isLast && (
         <View
           style={{
-            height: 0.5,
+            height: 0.1,
             backgroundColor: colors.separator,
-            marginLeft: 64
+            marginLeft: 64,
           }}
         />
       )}
@@ -1164,17 +1282,17 @@ function FeedGroupRow({
   );
 }
 
-function ActionBadge({ action }: { action?: 'start' | 'update' | 'end' }) {
+function ActionBadge({ action }: { action?: "start" | "update" | "end" }) {
   const { colors, tintBg } = useTheme();
   const spec = (() => {
     switch (action) {
-      case 'start':
-        return { label: 'START', color: colors.accent };
-      case 'end':
-        return { label: 'END', color: colors.success };
-      case 'update':
+      case "start":
+        return { label: "START", color: colors.accent };
+      case "end":
+        return { label: "END", color: colors.success };
+      case "update":
       default:
-        return { label: 'UPDATE', color: colors.warning };
+        return { label: "UPDATE", color: colors.warning };
     }
   })();
   return (
@@ -1184,8 +1302,8 @@ function ActionBadge({ action }: { action?: 'start' | 'update' | 'end' }) {
         paddingHorizontal: 6,
         paddingVertical: 2,
         borderRadius: 5,
-        alignItems: 'center',
-        backgroundColor: tintBg(spec.color)
+        alignItems: "center",
+        backgroundColor: tintBg(spec.color),
       }}
     >
       <Text
@@ -1195,8 +1313,8 @@ function ActionBadge({ action }: { action?: 'start' | 'update' | 'end' }) {
           fontSize: 10,
           lineHeight: 13,
           color: spec.color,
-          fontWeight: '700',
-          letterSpacing: 0.3
+          fontWeight: "700",
+          letterSpacing: 0.3,
         }}
       >
         {spec.label}
@@ -1210,7 +1328,7 @@ function FeedRow({
   isFirst,
   isLast,
   onOpen,
-  onDelete
+  onDelete,
 }: {
   item: FeedItem;
   isFirst: boolean;
@@ -1221,13 +1339,21 @@ function FeedRow({
   const { colors, tintBg } = useTheme();
   const unread = !item.readAt;
 
+  // Inline body expansion. We measure once on first render with the 2-line
+  // cap in place: `onTextLayout` reports the lines that actually rendered, so
+  // if the joined rendered text is shorter than `item.body` we know there's
+  // more underneath and surface the expand chevron.
+  const [bodyExpanded, setBodyExpanded] = useState(false);
+  const [bodyTruncates, setBodyTruncates] = useState(false);
+  const measuredRef = useRef(false);
+
   const a11yParts = [
-    unread ? 'Unread' : 'Read',
+    unread ? "Unread" : "Read",
     `notification from ${item.sourceAppName}`,
     item.title,
     item.body,
-    formatRelative(item.createdAt) + ' ago',
-    item.ack && !item.acknowledgedAt ? 'acknowledgement needed' : null
+    formatRelative(item.createdAt) + " ago",
+    item.ack && !item.acknowledgedAt ? "acknowledgement needed" : null,
   ].filter(Boolean);
   const row = (
     <Pressable
@@ -1236,25 +1362,29 @@ function FeedRow({
         onOpen();
       }}
       accessibilityRole="button"
-      accessibilityLabel={a11yParts.join(', ')}
-      accessibilityHint={item.url ? 'Opens linked URL' : 'Marks as read'}
+      accessibilityLabel={a11yParts.join(", ")}
+      accessibilityHint={item.url ? "Opens linked URL" : "Marks as read"}
       style={({ pressed }) => ({
         backgroundColor: pressed ? colors.cellHighlight : colors.cell,
         paddingLeft: spacing.md,
         paddingRight: spacing.lg,
         paddingVertical: spacing.md,
-        flexDirection: 'row',
-        alignItems: 'center',
+        flexDirection: "row",
+        alignItems: "center",
         gap: spacing.md,
-        minHeight: 72
+        minHeight: 72,
       })}
     >
       <View>
-        <Avatar url={item.sourceAppLogoUrl} name={item.sourceAppName} size={40} />
+        <Avatar
+          url={item.sourceAppLogoUrl}
+          name={item.sourceAppName}
+          size={40}
+        />
         {unread && (
           <View
             style={{
-              position: 'absolute',
+              position: "absolute",
               left: -2,
               top: -2,
               width: 12,
@@ -1262,7 +1392,7 @@ function FeedRow({
               borderRadius: 6,
               backgroundColor: colors.accent,
               borderWidth: 2,
-              borderColor: colors.cell
+              borderColor: colors.cell,
             }}
           />
         )}
@@ -1270,70 +1400,111 @@ function FeedRow({
       <View style={{ flex: 1 }}>
         <View
           style={{
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            alignItems: 'baseline'
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "baseline",
           }}
         >
           <View
             style={{
-              flexDirection: 'row',
-              alignItems: 'center',
+              flexDirection: "row",
+              alignItems: "center",
               gap: 6,
-              flex: 1
+              flex: 1,
             }}
           >
-            <Text style={{ ...type.footnote, color: colors.secondaryLabel }} numberOfLines={1}>
+            <Text
+              style={{ ...type.footnote, color: colors.secondaryLabel }}
+              numberOfLines={1}
+            >
               {item.sourceAppName}
             </Text>
-            {item.liveActivity && <LiveActivityBadge action={item.liveActivity.action} />}
+            {item.liveActivity && (
+              <LiveActivityBadge action={item.liveActivity.action} />
+            )}
           </View>
           <Text style={{ ...type.caption1, color: colors.tertiaryLabel }}>
             {formatRelative(item.createdAt)}
           </Text>
         </View>
-        <Text style={{ ...type.headline, color: colors.label, marginTop: 1 }} numberOfLines={1}>
+        <Text
+          style={{ ...type.headline, color: colors.label, marginTop: 1 }}
+          numberOfLines={1}
+        >
           {item.title}
         </Text>
         {item.liveActivity ? (
           <LiveActivityBody state={item.liveActivity.state} />
         ) : (
-          <Text
-            style={{
-              ...type.subhead,
-              color: colors.secondaryLabel,
-              marginTop: 1
-            }}
-            numberOfLines={2}
-          >
-            {item.body}
-          </Text>
+          <>
+            <Text
+              style={{
+                ...type.subhead,
+                color: colors.secondaryLabel,
+                marginTop: 1,
+              }}
+              numberOfLines={bodyExpanded ? undefined : 2}
+              onTextLayout={(e) => {
+                if (measuredRef.current) return;
+                measuredRef.current = true;
+                const rendered = e.nativeEvent.lines.reduce(
+                  (sum, line) => sum + line.text.length,
+                  0,
+                );
+                if (rendered < item.body.length) setBodyTruncates(true);
+              }}
+            >
+              {item.body}
+            </Text>
+            {bodyTruncates && (
+              <Pressable
+                onPress={() => {
+                  haptic.selection();
+                  setBodyExpanded((v) => !v);
+                }}
+                hitSlop={10}
+                style={{ marginTop: 4, alignSelf: "flex-start" }}
+                accessibilityRole="button"
+                accessibilityLabel={bodyExpanded ? "Show less" : "Show more"}
+              >
+                <SymbolView
+                  name={bodyExpanded ? "chevron.up" : "chevron.down"}
+                  size={12}
+                  tintColor={colors.tertiaryLabel}
+                />
+              </Pressable>
+            )}
+          </>
         )}
         {item.ack && !item.acknowledgedAt && (
           <View
             style={{
               marginTop: 6,
-              alignSelf: 'flex-start',
-              flexDirection: 'row',
-              alignItems: 'center',
+              alignSelf: "flex-start",
+              flexDirection: "row",
+              alignItems: "center",
               gap: 4,
               paddingHorizontal: 8,
               paddingVertical: 3,
               borderRadius: radius.md,
-              backgroundColor: tintBg(colors.destructive)
+              backgroundColor: tintBg(colors.destructive),
             }}
           >
-            <SymbolView name="bell.badge" size={11} tintColor={colors.destructive} />
+            <SymbolView
+              name="bell.badge"
+              size={11}
+              tintColor={colors.destructive}
+            />
             <Text
               style={{
                 ...type.caption2,
                 color: colors.destructive,
-                fontWeight: '600'
+                fontWeight: "600",
               }}
             >
               {item.ack.attempts > 0
                 ? `Ack needed · re-alerted ${item.ack.attempts}×`
-                : 'Ack needed'}
+                : "Ack needed"}
             </Text>
           </View>
         )}
@@ -1345,14 +1516,20 @@ function FeedRow({
             width: 56,
             height: 56,
             borderRadius: radius.md,
-            backgroundColor: colors.fill
+            backgroundColor: colors.fill,
           }}
           contentFit="cover"
           transition={150}
           accessibilityIgnoresInvertColors
         />
       ) : (
-        item.url && <SymbolView name="chevron.right" size={14} tintColor={colors.tertiaryLabel} />
+        item.url && (
+          <SymbolView
+            name="chevron.right"
+            size={14}
+            tintColor={colors.tertiaryLabel}
+          />
+        )
       )}
     </Pressable>
   );
@@ -1379,9 +1556,9 @@ function FeedRow({
         borderTopRightRadius: isFirst ? radius.lg : 0,
         borderBottomLeftRadius: isLast ? radius.lg : 0,
         borderBottomRightRadius: isLast ? radius.lg : 0,
-        overflow: 'hidden',
+        overflow: "hidden",
         backgroundColor: colors.cell,
-        borderCurve: 'continuous'
+        borderCurve: "continuous",
       }}
     >
       <ReanimatedSwipeable
@@ -1401,7 +1578,7 @@ function FeedRow({
           />
         )}
         onSwipeableWillOpen={(direction) => {
-          if (direction === 'right') {
+          if (direction === "right") {
             haptic.warning();
             onDelete();
           }
@@ -1414,7 +1591,7 @@ function FeedRow({
           style={{
             height: 0.5,
             backgroundColor: colors.separator,
-            marginLeft: 64
+            marginLeft: 64,
           }}
         />
       )}
@@ -1425,50 +1602,50 @@ function FeedRow({
 function ActionButtonsBar({
   notificationId,
   actions,
-  disabled
+  disabled,
 }: {
-  notificationId: Id<'notifications'>;
+  notificationId: Id<"notifications">;
   actions: NotifAction[];
   disabled: boolean;
 }) {
   const { colors } = useTheme();
   const invoke = useAction(api.actions.invoke);
   const [busy, setBusy] = useState<string | null>(null);
-  const [done, setDone] = useState<Record<string, 'ok' | 'fail'>>({});
+  const [done, setDone] = useState<Record<string, "ok" | "fail">>({});
 
   async function handle(action: NotifAction) {
     if (busy || disabled) return;
     haptic.selection();
     setBusy(action.id);
     try {
-      if (action.kind === 'open_url') {
+      if (action.kind === "open_url") {
         void Linking.openURL(action.url).catch(() => {});
       }
-      if (action.kind === 'reply') {
+      if (action.kind === "reply") {
         const text = await promptText({
           title: action.label,
-          placeholder: action.placeholder ?? 'Type a reply',
-          confirmLabel: 'Send'
+          placeholder: action.placeholder ?? "Type a reply",
+          confirmLabel: "Send",
         });
         if (text === null) return;
         const result = await invoke({
           notificationId,
           actionIdentifier: action.id,
-          reply: text
+          reply: text,
         });
         setDone((d) => ({
           ...d,
-          [action.id]: result?.ok ? 'ok' : 'fail'
+          [action.id]: result?.ok ? "ok" : "fail",
         }));
         return;
       }
       const result = await invoke({
         notificationId,
-        actionIdentifier: action.id
+        actionIdentifier: action.id,
       });
-      setDone((d) => ({ ...d, [action.id]: result?.ok ? 'ok' : 'fail' }));
+      setDone((d) => ({ ...d, [action.id]: result?.ok ? "ok" : "fail" }));
     } catch {
-      setDone((d) => ({ ...d, [action.id]: 'fail' }));
+      setDone((d) => ({ ...d, [action.id]: "fail" }));
     } finally {
       setBusy(null);
     }
@@ -1477,21 +1654,21 @@ function ActionButtonsBar({
   return (
     <View
       style={{
-        flexDirection: 'row',
-        flexWrap: 'wrap',
+        flexDirection: "row",
+        flexWrap: "wrap",
         gap: spacing.xs,
         paddingHorizontal: spacing.md,
         paddingLeft: 64,
         paddingBottom: spacing.md,
-        paddingTop: 2
+        paddingTop: 2,
       }}
     >
       {actions.map((a) => {
         const status = done[a.id];
         const tint =
-          status === 'fail'
+          status === "fail"
             ? colors.destructive
-            : a.kind === 'reply'
+            : a.kind === "reply"
               ? colors.accent
               : a.destructive
                 ? colors.destructive
@@ -1505,7 +1682,7 @@ function ActionButtonsBar({
             accessibilityLabel={a.label}
             accessibilityState={{
               disabled: busy !== null || disabled,
-              busy: busy === a.id
+              busy: busy === a.id,
             }}
             style={({ pressed }) => ({
               paddingHorizontal: 12,
@@ -1515,13 +1692,19 @@ function ActionButtonsBar({
               borderColor: colors.separator,
               backgroundColor: pressed ? colors.cellHighlight : colors.fill,
               opacity: busy !== null && busy !== a.id ? 0.5 : 1,
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 4
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 4,
             })}
           >
-            {status === 'ok' && <SymbolView name="checkmark" size={12} tintColor={colors.accent} />}
-            {status === 'fail' && (
+            {status === "ok" && (
+              <SymbolView
+                name="checkmark"
+                size={12}
+                tintColor={colors.accent}
+              />
+            )}
+            {status === "fail" && (
               <SymbolView
                 name="exclamationmark.triangle"
                 size={12}
@@ -1532,7 +1715,7 @@ function ActionButtonsBar({
               style={{
                 ...type.footnote,
                 color: tint,
-                fontWeight: '600'
+                fontWeight: "600",
               }}
             >
               {a.label}
@@ -1544,22 +1727,22 @@ function ActionButtonsBar({
   );
 }
 
-function LiveActivityBadge({ action }: { action: 'start' | 'update' | 'end' }) {
+function LiveActivityBadge({ action }: { action: "start" | "update" | "end" }) {
   const { colors, tintBg } = useTheme();
-  const ended = action === 'end';
-  const label = ended ? 'Activity ended' : 'Live Activity';
+  const ended = action === "end";
+  const label = ended ? "Activity ended" : "Live Activity";
   const tint = ended ? colors.tertiaryLabel : colors.accent;
-  const bg = ended ? colors.fill : tintBg(colors.accent, '1F');
+  const bg = ended ? colors.fill : tintBg(colors.accent, "1F");
   return (
     <View
       style={{
-        flexDirection: 'row',
-        alignItems: 'center',
+        flexDirection: "row",
+        alignItems: "center",
         gap: 3,
         paddingHorizontal: 6,
         paddingVertical: 2,
         borderRadius: 6,
-        backgroundColor: bg
+        backgroundColor: bg,
       }}
     >
       <View
@@ -1568,15 +1751,15 @@ function LiveActivityBadge({ action }: { action: 'start' | 'update' | 'end' }) {
           height: 5,
           borderRadius: 2.5,
           backgroundColor: tint,
-          opacity: ended ? 0.6 : 1
+          opacity: ended ? 0.6 : 1,
         }}
       />
       <Text
         style={{
           ...type.caption2,
           color: tint,
-          fontWeight: '700',
-          letterSpacing: 0.2
+          fontWeight: "700",
+          letterSpacing: 0.2,
         }}
       >
         {label}
@@ -1586,7 +1769,7 @@ function LiveActivityBadge({ action }: { action: 'start' | 'update' | 'end' }) {
 }
 
 function LiveActivityBody({
-  state
+  state,
 }: {
   state: {
     title?: string;
@@ -1596,27 +1779,31 @@ function LiveActivityBody({
   };
 }) {
   const { colors } = useTheme();
-  const hasProgress = typeof state.progress === 'number';
+  const hasProgress = typeof state.progress === "number";
   const pct = hasProgress ? Math.max(0, Math.min(1, state.progress!)) : 0;
   return (
     <View style={{ marginTop: 4, gap: 6 }}>
       {(state.icon || state.status) && (
         <View
           style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 6
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
           }}
         >
           {state.icon && (
-            <SymbolView name={state.icon as any} size={13} tintColor={colors.secondaryLabel} />
+            <SymbolView
+              name={state.icon as any}
+              size={13}
+              tintColor={colors.secondaryLabel}
+            />
           )}
           {state.status && (
             <Text
               style={{
                 ...type.subhead,
                 color: colors.secondaryLabel,
-                flex: 1
+                flex: 1,
               }}
               numberOfLines={1}
             >
@@ -1628,7 +1815,7 @@ function LiveActivityBody({
               style={{
                 ...type.caption1,
                 color: colors.tertiaryLabel,
-                fontVariant: ['tabular-nums']
+                fontVariant: ["tabular-nums"],
               }}
             >
               {Math.round(pct * 100)}%
@@ -1642,7 +1829,7 @@ function LiveActivityBody({
             height: 4,
             borderRadius: 2,
             backgroundColor: colors.fill,
-            overflow: 'hidden'
+            overflow: "hidden",
           }}
         >
           <View
@@ -1650,7 +1837,7 @@ function LiveActivityBody({
               width: `${pct * 100}%`,
               height: 4,
               backgroundColor: colors.accent,
-              borderRadius: 2
+              borderRadius: 2,
             }}
           />
         </View>
@@ -1671,7 +1858,7 @@ function SwipeAction({
   tint,
   label,
   icon,
-  onPress
+  onPress,
 }: {
   progress: SharedValue<number>;
   tint: string;
@@ -1682,10 +1869,20 @@ function SwipeAction({
   const iconStyle = useAnimatedStyle(() => ({
     transform: [
       {
-        translateX: interpolate(progress.value, [0, 1], [20, 0], Extrapolation.CLAMP)
-      }
+        translateX: interpolate(
+          progress.value,
+          [0, 1],
+          [20, 0],
+          Extrapolation.CLAMP,
+        ),
+      },
     ],
-    opacity: interpolate(progress.value, [0, 0.4, 1], [0, 0.6, 1], Extrapolation.CLAMP)
+    opacity: interpolate(
+      progress.value,
+      [0, 0.4, 1],
+      [0, 0.6, 1],
+      Extrapolation.CLAMP,
+    ),
   }));
   return (
     <Pressable
@@ -1695,13 +1892,15 @@ function SwipeAction({
       style={{
         width: 96,
         backgroundColor: tint,
-        alignItems: 'center',
-        justifyContent: 'center'
+        alignItems: "center",
+        justifyContent: "center",
       }}
     >
-      <Animated.View style={[{ alignItems: 'center' }, iconStyle]}>
+      <Animated.View style={[{ alignItems: "center" }, iconStyle]}>
         <SymbolView name={icon as any} size={22} tintColor="#FFFFFF" />
-        <Text style={{ color: '#FFFFFF', ...type.caption1, marginTop: 4 }}>{label}</Text>
+        <Text style={{ color: "#FFFFFF", ...type.caption1, marginTop: 4 }}>
+          {label}
+        </Text>
       </Animated.View>
     </Pressable>
   );

@@ -9,7 +9,14 @@ import { Pushr, PushrError, notify, ping, liveActivity, resetDefaultClient } fro
 function makeFakeFetch() {
   const calls: { url: string; init?: RequestInit }[] = [];
   const queue: Response[] = [];
-  const fetchFn: typeof fetch = async (input, init) => {
+  // `typeof fetch` differs between bun and node (Node 20's fetch type has a
+  // `preconnect` method that bun-types omits). The SDK only calls `fetchFn`
+  // as a plain (input, init) => Promise<Response>, so we spell that shape
+  // explicitly to avoid the cross-runtime mismatch.
+  const fetchFn = async (
+    input: RequestInfo | URL,
+    init?: RequestInit
+  ): Promise<Response> => {
     calls.push({ url: String(input), init });
     const next = queue.shift();
     if (!next) throw new Error('fakeFetch: no response queued');
@@ -233,7 +240,7 @@ describe('default client (env-driven)', () => {
     const { fetchFn, enqueue, calls } = makeFakeFetch();
     enqueue({ id: 'n', scheduledFor: null });
     enqueue({ ok: true });
-    globalThis.fetch = fetchFn;
+    globalThis.fetch = fetchFn as typeof fetch;
     await notify({ title: 't', body: 'b' });
     await ping();
     expect(calls[0].url).toBe('https://x/notify');
@@ -245,7 +252,7 @@ describe('default client (env-driven)', () => {
     process.env.PUSHR_TOKEN = 't';
     const { fetchFn, enqueue, calls } = makeFakeFetch();
     enqueue({ id: 'n', scheduledFor: null });
-    globalThis.fetch = fetchFn;
+    globalThis.fetch = fetchFn as typeof fetch;
     await liveActivity('a').start({ status: 'ok' });
     expect(JSON.parse(String(calls[0].init?.body)).liveActivity.activityId).toBe('a');
   });

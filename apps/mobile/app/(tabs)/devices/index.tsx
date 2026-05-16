@@ -28,7 +28,7 @@ import { promptText } from "@/lib/prompt";
 import { registerForPushAsync } from "@/lib/push";
 
 export default function Devices() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const devices = useQuery(api.devices.listMine) as
     | Doc<"devices">[]
     | undefined;
@@ -137,6 +137,7 @@ export default function Devices() {
 
         <Host
           useViewportSizeMeasurement
+          colorScheme={isDark ? "dark" : "light"}
           style={{ flex: 1, marginTop: spacing.md }}
         >
           <List modifiers={[listStyle("insetGrouped")]}>

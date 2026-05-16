@@ -4,10 +4,11 @@ import { groupFeedItems, formatRelative, type FeedItem } from './feed-helpers';
 /**
  * Helper to fabricate a FeedItem-shaped object. Tests only care about the
  * fields read by `groupFeedItems` (`liveActivity.activityId`) so we cast
- * past the rest of the schema.
+ * past the rest of the schema. `_id` is loosened to plain `string` because
+ * Convex's branded `Id<'notifications'>` rejects test fixture literals.
  */
-function makeItem(partial: Partial<FeedItem> & Pick<FeedItem, '_id'>): FeedItem {
-  return partial as FeedItem;
+function makeItem(partial: { _id: string } & Partial<Omit<FeedItem, '_id'>>): FeedItem {
+  return partial as unknown as FeedItem;
 }
 
 describe('groupFeedItems', () => {
