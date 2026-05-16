@@ -7,9 +7,10 @@ import { useTheme, spacing, type } from '@/lib/theme';
 import { haptic } from '@/lib/haptics';
 
 /**
- * iOS 26 / xchat-style drawer header. Designed to be passed as TrueSheet's
- * `header` prop, where it gets pinned to the top of the sheet and TrueSheet
- * manages its own safe-area inset. No extra padding for status bars.
+ * iOS 26 / xchat-style header used at the top of in-app detail screens
+ * (sounds, advanced, sound-picker, upgrade). Provides a glass-blur close /
+ * back button and centered title; no status-bar padding by default — pass
+ * `safeAreaTop` when used at the very top of a full-screen route.
  */
 
 export type DrawerHeaderProps = {

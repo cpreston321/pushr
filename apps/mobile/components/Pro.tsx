@@ -5,6 +5,7 @@ import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { useConvexAuth, useQuery } from 'convex/react';
 import { api } from '@pushr/backend/_generated/api';
 import { authClient } from '@/lib/auth-client';
+import { backendConfig } from '@/lib/backend';
 import { useRevenueCat } from '@/lib/revenuecat';
 import { presentRcPaywall } from '@/lib/rcPaywall';
 import { useTheme, spacing, radius, type } from '@/lib/theme';
@@ -16,27 +17,51 @@ import { haptic } from '@/lib/haptics';
  * should reach for one of these instead of rolling its own.
  */
 
+/**
+ * True when the user has saved a custom Convex deployment via Server Config —
+ * i.e., they're self-hosting pushr. The official pushr.sh cloud charges for
+ * Pro; on a self-hosted backend, the user owns the infrastructure, so every
+ * gated feature unlocks automatically.
+ *
+ * Resolved from `backendConfig().custom`, which is a `SecureStore`-backed
+ * preference written by the Server Config sheet. Safe to call from any
+ * render — `backendConfig()` reads a synchronous cache populated at app
+ * boot.
+ */
+export function useIsSelfHosted(): boolean {
+  try {
+    return backendConfig().custom;
+  } catch {
+    return false;
+  }
+}
+
 /** Returns true if the current user has the Pro entitlement (via RC) or
- *  a Convex-side grant (server-issued, e.g. dev grant). */
+ *  a Convex-side grant (server-issued, e.g. dev grant), or they're running
+ *  a self-hosted deployment. */
 export function useIsPro(): boolean {
   const session = authClient().useSession();
   const userId = session.data?.user?.id;
   const { isAuthenticated } = useConvexAuth();
   const rc = useRevenueCat(userId);
   const plan = useQuery(api.tiers.getMyPlan, isAuthenticated ? {} : 'skip');
+  const selfHosted = useIsSelfHosted();
+  if (selfHosted) return true;
   if (rc.status.kind === 'ready' && rc.status.isPro) return true;
   return plan?.tier === 'pro';
 }
 
-/** Hook flavour that returns the resolved plan + isPro flag. */
+/** Hook flavour that returns the resolved plan + isPro / selfHosted flags. */
 export function useProState() {
   const session = authClient().useSession();
   const userId = session.data?.user?.id;
   const { isAuthenticated } = useConvexAuth();
   const rc = useRevenueCat(userId);
   const plan = useQuery(api.tiers.getMyPlan, isAuthenticated ? {} : 'skip');
-  const isPro = (rc.status.kind === 'ready' && rc.status.isPro) || plan?.tier === 'pro';
-  return { isPro: !!isPro, plan, rc };
+  const selfHosted = useIsSelfHosted();
+  const isPro =
+    selfHosted || (rc.status.kind === 'ready' && rc.status.isPro) || plan?.tier === 'pro';
+  return { isPro: !!isPro, selfHosted, plan, rc };
 }
 
 /** Open the upgrade flow. Tries RevenueCat's native paywall first

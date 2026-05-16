@@ -14,9 +14,7 @@ import {
 } from 'react-native';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
-import { Image } from 'expo-image';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
-import React, { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import { router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,30 +22,17 @@ import { ScreenHeader, ScreenBody } from '@/components/ScreenHeader';
 import { ScreenTransition } from '@/components/ScreenTransition';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
-import { Input } from '@/components/Input';
-import { Drawer, useDrawer, type DrawerRef } from '@/components/Drawer';
-import { DrawerHeader } from '@/components/DrawerHeader';
-import { SourceAppDrawer, type SourceAppDrawerRef } from '@/components/drawers/SourceAppDrawer';
 import { useTheme, spacing, radius, type } from '@/lib/theme';
 import { haptic } from '@/lib/haptics';
 import { showActionSheet } from '@/lib/actionSheet';
 import { promptText } from '@/lib/prompt';
 import { pickAndUploadLogo } from '@/lib/uploadLogo';
-import { recallToken, rememberToken } from '@/lib/tokenStore';
+import { recallToken } from '@/lib/tokenStore';
 
 type AppRow = Doc<'sourceApps'> & {
   logoUrl: string | null;
   role: 'owner' | 'editor' | 'viewer';
 };
-
-const SITE_URL = process.env.EXPO_PUBLIC_CONVEX_SITE_URL ?? '';
-
-function curlExample(appName: string, token = '<your_token>') {
-  return `curl -X POST "${SITE_URL}/notify" \\
-  -H "Authorization: Bearer ${token}" \\
-  -H "Content-Type: application/json" \\
-  -d '{"title":"Hello","body":"Test from ${appName}","priority":"high"}'`;
-}
 
 function quietHoursLabel(row: Pick<Doc<'sourceApps'>, 'quietStart' | 'quietEnd'>): string | null {
   const { quietStart: s, quietEnd: e } = row;
@@ -116,15 +101,6 @@ export default function Apps() {
   const atLimit =
     !!plan && plan.sourceAppLimit !== null && plan.sourceAppCount >= plan.sourceAppLimit;
 
-  const sourceAppDrawerRef = useRef<SourceAppDrawerRef>(null);
-  const createDrawerRef = useRef<DrawerRef>(null);
-  const tokenDrawerRef = useRef<DrawerRef>(null);
-  const [created, setCreated] = useState<{
-    id: Id<'sourceApps'>;
-    name: string;
-    token: string;
-  } | null>(null);
-
   async function copySavedToken(item: AppRow) {
     const token = await recallToken(item._id);
     if (!token) {
@@ -179,7 +155,7 @@ export default function Apps() {
 
   function openActions(item: AppRow) {
     haptic.light();
-    sourceAppDrawerRef.current?.open(item._id);
+    router.push({ pathname: '/source-app-detail' as never, params: { id: item._id } });
   }
 
   async function promptRename(item: AppRow) {
@@ -215,7 +191,7 @@ export default function Apps() {
             accessibilityRole="button"
             onPress={() => {
               haptic.light();
-              createDrawerRef.current?.present();
+              router.push('/create-app' as never);
             }}
             hitSlop={10}
           >
@@ -224,34 +200,6 @@ export default function Apps() {
         )
       }
     />
-  );
-
-  const modals = (
-    <>
-      <SourceAppDrawer
-        ref={sourceAppDrawerRef}
-        onTokenRotated={async ({ id, name, token }) => {
-          await rememberToken(id, token);
-          setCreated({ id, name, token });
-          // The detail drawer already dismisses itself; defer the token sheet
-          // so the animations don't collide.
-          setTimeout(() => tokenDrawerRef.current?.present(), 200);
-        }}
-      />
-      <CreateDrawer
-        ref={createDrawerRef}
-        onCreated={async (row) => {
-          await rememberToken(row.id, row.token);
-          await createDrawerRef.current?.dismiss();
-          setCreated(row);
-          // Defer present so dismissal animation finishes first.
-          setTimeout(() => tokenDrawerRef.current?.present(), 200);
-        }}
-        create={create}
-        generateUploadUrl={generateUploadUrl}
-      />
-      <TokenDrawer ref={tokenDrawerRef} created={created} onClose={() => setCreated(null)} />
-    </>
   );
 
   if (apps === undefined) {
@@ -270,7 +218,6 @@ export default function Apps() {
             <ActivityIndicator color={colors.accent} />
           </View>
         </ScreenBody>
-        {modals}
       </ScreenTransition>
     );
   }
@@ -327,12 +274,11 @@ export default function Apps() {
               </Text>
               <Button
                 title="Create source app"
-                onPress={() => createDrawerRef.current?.present()}
+                onPress={() => router.push('/create-app' as never)}
               />
             </View>
           </ScrollView>
         </ScreenBody>
-        {modals}
       </ScreenTransition>
     );
   }
@@ -478,443 +424,10 @@ export default function Apps() {
           }}
         />
       </ScreenBody>
-      {modals}
     </ScreenTransition>
   );
 }
 
-const CreateDrawer = forwardRef<
-  DrawerRef,
-  {
-    onCreated: (created: { id: Id<'sourceApps'>; name: string; token: string }) => void;
-    create: ReturnType<typeof useMutation<typeof api.sourceApps.create>>;
-    generateUploadUrl: ReturnType<typeof useMutation<typeof api.sourceApps.generateLogoUploadUrl>>;
-  }
->(function CreateDrawer({ onCreated, create, generateUploadUrl }, ref) {
-  return (
-    <Drawer ref={ref} header={<CreateHeader />}>
-      <ScrollView
-        contentContainerStyle={{
-          paddingHorizontal: spacing.xl,
-          paddingTop: spacing.md,
-          paddingBottom: spacing.xl,
-          gap: spacing.lg
-        }}
-        keyboardShouldPersistTaps="handled"
-      >
-        <CreateBody onCreated={onCreated} create={create} generateUploadUrl={generateUploadUrl} />
-      </ScrollView>
-    </Drawer>
-  );
-});
-
-function CreateHeader() {
-  const { dismiss } = useDrawer();
-  return <DrawerHeader title="New source app" onClose={() => dismiss()} />;
-}
-
-function CreateBody({
-  onCreated,
-  create,
-  generateUploadUrl
-}: {
-  onCreated: (created: { id: Id<'sourceApps'>; name: string; token: string }) => void;
-  create: ReturnType<typeof useMutation<typeof api.sourceApps.create>>;
-  generateUploadUrl: ReturnType<typeof useMutation<typeof api.sourceApps.generateLogoUploadUrl>>;
-}) {
-  const { colors } = useTheme();
-  const [name, setName] = useState('');
-  const [desc, setDesc] = useState('');
-  const [logo, setLogo] = useState<{
-    storageId: Id<'_storage'>;
-    localUri: string;
-  } | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-
-  function reset() {
-    setName('');
-    setDesc('');
-    setLogo(null);
-    setUploading(false);
-    setSubmitting(false);
-  }
-
-  async function pickLogo() {
-    if (uploading) return;
-    setUploading(true);
-    try {
-      const url = await generateUploadUrl({});
-      const res = await pickAndUploadLogo(url);
-      if (!res.ok) {
-        if (res.reason !== 'Canceled') {
-          haptic.error();
-          Alert.alert("Couldn't set logo", res.reason);
-        }
-        return;
-      }
-      haptic.light();
-      setLogo({ storageId: res.storageId, localUri: res.localUri });
-    } finally {
-      setUploading(false);
-    }
-  }
-
-  async function submit() {
-    const trimmed = name.trim();
-    if (!trimmed || submitting) return;
-    setSubmitting(true);
-    haptic.success();
-    try {
-      const result = await create({
-        name: trimmed,
-        description: desc.trim() || undefined,
-        logoStorageId: logo?.storageId
-      });
-      const row = { id: result.id, name: trimmed, token: result.token };
-      reset();
-      onCreated(row);
-    } catch (err: any) {
-      haptic.error();
-      Alert.alert("Couldn't create app", err?.message ?? 'Please try again.');
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <>
-      <View style={{ alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.md }}>
-        <Pressable onPress={pickLogo} disabled={uploading}>
-          {logo ? (
-            <Image
-              source={{ uri: logo.localUri }}
-              style={{
-                width: 92,
-                height: 92,
-                borderRadius: 46,
-                backgroundColor: colors.fill
-              }}
-              contentFit="cover"
-            />
-          ) : (
-            <View
-              style={{
-                width: 92,
-                height: 92,
-                borderRadius: 46,
-                backgroundColor: colors.fill,
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderWidth: 1,
-                borderColor: colors.separator,
-                borderStyle: 'dashed'
-              }}
-            >
-              <SymbolView
-                name={uploading ? 'arrow.up.circle' : 'photo.badge.plus'}
-                size={34}
-                tintColor={colors.secondaryLabel}
-              />
-            </View>
-          )}
-        </Pressable>
-        <Pressable onPress={pickLogo} disabled={uploading} hitSlop={8}>
-          <Text style={{ ...type.footnote, color: colors.accent }}>
-            {uploading ? 'Uploading…' : logo ? 'Change logo' : 'Add a logo (optional)'}
-          </Text>
-        </Pressable>
-      </View>
-
-      <Input label="Name" placeholder="e.g. home" value={name} onChangeText={setName} autoFocus />
-      <Input
-        label="Description (optional)"
-        placeholder="What sends from this app?"
-        value={desc}
-        onChangeText={setDesc}
-      />
-
-      <Button title="Create" onPress={submit} disabled={!name.trim()} loading={submitting} />
-    </>
-  );
-}
-
-const TokenDrawer = forwardRef<
-  DrawerRef,
-  {
-    created: { name: string; token: string } | null;
-    onClose: () => void;
-  }
->(function TokenDrawer({ created, onClose }, ref) {
-  return (
-    <Drawer ref={ref} header={<TokenHeader />} onDismiss={onClose}>
-      <ScrollView
-        contentContainerStyle={{
-          paddingHorizontal: spacing.xl,
-          paddingTop: spacing.md,
-          paddingBottom: 40,
-          gap: spacing.lg
-        }}
-        keyboardShouldPersistTaps="handled"
-      >
-        <TokenBody created={created} />
-      </ScrollView>
-    </Drawer>
-  );
-});
-
-function TokenHeader() {
-  const { dismiss } = useDrawer();
-  return <DrawerHeader title="Your token" onClose={() => dismiss()} />;
-}
-
-function TokenBody({ created }: { created: { name: string; token: string } | null }) {
-  const { colors, tintBg } = useTheme();
-  const { dismiss } = useDrawer();
-  const [copied, setCopied] = useState<'token' | 'curl' | null>(null);
-  const [confirming, setConfirming] = useState(false);
-
-  async function copy(kind: 'token' | 'curl', text: string) {
-    await Clipboard.setStringAsync(text);
-    haptic.success();
-    setCopied(kind);
-    setTimeout(() => setCopied((c) => (c === kind ? null : c)), 2000);
-  }
-
-  function handleDone() {
-    if (!confirming && copied !== 'token') {
-      haptic.warning();
-      setConfirming(true);
-      setTimeout(() => setConfirming(false), 4000);
-      return;
-    }
-    setCopied(null);
-    setConfirming(false);
-    dismiss();
-  }
-
-  const tokenCopied = copied === 'token';
-  const curlCopied = copied === 'curl';
-  const accent = colors.warning;
-
-  return (
-    <>
-      {/* Compact warning hero — one icon, two lines. */}
-      <View style={{ alignItems: 'center', gap: spacing.xs }}>
-        <View
-          style={{
-            width: 44,
-            height: 44,
-            borderRadius: radius.lg,
-            borderCurve: 'continuous',
-            backgroundColor: tintBg(accent),
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}
-        >
-          <SymbolView name="exclamationmark.shield.fill" size={22} tintColor={accent} />
-        </View>
-        <Text
-          style={{
-            ...type.title3,
-            color: colors.label,
-            textAlign: 'center',
-            marginTop: spacing.xs
-          }}
-        >
-          Save this token now
-        </Text>
-        <Text
-          style={{
-            ...type.footnote,
-            color: colors.secondaryLabel,
-            textAlign: 'center',
-            paddingHorizontal: spacing.lg
-          }}
-        >
-          {created?.name ? `Token for ${created.name}. ` : ''}
-          Shown once — close this and you'll need to regenerate.
-        </Text>
-      </View>
-
-      {/* Single unified card: token + tap-to-copy rows. */}
-      <View
-        style={{
-          backgroundColor: colors.cell,
-          borderRadius: radius.lg,
-          borderCurve: 'continuous',
-          overflow: 'hidden'
-        }}
-      >
-        {/* Token value */}
-        <View
-          style={{
-            paddingHorizontal: spacing.lg,
-            paddingTop: spacing.md,
-            paddingBottom: spacing.md,
-            gap: spacing.xs
-          }}
-        >
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between'
-            }}
-          >
-            <Text
-              style={{
-                ...type.footnote,
-                color: colors.secondaryLabel,
-                textTransform: 'uppercase',
-                letterSpacing: 0.5,
-                fontWeight: '600'
-              }}
-            >
-              Bearer token
-            </Text>
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 5,
-                paddingHorizontal: 7,
-                paddingVertical: 2,
-                borderRadius: 999,
-                backgroundColor: tintBg(tokenCopied ? colors.success : accent)
-              }}
-            >
-              <View
-                style={{
-                  width: 5,
-                  height: 5,
-                  borderRadius: 3,
-                  backgroundColor: tokenCopied ? colors.success : accent
-                }}
-              />
-              <Text
-                style={{
-                  ...type.caption2,
-                  color: tokenCopied ? colors.success : accent,
-                  fontWeight: '700',
-                  letterSpacing: 0.5
-                }}
-              >
-                {tokenCopied ? 'COPIED' : 'SHOWN ONCE'}
-              </Text>
-            </View>
-          </View>
-          <Text
-            selectable
-            style={{
-              fontFamily: 'Menlo',
-              fontSize: 14,
-              lineHeight: 22,
-              color: colors.label
-            }}
-          >
-            {created?.token ?? ''}
-          </Text>
-        </View>
-
-        <View style={{ height: 0.5, backgroundColor: colors.separator }} />
-
-        {/* Tap to copy token */}
-        <TokenSheetRow
-          icon={tokenCopied ? 'checkmark.circle.fill' : 'doc.on.doc'}
-          tint={tokenCopied ? colors.success : colors.accent}
-          title={tokenCopied ? 'Copied' : 'Copy token'}
-          onPress={() => {
-            if (created) copy('token', created.token);
-          }}
-        />
-
-        <View
-          style={{
-            height: 0.5,
-            backgroundColor: colors.separator,
-            marginLeft: 56
-          }}
-        />
-
-        {/* Tap to copy curl example */}
-        <TokenSheetRow
-          icon={curlCopied ? 'checkmark.circle.fill' : 'terminal.fill'}
-          tint={curlCopied ? colors.success : colors.accent}
-          title={curlCopied ? 'Copied' : 'Copy curl example'}
-          subtitle={curlCopied ? undefined : 'Try it from the command line right now'}
-          onPress={() => {
-            if (created) copy('curl', curlExample(created.name, created.token));
-          }}
-        />
-      </View>
-
-      <Button
-        title={confirming ? 'Tap again to dismiss without copying' : 'Done'}
-        variant={tokenCopied ? 'primary' : 'secondary'}
-        onPress={handleDone}
-      />
-    </>
-  );
-}
-
-function TokenSheetRow({
-  icon,
-  tint,
-  title,
-  subtitle,
-  onPress
-}: {
-  icon: SFSymbol;
-  tint: string;
-  title: string;
-  subtitle?: string;
-  onPress: () => void;
-}) {
-  const { colors, tintBg } = useTheme();
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => ({
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.md,
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.md,
-        opacity: pressed ? 0.6 : 1,
-        minHeight: 52
-      })}
-    >
-      <View
-        style={{
-          width: 28,
-          height: 28,
-          borderRadius: radius.md,
-          backgroundColor: tintBg(tint),
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}
-      >
-        <SymbolView name={icon} size={16} tintColor={tint} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={{ ...type.body, color: colors.label }}>{title}</Text>
-        {!!subtitle && (
-          <Text
-            style={{
-              ...type.footnote,
-              color: colors.secondaryLabel,
-              marginTop: 1
-            }}
-            numberOfLines={1}
-          >
-            {subtitle}
-          </Text>
-        )}
-      </View>
-    </Pressable>
-  );
-}
 
 type PendingInvite = {
   _id: Id<'sourceAppInvites'>;

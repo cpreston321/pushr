@@ -37,7 +37,6 @@
         "@convex-dev/better-auth": "^0.12.2",
         "@expo/ui": "~55.0.16",
         "@expo/vector-icons": "^15.1.1",
-        "@lodev09/react-native-true-sheet": "^3.10.1",
         "@pushr/backend": "workspace:*",
         "@pushr/live-activity": "workspace:*",
         "@pushr/widget-data": "workspace:*",
@@ -569,8 +568,6 @@
     "@jridgewell/sourcemap-codec": ["@jridgewell/sourcemap-codec@1.5.5", "", {}, "sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og=="],
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
-
-    "@lodev09/react-native-true-sheet": ["@lodev09/react-native-true-sheet@3.10.1", "", { "peerDependencies": { "@gorhom/bottom-sheet": ">=5", "@react-navigation/native": ">=7", "react": "*", "react-native": "*", "react-native-reanimated": ">=4", "react-native-worklets": "*" }, "optionalPeers": ["@gorhom/bottom-sheet", "@react-navigation/native", "react-native-reanimated", "react-native-worklets"] }, "sha512-cF5AlYElBIaPyKWuu8WfDFZUm40Wbo5VC1fI6uF5N9mTxQ4w10PYc+msKUxuS6Kqhhl5pZrXRu186wfCPPdDLg=="],
 
     "@napi-rs/wasm-runtime": ["@napi-rs/wasm-runtime@1.1.4", "", { "dependencies": { "@tybys/wasm-util": "^0.10.1" }, "peerDependencies": { "@emnapi/core": "^1.7.1", "@emnapi/runtime": "^1.7.1" } }, "sha512-3NQNNgA1YSlJb/kMH1ildASP9HW7/7kYnRI2szWJaofaS1hWmbGI4H+d3+22aGzXXN9IJ+n+GiFVcGipJP18ow=="],
 

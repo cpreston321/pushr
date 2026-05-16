@@ -1,5 +1,5 @@
-import { useRef } from 'react';
 import { ScrollView, Text, View } from 'react-native';
+import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { DrawerHeader } from '@/components/DrawerHeader';
@@ -9,13 +9,10 @@ import { ListRow } from '@/components/ListRow';
 import { useTheme, spacing, radius, type } from '@/lib/theme';
 import { haptic } from '@/lib/haptics';
 import { currentServerLabel } from '@/lib/backend';
-import type { DrawerRef } from '@/components/Drawer';
-import { ServerConfigDrawer } from '@/components/drawers/ServerConfigDrawer';
 
 export default function AdvancedScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const serverConfigRef = useRef<DrawerRef>(null);
 
   return (
     <ScreenTransition style={{ backgroundColor: colors.grouped }}>
@@ -35,12 +32,11 @@ export default function AdvancedScreen() {
             tint={colors.accent}
             onPress={() => {
               haptic.selection();
-              serverConfigRef.current?.present();
+              router.push('/server-config');
             }}
           />
         </ListSection>
       </ScrollView>
-      <ServerConfigDrawer ref={serverConfigRef} />
     </ScreenTransition>
   );
 }

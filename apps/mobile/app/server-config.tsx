@@ -1,11 +1,12 @@
-import { forwardRef, useState } from 'react';
-import { Alert, ScrollView, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Alert, Text, View } from 'react-native';
+import { router } from 'expo-router';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { authClient, backendConfig, resetBackend, saveBackend } from '@/lib/backend';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
-import { Drawer, useDrawer, type DrawerRef } from '@/components/Drawer';
-import { DrawerHeader } from '@/components/DrawerHeader';
+import { SheetContainer } from '@/components/SheetContainer';
+import { SheetHeader } from '@/components/SheetHeader';
 import { useTheme, spacing, type, radius } from '@/lib/theme';
 import { haptic } from '@/lib/haptics';
 
@@ -15,33 +16,29 @@ type TestState =
   | { kind: 'ok' }
   | { kind: 'fail'; reason: string };
 
-export const ServerConfigDrawer = forwardRef<DrawerRef>(function ServerConfigDrawer(_props, ref) {
+/**
+ * formSheet route for swapping the Convex backend. Reached from Settings →
+ * Advanced and from the login screen. Replaces the imperative
+ * `ServerConfigDrawer` ref API. Dismiss via swipe down / grabber.
+ */
+export default function ServerConfigScreen() {
+  const { colors } = useTheme();
   return (
-    <Drawer ref={ref} header={<HeaderShell />}>
-      <ScrollView
-        contentContainerStyle={{
-          padding: spacing.lg,
-          paddingTop: spacing.md,
-          gap: spacing.lg,
-          paddingBottom: 60
-        }}
+    <View style={{ flex: 1, backgroundColor: colors.sheet }}>
+      <SheetHeader title="Server" />
+      <SheetContainer
+        scrollView
         keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="interactive"
+        contentContainerStyle={{ paddingTop: spacing.md, gap: spacing.lg }}
       >
-        <ServerConfigBody />
-      </ScrollView>
-    </Drawer>
+        <Body />
+      </SheetContainer>
+    </View>
   );
-});
-
-function HeaderShell() {
-  const { dismiss } = useDrawer();
-  return <DrawerHeader title="Server" onClose={() => dismiss()} />;
 }
 
-function ServerConfigBody() {
+function Body() {
   const { colors } = useTheme();
-  const { dismiss } = useDrawer();
 
   const current = (() => {
     try {
@@ -105,7 +102,7 @@ function ServerConfigBody() {
         .signOut()
         .catch(() => {});
       haptic.success();
-      await dismiss();
+      router.back();
       Alert.alert('Server updated', 'Quit and reopen the app to connect to the new backend.');
     } finally {
       setBusy(false);
@@ -120,7 +117,7 @@ function ServerConfigBody() {
         .signOut()
         .catch(() => {});
       haptic.success();
-      await dismiss();
+      router.back();
       Alert.alert('Switched to pushr cloud', 'Quit and reopen the app to apply the change.');
     } finally {
       setBusy(false);
@@ -129,12 +126,9 @@ function ServerConfigBody() {
 
   return (
     <>
-      <View style={{ gap: spacing.xs, marginBottom: spacing.xs }}>
-        <Text style={{ ...type.title2, color: colors.label }}>Backend</Text>
-        <Text style={{ ...type.subhead, color: colors.secondaryLabel }}>
-          Choose which Convex deployment this app talks to.
-        </Text>
-      </View>
+      <Text style={{ ...type.subhead, color: colors.secondaryLabel }}>
+        Choose which Convex deployment this app talks to.
+      </Text>
 
       <Section title="pushr cloud">
         <Text style={{ ...type.footnote, color: colors.secondaryLabel }}>
@@ -208,13 +202,7 @@ function Section({
         gap: spacing.md
       }}
     >
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: spacing.sm
-        }}
-      >
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
         <Text style={{ ...type.headline, color: colors.label }}>{title}</Text>
         {badge && (
           <View

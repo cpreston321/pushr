@@ -1,5 +1,12 @@
-import { useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedProps,
+  useSharedValue,
+  withRepeat,
+  withTiming
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -9,6 +16,7 @@ import { useAction, useConvexAuth, useMutation, useQuery } from 'convex/react';
 import { api } from '@pushr/backend/_generated/api';
 import { Button } from '@/components/Button';
 import { DrawerHeader } from '@/components/DrawerHeader';
+import { useIsSelfHosted } from '@/components/Pro';
 import { useTheme, spacing, radius, type } from '@/lib/theme';
 import { haptic } from '@/lib/haptics';
 import { authClient } from '@/lib/backend';
@@ -71,7 +79,12 @@ export default function Upgrade() {
   const rcUnconfigured = rc.status.kind === 'unconfigured';
   const pricesLoading = !rcUnconfigured && !activePackage;
 
-  const isPro = plan?.tier === 'pro';
+  // Self-hosters get Pro automatically — no paywall. Detected client-side
+  // from `backendConfig().custom`: if the user has saved a custom Convex
+  // deployment via Server Config, they own the infrastructure and all
+  // gated features unlock.
+  const selfHosted = useIsSelfHosted();
+  const isPro = selfHosted || plan?.tier === 'pro';
 
   async function startUpgrade() {
     if (busy) return;
@@ -178,22 +191,27 @@ export default function Upgrade() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.grouped }}>
-      <ScrollView
-        style={{ flex: 1 }}
-        contentInsetAdjustmentBehavior="never"
-        contentContainerStyle={{ paddingBottom: spacing.md }}
-      >
+      <View style={{ flex: 1 }}>
         <Hero insetTop={insets.top} accent={colors.accent} />
 
-        <View style={{ paddingHorizontal: spacing.xl, gap: spacing.lg, marginTop: -24 }}>
+        <View
+          style={{
+            flex: 1,
+            paddingHorizontal: spacing.xl,
+            gap: spacing.md,
+            marginTop: -20,
+            justifyContent: 'space-between',
+            paddingBottom: spacing.sm
+          }}
+        >
           <View
             style={{
               backgroundColor: colors.cell,
               borderRadius: radius.xl,
               borderCurve: 'continuous',
-              paddingVertical: spacing.md,
-              paddingHorizontal: spacing.lg,
-              gap: spacing.md,
+              paddingVertical: spacing.sm + 2,
+              paddingHorizontal: spacing.md,
+              gap: spacing.sm,
               boxShadow: '0px 6px 14px rgba(0, 0, 0, 0.18)'
             }}
           >
@@ -204,26 +222,26 @@ export default function Upgrade() {
                 accessibilityLabel={`${p.title}. ${p.body}`}
                 style={{
                   flexDirection: 'row',
-                  gap: spacing.md,
+                  gap: spacing.sm,
                   alignItems: 'center'
                 }}
               >
                 <View
                   style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 18,
+                    width: 30,
+                    height: 30,
+                    borderRadius: 15,
                     backgroundColor: tintBg(colors.accent),
                     alignItems: 'center',
                     justifyContent: 'center'
                   }}
                 >
-                  <SymbolView name={p.icon} size={18} tintColor={colors.accent} />
+                  <SymbolView name={p.icon} size={15} tintColor={colors.accent} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text
                     style={{
-                      ...type.subhead,
+                      ...type.footnote,
                       color: colors.label,
                       fontWeight: '600'
                     }}
@@ -232,10 +250,11 @@ export default function Upgrade() {
                   </Text>
                   <Text
                     style={{
-                      ...type.caption1,
+                      ...type.caption2,
                       color: colors.secondaryLabel,
                       marginTop: 1
                     }}
+                    numberOfLines={2}
                   >
                     {p.body}
                   </Text>
@@ -244,51 +263,73 @@ export default function Upgrade() {
             ))}
           </View>
 
-          {!isPro && (
-            <View style={{ alignItems: 'center', gap: spacing.sm }}>
-              <CycleToggle cycle={cycle} onChange={setCycle} />
-              <View style={{ alignItems: 'center', minHeight: 64, justifyContent: 'center' }}>
-                {price ? (
-                  <>
-                    <Text style={{ ...type.largeTitle, color: colors.label, fontSize: 40 }}>
-                      {price.headline}
-                    </Text>
-                    <Text style={{ ...type.footnote, color: colors.secondaryLabel }}>
-                      {price.caption}
-                    </Text>
-                  </>
-                ) : pricesLoading ? (
-                  <PriceSkeleton tint={colors.fill} />
-                ) : (
-                  <Text style={{ ...type.footnote, color: colors.secondaryLabel }}>
-                    Pricing unavailable
-                  </Text>
-                )}
-              </View>
-              {cycle === 'yearly' && price && (
-                <View
+          {selfHosted ? (
+            <View
+              style={{
+                padding: spacing.lg,
+                borderRadius: radius.lg,
+                borderCurve: 'continuous',
+                backgroundColor: tintBg(colors.success, '18'),
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: spacing.md
+              }}
+            >
+              <SymbolView name="server.rack" size={22} tintColor={colors.success} />
+              <View style={{ flex: 1 }}>
+                <Text
                   style={{
-                    backgroundColor: tintBg(colors.success),
-                    paddingHorizontal: 10,
-                    paddingVertical: 4,
-                    borderRadius: radius.md
+                    ...type.footnote,
+                    color: colors.success,
+                    fontWeight: '700'
                   }}
                 >
-                  <Text
-                    style={{
-                      ...type.caption1,
-                      color: colors.success,
-                      fontWeight: '700'
-                    }}
-                  >
-                    SAVE 40%
-                  </Text>
-                </View>
-              )}
+                  Self-hosted — everything unlocked
+                </Text>
+                <Text
+                  style={{
+                    ...type.caption1,
+                    color: colors.secondaryLabel,
+                    marginTop: 2
+                  }}
+                >
+                  You're running pushr on your own Convex deployment. All Pro
+                  features are active, no subscription required.
+                </Text>
+              </View>
             </View>
-          )}
-
-          {isPro && (
+          ) : !isPro ? (
+            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+              <PricingCard
+                label="Monthly"
+                price={monthly?.product.priceString ?? null}
+                period="/month"
+                active={cycle === 'monthly'}
+                onPress={() => {
+                  haptic.selection();
+                  setCycle('monthly');
+                }}
+                loading={pricesLoading && !monthly}
+              />
+              <PricingCard
+                label="Yearly"
+                price={yearly?.product.priceString ?? null}
+                period="/year"
+                secondary={
+                  yearly
+                    ? `${perMonthEquiv(yearly.product.priceString)}/month`
+                    : undefined
+                }
+                badge="SAVE 40%"
+                active={cycle === 'yearly'}
+                onPress={() => {
+                  haptic.selection();
+                  setCycle('yearly');
+                }}
+                loading={pricesLoading && !yearly}
+              />
+            </View>
+          ) : (
             <View
               style={{
                 padding: spacing.md,
@@ -315,18 +356,20 @@ export default function Upgrade() {
             </View>
           )}
         </View>
-      </ScrollView>
+      </View>
 
       <View
         style={{
           paddingHorizontal: spacing.xl,
-          paddingTop: spacing.md,
+          paddingTop: spacing.sm,
           paddingBottom: Math.max(insets.bottom, spacing.md),
-          gap: spacing.xs,
+          gap: 4,
           backgroundColor: colors.background
         }}
       >
-        {isPro ? (
+        {selfHosted ? (
+          <Button title="Close" variant="secondary" onPress={() => router.back()} />
+        ) : isPro ? (
           <Button title="Downgrade to free" variant="secondary" onPress={fakeCancel} />
         ) : (
           <>
@@ -366,11 +409,13 @@ export default function Upgrade() {
             textAlign: 'center'
           }}
         >
-          {isPro
-            ? 'Cancel anytime.'
-            : price
-              ? `7 days free, then ${price.caption}. Cancel anytime. Self-hosted pushr stays free forever.`
-              : 'Cancel anytime. Self-hosted pushr stays free forever.'}
+          {selfHosted
+            ? 'Thanks for self-hosting pushr.'
+            : isPro
+              ? 'Cancel anytime.'
+              : price
+                ? `7 days free, then ${price.caption}. Cancel anytime. Self-hosted pushr stays free forever.`
+                : 'Cancel anytime. Self-hosted pushr stays free forever.'}
         </Text>
       </View>
 
@@ -385,13 +430,36 @@ export default function Upgrade() {
   );
 }
 
+const AnimatedRadialGradient = Animated.createAnimatedComponent(RadialGradient);
+
 function Hero({ insetTop, accent }: { insetTop: number; accent: string }) {
+  // Slowly drift the radial bloom's center on a sin/cos curve so the hero
+  // feels alive without being distracting. ~14s round trip, infinite.
+  const t = useSharedValue(0);
+  useEffect(() => {
+    t.value = withRepeat(
+      withTiming(1, { duration: 14000, easing: Easing.inOut(Easing.sin) }),
+      -1,
+      true
+    );
+  }, [t]);
+
+  const bloomProps = useAnimatedProps(() => {
+    const phase = t.value * 2 * Math.PI;
+    return {
+      cx: 50 + Math.sin(phase) * 22,
+      cy: 22 + Math.cos(phase * 0.7) * 10,
+      fx: 50 + Math.sin(phase) * 22,
+      fy: 22 + Math.cos(phase * 0.7) * 10
+    };
+  });
+
   return (
     <View
       style={{
         backgroundColor: HERO_BG,
-        paddingTop: insetTop + spacing.xxl,
-        paddingBottom: spacing.xxl + spacing.lg,
+        paddingTop: insetTop + spacing.lg,
+        paddingBottom: spacing.lg + spacing.md,
         paddingHorizontal: spacing.xl,
         overflow: 'hidden'
       }}
@@ -403,20 +471,17 @@ function Hero({ insetTop, accent }: { insetTop: number; accent: string }) {
         viewBox="0 0 100 100"
       >
         <Defs>
-          <RadialGradient
+          <AnimatedRadialGradient
             id="upgrade-bloom"
-            cx="50"
-            cy="20"
             rx="85"
             ry="90"
-            fx="50"
-            fy="20"
             gradientUnits="userSpaceOnUse"
+            animatedProps={bloomProps}
           >
             <Stop offset="0" stopColor={accent} stopOpacity={0.7} />
             <Stop offset="0.5" stopColor={accent} stopOpacity={0.2} />
             <Stop offset="1" stopColor={accent} stopOpacity={0} />
-          </RadialGradient>
+          </AnimatedRadialGradient>
         </Defs>
         <Rect x="0" y="0" width="100" height="100" fill="url(#upgrade-bloom)" />
       </Svg>
@@ -427,12 +492,12 @@ function Hero({ insetTop, accent }: { insetTop: number; accent: string }) {
         style={StyleSheet.absoluteFillObject}
       />
 
-      <View style={{ alignItems: 'center', gap: spacing.sm }}>
+      <View style={{ alignItems: 'center', gap: spacing.xs }}>
         <View
           style={{
-            width: 72,
-            height: 72,
-            borderRadius: 36,
+            width: 56,
+            height: 56,
+            borderRadius: 28,
             alignItems: 'center',
             justifyContent: 'center',
             backgroundColor: 'rgba(255,255,255,0.1)',
@@ -440,15 +505,15 @@ function Hero({ insetTop, accent }: { insetTop: number; accent: string }) {
             borderColor: 'rgba(255,255,255,0.15)'
           }}
         >
-          <SymbolView name="sparkles" size={36} tintColor="#FFFFFF" />
+          <SymbolView name="sparkles" size={28} tintColor="#FFFFFF" />
         </View>
         <Text
           style={{
-            fontSize: 34,
-            lineHeight: 40,
+            fontSize: 28,
+            lineHeight: 34,
             fontWeight: '700',
             color: '#FFFFFF',
-            letterSpacing: 0.35,
+            letterSpacing: 0.3,
             textAlign: 'center'
           }}
         >
@@ -456,10 +521,10 @@ function Hero({ insetTop, accent }: { insetTop: number; accent: string }) {
         </Text>
         <Text
           style={{
-            ...type.subhead,
+            ...type.footnote,
             color: 'rgba(255,255,255,0.7)',
             textAlign: 'center',
-            maxWidth: 300
+            maxWidth: 280
           }}
         >
           Everything you need to push with power. Self-hosting stays free forever.
@@ -469,79 +534,121 @@ function Hero({ insetTop, accent }: { insetTop: number; accent: string }) {
   );
 }
 
-function PriceSkeleton({ tint }: { tint: string }) {
-  return (
-    <View style={{ alignItems: 'center', gap: 6 }}>
-      <View
-        style={{
-          width: 96,
-          height: 40,
-          borderRadius: radius.sm,
-          backgroundColor: tint
-        }}
-      />
-      <View
-        style={{
-          width: 120,
-          height: 12,
-          borderRadius: 6,
-          backgroundColor: tint
-        }}
-      />
-    </View>
-  );
-}
-
-function CycleToggle({
-  cycle,
-  onChange
+/**
+ * Compact per-cycle pricing card. Two of these sit side-by-side in place of
+ * the old toggle + single-price layout. Active card gets an accent ring;
+ * Yearly card carries a `SAVE 40%` chip absolute-positioned top-right.
+ */
+function PricingCard({
+  label,
+  price,
+  period,
+  secondary,
+  badge,
+  active,
+  loading,
+  onPress
 }: {
-  cycle: BillingCycle;
-  onChange: (c: BillingCycle) => void;
+  label: string;
+  price: string | null;
+  period: string;
+  secondary?: string;
+  badge?: string;
+  active: boolean;
+  loading?: boolean;
+  onPress: () => void;
 }) {
-  const { colors, isDark } = useTheme();
-  const activeBg = isDark ? '#3A3A3C' : '#FFFFFF';
+  const { colors, tintBg } = useTheme();
   return (
-    <View
-      style={{
-        flexDirection: 'row',
-        backgroundColor: colors.fill,
-        borderRadius: radius.pill,
-        padding: 3
-      }}
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${label} ${price ?? ''}`}
+      accessibilityState={{ selected: active }}
+      style={({ pressed }) => ({
+        flex: 1,
+        backgroundColor: colors.cell,
+        borderRadius: radius.lg,
+        borderCurve: 'continuous',
+        borderWidth: 1.5,
+        borderColor: active ? colors.accent : 'transparent',
+        padding: spacing.md,
+        gap: 2,
+        opacity: pressed ? 0.85 : 1
+      })}
     >
-      {(['monthly', 'yearly'] as const).map((c) => {
-        const active = cycle === c;
-        return (
-          <Pressable
-            key={c}
-            onPress={() => {
-              if (process.env.EXPO_OS === 'ios') haptic.selection();
-              onChange(c);
-            }}
-            accessibilityRole="button"
-            accessibilityLabel={c === 'monthly' ? 'Monthly billing' : 'Yearly billing'}
-            accessibilityState={{ selected: active }}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <Text style={{ ...type.footnote, color: colors.label, fontWeight: '600' }}>{label}</Text>
+        {badge && (
+          <View
             style={{
-              paddingHorizontal: 20,
-              paddingVertical: 8,
-              borderRadius: radius.pill,
-              backgroundColor: active ? activeBg : 'transparent',
-              boxShadow: active ? '0px 2px 4px rgba(0, 0, 0, 0.12)' : undefined
+              backgroundColor: tintBg(colors.success),
+              paddingHorizontal: 6,
+              paddingVertical: 2,
+              borderRadius: radius.xs
             }}
           >
             <Text
               style={{
-                ...type.footnote,
-                fontWeight: active ? '700' : '500',
-                color: active ? colors.label : colors.secondaryLabel
+                ...type.caption2,
+                color: colors.success,
+                fontWeight: '700',
+                letterSpacing: 0.3
               }}
             >
-              {c === 'monthly' ? 'Monthly' : 'Yearly'}
+              {badge}
             </Text>
-          </Pressable>
-        );
-      })}
-    </View>
+          </View>
+        )}
+      </View>
+      {loading || !price ? (
+        <View
+          style={{
+            width: 72,
+            height: 22,
+            borderRadius: 4,
+            backgroundColor: colors.fill,
+            marginTop: 2
+          }}
+        />
+      ) : (
+        <Text
+          style={{
+            ...type.title3,
+            color: colors.label,
+            fontWeight: '700',
+            fontVariant: ['tabular-nums']
+          }}
+          numberOfLines={1}
+        >
+          {price}
+          <Text style={{ ...type.caption1, color: colors.secondaryLabel, fontWeight: '500' }}>
+            {' '}
+            {period}
+          </Text>
+        </Text>
+      )}
+      {secondary && !loading && (
+        <Text style={{ ...type.caption1, color: colors.tertiaryLabel }} numberOfLines={1}>
+          {secondary}
+        </Text>
+      )}
+    </Pressable>
   );
+}
+
+/**
+ * Compute the monthly equivalent from a yearly priceString by parsing out
+ * the currency symbol + number, dividing by 12, and reassembling. Falls
+ * back to the original string if the format is unrecognized.
+ */
+function perMonthEquiv(yearlyPriceString: string): string {
+  const match = yearlyPriceString.match(/^(\D*)([\d,.]+)(\D*)$/);
+  if (!match) return yearlyPriceString;
+  const [, prefix, num, suffix] = match;
+  const normalized = num.replace(/,/g, '');
+  const value = parseFloat(normalized);
+  if (!isFinite(value)) return yearlyPriceString;
+  const per = value / 12;
+  return `${prefix}${per.toFixed(2)}${suffix}`;
 }

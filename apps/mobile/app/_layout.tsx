@@ -1,20 +1,24 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
-import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { TrueSheetProvider } from '@lodev09/react-native-true-sheet';
-import { ConvexBetterAuthProvider } from '@convex-dev/better-auth/react';
-import { convex, authClient, initBackend } from '@/lib/backend';
-import { ThemePreferencesProvider, useTheme } from '@/lib/theme';
-import { useNotificationResponses } from '@/lib/useNotificationResponses';
-import { useLiveActivityTokens } from '@/lib/useLiveActivityTokens';
-import { useAction, useConvexAuth, useQuery } from 'convex/react';
-import { api } from '@pushr/backend/_generated/api';
-import { useBadgeSync } from '@/lib/useBadgeSync';
-import { PromptHost } from '@/components/PromptHost';
+import {
+  DarkTheme,
+  DefaultTheme,
+  ThemeProvider,
+} from "@react-navigation/native";
+import { Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import "react-native-reanimated";
+import { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { TrueSheetProvider } from "@lodev09/react-native-true-sheet";
+import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
+import { convex, authClient, initBackend } from "@/lib/backend";
+import { ThemePreferencesProvider, useTheme } from "@/lib/theme";
+import { useNotificationResponses } from "@/lib/useNotificationResponses";
+import { useLiveActivityTokens } from "@/lib/useLiveActivityTokens";
+import { useAction, useConvexAuth, useQuery } from "convex/react";
+import { api } from "@pushr/backend/_generated/api";
+import { useBadgeSync } from "@/lib/useBadgeSync";
+import { PromptHost } from "@/components/PromptHost";
 
 export default function RootLayout() {
   return (
@@ -43,8 +47,8 @@ function ThemedRoot() {
       card: colors.background,
       text: colors.label,
       border: colors.separator,
-      notification: colors.accent
-    }
+      notification: colors.accent,
+    },
   };
 
   if (!ready) {
@@ -52,9 +56,9 @@ function ThemedRoot() {
       <View
         style={{
           flex: 1,
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: colors.grouped
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: colors.grouped,
         }}
       >
         <ActivityIndicator color={colors.accent} />
@@ -63,9 +67,14 @@ function ThemedRoot() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.grouped }}>
+    <GestureHandlerRootView
+      style={{ flex: 1, backgroundColor: colors.grouped }}
+    >
       <TrueSheetProvider>
-        <ConvexBetterAuthProvider client={convex()} authClient={authClient() as never}>
+        <ConvexBetterAuthProvider
+          client={convex()}
+          authClient={authClient() as never}
+        >
           <ThemeProvider value={navTheme}>
             <AppShell isDark={isDark} bg={colors.grouped} />
           </ThemeProvider>
@@ -82,8 +91,10 @@ function AppShell({ isDark, bg }: { isDark: boolean; bg: string }) {
   // root layout still mounts. Skip Convex calls until the session is live so
   // we don't surface "Not authenticated" errors before login.
   const { isAuthenticated } = useConvexAuth();
-  const devices = useQuery(api.devices.listMine, isAuthenticated ? {} : 'skip');
-  const currentDeviceId = devices?.find((d) => d.enabled && !d.invalidatedAt)?._id;
+  const devices = useQuery(api.devices.listMine, isAuthenticated ? {} : "skip");
+  const currentDeviceId = devices?.find(
+    (d) => d.enabled && !d.invalidatedAt,
+  )?._id;
   useLiveActivityTokens(isAuthenticated ? currentDeviceId : undefined);
 
   // Cold-start reconcile against RevenueCat — recovers from dropped webhooks
@@ -101,14 +112,44 @@ function AppShell({ isDark, bg }: { isDark: boolean; bg: string }) {
   }, [isAuthenticated, reconcileIap]);
   return (
     <>
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: bg } }}>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: bg },
+        }}
+      >
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
-        <Stack.Screen name="upgrade" options={{ presentation: 'fullScreenModal' }} />
+        <Stack.Screen
+          name="upgrade"
+          options={{ presentation: "fullScreenModal" }}
+        />
+        <Stack.Screen
+          name="change-password"
+          options={{
+            presentation: "formSheet",
+            headerShown: false,
+            title: "",
+            sheetGrabberVisible: false,
+            sheetAllowedDetents: [0.85],
+            contentStyle: { backgroundColor: "transparent" },
+          }}
+        />
+        <Stack.Screen
+          name="server-config"
+          options={{
+            presentation: "formSheet",
+            headerShown: false,
+            title: "",
+            sheetGrabberVisible: true,
+            sheetAllowedDetents: [0.85, 1.0],
+            contentStyle: { backgroundColor: "transparent" },
+          }}
+        />
       </Stack>
       <PromptHost />
-      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <StatusBar style={isDark ? "light" : "dark"} />
     </>
   );
 }

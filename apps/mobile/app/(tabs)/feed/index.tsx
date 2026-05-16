@@ -1339,13 +1339,14 @@ function FeedRow({
   const { colors, tintBg } = useTheme();
   const unread = !item.readAt;
 
-  // Inline body expansion. We measure once on first render with the 2-line
-  // cap in place: `onTextLayout` reports the lines that actually rendered, so
-  // if the joined rendered text is shorter than `item.body` we know there's
-  // more underneath and surface the expand chevron.
+  // Inline body expansion. A hidden absolute Text (no line cap) sits over
+  // the visible body and reports the natural line count via `onTextLayout`.
+  // If that's > 2 the body would truncate, so we surface the expand chevron.
+  // More reliable than diffing rendered-vs-original chars on the visible
+  // (already-capped) Text, which mishandles ellipsis and whitespace.
   const [bodyExpanded, setBodyExpanded] = useState(false);
-  const [bodyTruncates, setBodyTruncates] = useState(false);
-  const measuredRef = useRef(false);
+  const [naturalLines, setNaturalLines] = useState(0);
+  const bodyTruncates = naturalLines > 2;
 
   const a11yParts = [
     unread ? "Unread" : "Read",
@@ -1444,14 +1445,26 @@ function FeedRow({
                 marginTop: 1,
               }}
               numberOfLines={bodyExpanded ? undefined : 2}
+            >
+              {item.body}
+            </Text>
+            {/* Hidden measurer: same Text styles, no line cap, absolutely
+                positioned so it doesn't affect layout. Reports the natural
+                line count so we know whether the visible (capped) Text would
+                truncate. */}
+            <Text
+              aria-hidden
+              pointerEvents="none"
+              style={{
+                ...type.subhead,
+                position: "absolute",
+                left: 0,
+                right: 0,
+                opacity: 0,
+              }}
               onTextLayout={(e) => {
-                if (measuredRef.current) return;
-                measuredRef.current = true;
-                const rendered = e.nativeEvent.lines.reduce(
-                  (sum, line) => sum + line.text.length,
-                  0,
-                );
-                if (rendered < item.body.length) setBodyTruncates(true);
+                const n = e.nativeEvent.lines.length;
+                if (n !== naturalLines) setNaturalLines(n);
               }}
             >
               {item.body}
@@ -1463,15 +1476,23 @@ function FeedRow({
                   setBodyExpanded((v) => !v);
                 }}
                 hitSlop={10}
-                style={{ marginTop: 4, alignSelf: "flex-start" }}
+                style={({ pressed }) => ({
+                  marginTop: 4,
+                  alignSelf: "flex-start",
+                  opacity: pressed ? 0.5 : 1,
+                })}
                 accessibilityRole="button"
                 accessibilityLabel={bodyExpanded ? "Show less" : "Show more"}
               >
-                <SymbolView
-                  name={bodyExpanded ? "chevron.up" : "chevron.down"}
-                  size={12}
-                  tintColor={colors.tertiaryLabel}
-                />
+                <Text
+                  style={{
+                    ...type.footnote,
+                    color: colors.accent,
+                    fontWeight: "600",
+                  }}
+                >
+                  {bodyExpanded ? "Show less" : "Show more"}
+                </Text>
               </Pressable>
             )}
           </>

@@ -1,6 +1,5 @@
 import { router } from "expo-router";
 import { Pressable, ScrollView, Text, View } from "react-native";
-import { useRef } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "convex/react";
 import { api } from "@pushr/backend/_generated/api";
@@ -11,8 +10,6 @@ import { currentServerLabel } from "@/lib/backend";
 import { ListSection } from "@/components/ListSection";
 import { ListRow } from "@/components/ListRow";
 import { useProState, ProBadge } from "@/components/Pro";
-import type { DrawerRef } from "@/components/Drawer";
-import { ChangePasswordDrawer } from "@/components/drawers/ChangePasswordDrawer";
 import {
   useTheme,
   useThemePreferences,
@@ -34,7 +31,6 @@ export default function Settings() {
   const insets = useSafeAreaInsets();
   const { data } = authClient().useSession();
   const user = data?.user;
-  const changePasswordRef = useRef<DrawerRef>(null);
 
   async function signOut() {
     showActionSheet({
@@ -84,7 +80,7 @@ export default function Settings() {
               tint={colors.accent}
               onPress={() => {
                 haptic.selection();
-                changePasswordRef.current?.present();
+                router.push("/change-password");
               }}
             />
             <TintedRow
@@ -137,7 +133,6 @@ export default function Settings() {
           </View>
         </ScrollView>
       </ScreenBody>
-      <ChangePasswordDrawer ref={changePasswordRef} />
     </ScreenTransition>
   );
 }
@@ -379,7 +374,7 @@ function TintedRow({
 
 function PlanCard() {
   const { colors, tintBg } = useTheme();
-  const { plan, isPro } = useProState();
+  const { plan, isPro, selfHosted } = useProState();
 
   const pct =
     plan && plan.pushesPerMonth > 0
@@ -416,7 +411,7 @@ function PlanCard() {
           }}
         >
           <SymbolView
-            name={isPro ? "sparkles" : "person.fill"}
+            name={selfHosted ? "server.rack" : isPro ? "sparkles" : "person.fill"}
             size={20}
             tintColor={tint}
           />
@@ -430,9 +425,10 @@ function PlanCard() {
             }}
           >
             <Text style={{ ...type.headline, color: colors.label }}>
-              {isPro ? "pushr" : "Free plan"}
+              {selfHosted ? "Self-hosted" : isPro ? "pushr" : "Free plan"}
             </Text>
-            {isPro && <ProBadge />}
+            {isPro && !selfHosted && <ProBadge />}
+            {selfHosted && <ProBadge label="UNLOCKED" />}
           </View>
           <Text
             style={{
@@ -442,11 +438,13 @@ function PlanCard() {
             }}
           >
             {plan
-              ? isPro
-                ? plan.proUntil
-                  ? `Active until ${new Date(plan.proUntil).toLocaleDateString()}`
-                  : "Active"
-                : "Upgrade for unlimited source apps and rich pushes"
+              ? selfHosted
+                ? "All Pro features active. No subscription required."
+                : isPro
+                  ? plan.proUntil
+                    ? `Active until ${new Date(plan.proUntil).toLocaleDateString()}`
+                    : "Active"
+                  : "Upgrade for unlimited source apps and rich pushes"
               : "Loading plan…"}
           </Text>
         </View>
