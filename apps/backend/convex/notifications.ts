@@ -1,5 +1,5 @@
 import { v, ConvexError } from 'convex/values';
-import { query, mutation, internalMutation } from './_generated/server';
+import { query, mutation, internalMutation, type MutationCtx } from './_generated/server';
 import { internal } from './_generated/api';
 import { requireAuth } from './lib/auth';
 import { getSourceAppRole, listAccessibleSourceApps } from './lib/sharing';
@@ -117,6 +117,24 @@ export const markAllRead = mutation({
   }
 });
 
+// Cascade-delete a notification's per-device delivery rows and action events,
+// then the notification itself. Direct callers (deleteOne / clearAll) need
+// this because the daily cleanup cron is the only other code path that knows
+// to chase the children.
+async function deleteNotificationCascade(ctx: MutationCtx, id: Id<'notifications'>) {
+  const deliveries = await ctx.db
+    .query('deliveries')
+    .withIndex('by_notification', (q) => q.eq('notificationId', id))
+    .collect();
+  for (const d of deliveries) await ctx.db.delete(d._id);
+  const events = await ctx.db
+    .query('actionEvents')
+    .withIndex('by_notification', (q) => q.eq('notificationId', id))
+    .collect();
+  for (const e of events) await ctx.db.delete(e._id);
+  await ctx.db.delete(id);
+}
+
 export const deleteOne = mutation({
   args: { id: v.id('notifications') },
   handler: async (ctx, args) => {
@@ -128,7 +146,7 @@ export const deleteOne = mutation({
     if (row.ownerId !== userId) {
       throw new ConvexError('Only the app owner can delete notifications');
     }
-    await ctx.db.delete(args.id);
+    await deleteNotificationCascade(ctx, args.id);
   }
 });
 
@@ -148,7 +166,7 @@ export const clearAll = mutation({
         .take(200);
       if (batch.length === 0) break;
       for (const n of batch) {
-        await ctx.db.delete(n._id);
+        await deleteNotificationCascade(ctx, n._id);
       }
       deleted += batch.length;
       if (batch.length < 200) break;

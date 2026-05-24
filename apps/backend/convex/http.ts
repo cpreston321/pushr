@@ -170,6 +170,12 @@ async function dispatchNotification(
           notificationId
         });
       }
+      // Forwarders (Slack/Discord) fire at the same time as device delivery —
+      // a Pro/self-hosted feature, no-op when the source app has no
+      // forwarders configured.
+      await ctx.scheduler.runAt(args.deliverAt, internal.forwarders.fanOut, {
+        notificationId
+      });
     } else {
       await pushPool.enqueueAction(ctx, internal.expoPush.deliver, {
         notificationId
@@ -180,6 +186,9 @@ async function dispatchNotification(
           notificationId
         });
       }
+      await ctx.scheduler.runAfter(0, internal.forwarders.fanOut, {
+        notificationId
+      });
     }
 
     if (args.ack) {

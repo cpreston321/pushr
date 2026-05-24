@@ -2,7 +2,7 @@ import {
   DarkTheme,
   DefaultTheme,
   ThemeProvider,
-} from "@react-navigation/native";
+} from "expo-router/react-navigation";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import "react-native-reanimated";
@@ -141,6 +141,79 @@ function AppShell({ isDark, bg }: { isDark: boolean; bg: string }) {
             title: "",
             sheetGrabberVisible: true,
             sheetAllowedDetents: [0.85, 1.0],
+            contentStyle: { backgroundColor: "transparent" },
+          }}
+        />
+        <Stack.Screen
+          name="create-app"
+          options={{
+            presentation: "formSheet",
+            headerShown: false,
+            title: "",
+            sheetGrabberVisible: false,
+            sheetAllowedDetents: [0.85],
+            sheetExpandsWhenScrolledToEdge: false,
+            contentStyle: { backgroundColor: "transparent" },
+          }}
+        />
+        <Stack.Screen
+          name="token-reveal"
+          options={{
+            presentation: "formSheet",
+            headerShown: false,
+            title: "",
+            sheetGrabberVisible: false,
+            sheetAllowedDetents: [0.85],
+            sheetExpandsWhenScrolledToEdge: false,
+            contentStyle: { backgroundColor: "transparent" },
+            gestureEnabled: false,
+          }}
+        />
+        <Stack.Screen
+          name="source-app-detail"
+          options={{
+            presentation: "formSheet",
+            headerShown: false,
+            title: "",
+            sheetGrabberVisible: false,
+            sheetAllowedDetents: [0.85],
+            sheetExpandsWhenScrolledToEdge: false,
+            contentStyle: { backgroundColor: "transparent" },
+          }}
+        />
+        <Stack.Screen
+          name="source-app-sharing"
+          options={{
+            presentation: "formSheet",
+            headerShown: false,
+            title: "",
+            sheetGrabberVisible: false,
+            sheetAllowedDetents: [0.85],
+            sheetExpandsWhenScrolledToEdge: false,
+            contentStyle: { backgroundColor: "transparent" },
+          }}
+        />
+        <Stack.Screen
+          name="source-app-api"
+          options={{
+            presentation: "formSheet",
+            headerShown: false,
+            title: "",
+            sheetGrabberVisible: false,
+            sheetAllowedDetents: [0.85],
+            sheetExpandsWhenScrolledToEdge: false,
+            contentStyle: { backgroundColor: "transparent" },
+          }}
+        />
+        <Stack.Screen
+          name="forwarder-add"
+          options={{
+            presentation: "formSheet",
+            headerShown: false,
+            title: "",
+            sheetGrabberVisible: false,
+            sheetAllowedDetents: [0.85],
+            sheetExpandsWhenScrolledToEdge: false,
             contentStyle: { backgroundColor: "transparent" },
           }}
         />

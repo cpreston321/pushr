@@ -18,11 +18,21 @@ import {
   type AppRow,
   type WebhookProviderId
 } from '@/components/source-app/shared';
+import { useIsPro } from '@/components/Pro';
+import { DiscordLogo, SlackLogo } from '@/components/source-app/BrandLogo';
 import { useTheme, spacing, radius, type } from '@/lib/theme';
 import { haptic } from '@/lib/haptics';
 import { showActionSheet } from '@/lib/actionSheet';
 import { promptText } from '@/lib/prompt';
 import { recallToken, rememberToken } from '@/lib/tokenStore';
+
+type ForwarderKind = 'slack' | 'discord';
+type PriorityFilter = 'all' | 'normal_high' | 'high_only';
+const PRIORITY_LABELS: Record<PriorityFilter, string> = {
+  all: 'All pushes',
+  normal_high: 'Normal & high priority',
+  high_only: 'High priority only'
+};
 
 /**
  * formSheet — owner-only API & token management. After a token rotation
@@ -354,6 +364,225 @@ function Body({ appId }: { appId: Id<'sourceApps'> }) {
           })}
         </DetailSection>
       </View>
+
+      <View style={{ marginTop: spacing.sm }}>
+        <ForwardersSection sourceAppId={app._id} />
+      </View>
     </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Outbound forwarders — mirror pushes into Slack / Discord
+// ---------------------------------------------------------------------------
+
+function ForwardersSection({ sourceAppId }: { sourceAppId: Id<'sourceApps'> }) {
+  const { colors } = useTheme();
+  const isPro = useIsPro();
+  const forwarders = useQuery(
+    api.forwarders.listForApp,
+    isPro ? { sourceAppId } : 'skip'
+  );
+  const updateForwarder = useMutation(api.forwarders.update);
+  const removeForwarder = useMutation(api.forwarders.remove);
+  const testForwarder = useMutation(api.forwarders.test);
+
+  if (!isPro) {
+    return (
+      <DetailSection title="Outbound forwarding">
+        <DetailRow
+          icon="lock.fill"
+          tint={colors.accent}
+          title="Forward to Slack & Discord"
+          subtitle="Mirror pushes into channels. Available on Pro."
+          onPress={() => router.push('/upgrade')}
+          chevron
+          badge="PRO"
+        />
+      </DetailSection>
+    );
+  }
+
+  function startAdd() {
+    haptic.light();
+    router.push({
+      pathname: '/forwarder-add' as never,
+      params: { id: sourceAppId }
+    });
+  }
+
+  function tapForwarder(
+    f: NonNullable<typeof forwarders>[number]
+  ) {
+    haptic.light();
+    showActionSheet({
+      title: f.label || (f.kind === 'slack' ? 'Slack forwarder' : 'Discord forwarder'),
+      message: f.lastError ? `Last error: ${f.lastError}` : undefined,
+      options: [
+        {
+          label: f.enabled ? 'Disable' : 'Enable',
+          onPress: async () => {
+            try {
+              await updateForwarder({ id: f._id, enabled: !f.enabled });
+              haptic.success();
+            } catch (err: any) {
+              haptic.error();
+              Alert.alert(
+                "Couldn't update",
+                err?.data?.message ?? err?.message ?? 'Please try again.'
+              );
+            }
+          }
+        },
+        {
+          label: 'Send test message',
+          onPress: async () => {
+            try {
+              await testForwarder({ id: f._id });
+              haptic.success();
+              Alert.alert(
+                'Test sent',
+                'pushr posted a test message — check the destination channel.'
+              );
+            } catch (err: any) {
+              haptic.error();
+              Alert.alert(
+                "Couldn't send test",
+                err?.data?.message ?? err?.message ?? 'Please try again.'
+              );
+            }
+          }
+        },
+        {
+          label: 'Change priority filter',
+          onPress: () => {
+            showActionSheet({
+              title: 'Which pushes should forward?',
+              options: (['all', 'normal_high', 'high_only'] as PriorityFilter[]).map((p) => ({
+                label: `${p === f.priorityFilter ? '✓ ' : ''}${PRIORITY_LABELS[p]}`,
+                onPress: async () => {
+                  try {
+                    await updateForwarder({ id: f._id, priorityFilter: p });
+                    haptic.success();
+                  } catch (err: any) {
+                    haptic.error();
+                  }
+                }
+              }))
+            });
+          }
+        },
+        {
+          label: 'Rename',
+          onPress: async () => {
+            const next = await promptText({
+              title: 'Rename forwarder',
+              defaultValue: f.label ?? '',
+              placeholder: 'e.g. #alerts',
+              allowEmpty: true
+            });
+            if (next === null) return;
+            try {
+              await updateForwarder({ id: f._id, label: next });
+              haptic.success();
+            } catch (err: any) {
+              haptic.error();
+            }
+          }
+        },
+        {
+          label: 'Remove forwarder',
+          destructive: true,
+          onPress: () => {
+            Alert.alert(
+              'Remove forwarder?',
+              `Pushes from this app will stop being forwarded to ${
+                f.kind === 'slack' ? 'Slack' : 'Discord'
+              }.`,
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Remove',
+                  style: 'destructive',
+                  onPress: async () => {
+                    haptic.warning();
+                    await removeForwarder({ id: f._id });
+                  }
+                }
+              ]
+            );
+          }
+        }
+      ]
+    });
+  }
+
+  const rows: React.ReactNode[] = [];
+  for (const f of forwarders ?? []) {
+    const kindLabel = f.kind === 'slack' ? 'Slack' : 'Discord';
+    const filterLabel = PRIORITY_LABELS[f.priorityFilter as PriorityFilter];
+    const subtitleParts: string[] = f.enabled
+      ? [filterLabel]
+      : ['Disabled'];
+    if (f.lastError) subtitleParts.push(`⚠ ${f.lastError}`);
+
+    const brand = f.kind === 'slack' ? <SlackLogo size={32} /> : <DiscordLogo size={32} />;
+    const leading = (
+      <View style={{ opacity: f.enabled ? 1 : 0.45 }}>{brand}</View>
+    );
+
+    rows.push(
+      <DetailRow
+        key={f._id}
+        leading={leading}
+        tint={!f.enabled ? colors.secondaryLabel : f.lastError ? colors.warning : colors.accent}
+        title={f.label?.trim() || `${kindLabel} channel`}
+        subtitle={subtitleParts.join(' · ')}
+        onPress={() => tapForwarder(f)}
+        chevron
+        trailing={
+          <ForwarderStatusDot
+            enabled={f.enabled}
+            errored={!!f.lastError}
+            colors={colors}
+          />
+        }
+      />
+    );
+  }
+  rows.push(
+    <DetailRow
+      key="__add__"
+      icon="plus"
+      tint={colors.accent}
+      title="Add forwarder"
+      subtitle="Mirror pushes into a Slack or Discord channel"
+      onPress={startAdd}
+      chevron
+    />
+  );
+
+  return <DetailSection title="Outbound forwarding">{rows}</DetailSection>;
+}
+
+function ForwarderStatusDot({
+  enabled,
+  errored,
+  colors
+}: {
+  enabled: boolean;
+  errored: boolean;
+  colors: ReturnType<typeof useTheme>['colors'];
+}) {
+  const color = !enabled ? colors.tertiaryLabel : errored ? colors.destructive : colors.success;
+  return (
+    <View
+      style={{
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: color
+      }}
+    />
   );
 }

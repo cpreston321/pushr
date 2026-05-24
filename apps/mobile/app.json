@@ -78,7 +78,15 @@
       "expo-font",
       "expo-image",
       "expo-web-browser",
-      "expo-audio"
+      "expo-audio",
+      "expo-status-bar",
+      [
+        "expo-build-properties",
+        {
+          "ios": { "useHermesV1": true },
+          "android": { "usePrecompiledHeaders": true }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

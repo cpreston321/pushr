@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as account from "../account.js";
 import type * as ack from "../ack.js";
 import type * as actions from "../actions.js";
 import type * as apns from "../apns.js";
@@ -21,6 +22,7 @@ import type * as devices from "../devices.js";
 import type * as expoPush from "../expoPush.js";
 import type * as expoPushHelpers from "../expoPushHelpers.js";
 import type * as expoReceipts from "../expoReceipts.js";
+import type * as forwarders from "../forwarders.js";
 import type * as hooks_github from "../hooks/github.js";
 import type * as hooks_grafana from "../hooks/grafana.js";
 import type * as hooks_sentry from "../hooks/sentry.js";
@@ -49,6 +51,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  account: typeof account;
   ack: typeof ack;
   actions: typeof actions;
   apns: typeof apns;
@@ -62,6 +65,7 @@ declare const fullApi: ApiFromModules<{
   expoPush: typeof expoPush;
   expoPushHelpers: typeof expoPushHelpers;
   expoReceipts: typeof expoReceipts;
+  forwarders: typeof forwarders;
   "hooks/github": typeof hooks_github;
   "hooks/grafana": typeof hooks_grafana;
   "hooks/sentry": typeof hooks_sentry;

@@ -311,6 +311,15 @@ export const deleteApp = mutation({
       .collect();
     for (const c of configs) await ctx.db.delete(c._id);
 
+    // Outbound forwarders — also bounded (users wire up a handful of Slack /
+    // Discord webhooks per app). If you ever grow this beyond a few hundred
+    // per app, move it into `sweepDeletedAppData` like notifications.
+    const forwarders = await ctx.db
+      .query('sourceAppForwarders')
+      .withIndex('by_sourceApp', (q) => q.eq('sourceAppId', app._id))
+      .collect();
+    for (const f of forwarders) await ctx.db.delete(f._id);
+
     if (app.logoStorageId) {
       try {
         await ctx.storage.delete(app.logoStorageId);

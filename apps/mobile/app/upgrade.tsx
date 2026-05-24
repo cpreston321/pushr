@@ -465,7 +465,7 @@ function Hero({ insetTop, accent }: { insetTop: number; accent: string }) {
       }}
     >
       <Svg
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
         pointerEvents="none"
         preserveAspectRatio="none"
         viewBox="0 0 100 100"
@@ -489,7 +489,7 @@ function Hero({ insetTop, accent }: { insetTop: number; accent: string }) {
         pointerEvents="none"
         colors={['rgba(10,15,22,0)', 'rgba(10,15,22,0.4)', HERO_BG]}
         locations={[0.5, 0.85, 1]}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
       />
 
       <View style={{ alignItems: 'center', gap: spacing.xs }}>

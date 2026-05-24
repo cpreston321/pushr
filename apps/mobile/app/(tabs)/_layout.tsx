@@ -46,7 +46,7 @@ function AuthedTabs({ tint }: { tint: string }) {
         <NativeTabs.Trigger.Icon sf="iphone" />
         <NativeTabs.Trigger.Label>Devices</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="settings">
+      <NativeTabs.Trigger name="settings" role="search">
         <NativeTabs.Trigger.Icon sf="gearshape.fill" />
         <NativeTabs.Trigger.Label>Settings</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>

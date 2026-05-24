@@ -226,6 +226,7 @@ export function DetailSection({
 
 export function DetailRow({
   icon,
+  leading,
   tint,
   title,
   titleSelectable,
@@ -236,7 +237,10 @@ export function DetailRow({
   destructive,
   badge
 }: {
-  icon: SFSymbol;
+  icon?: SFSymbol;
+  /** Custom leading element — overrides the default tinted SF Symbol circle.
+   *  Use for brand logos or non-SF-Symbol artwork. */
+  leading?: React.ReactNode;
   tint: string;
   title: string;
   titleSelectable?: boolean;
@@ -250,17 +254,8 @@ export function DetailRow({
   const { colors, tintBg } = useTheme();
   const titleColor = destructive ? colors.destructive : colors.label;
 
-  const content = (
-    <View
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.md,
-        gap: spacing.md,
-        minHeight: 56
-      }}
-    >
+  const leadingNode = leading ?? (
+    icon ? (
       <View
         style={{
           width: 32,
@@ -273,6 +268,21 @@ export function DetailRow({
       >
         <SymbolView name={icon} size={18} tintColor={tint} />
       </View>
+    ) : null
+  );
+
+  const content = (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.md,
+        gap: spacing.md,
+        minHeight: 56
+      }}
+    >
+      {leadingNode}
       <View style={{ flex: 1 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
           <Text

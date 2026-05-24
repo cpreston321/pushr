@@ -89,6 +89,44 @@ export default defineSchema({
     .index('by_tokenHash', ['tokenHash']),
 
   /**
+   * Outbound forwarders: when a notification is delivered for `sourceAppId`,
+   * pushr also POSTs to each enabled forwarder's `url`. Used to mirror
+   * pushr alerts into Slack channels or Discord webhooks. Owner-managed,
+   * gated to Pro / self-hosted on the client.
+   *
+   * Many forwarders per source app is allowed — teams routinely route
+   * different alert types to different channels (#alerts, #payments, etc.).
+   * Filtering by priority lets users send only the noisy alerts to a less
+   * noisy channel.
+   */
+  sourceAppForwarders: defineTable({
+    ownerId: v.string(),
+    sourceAppId: v.id('sourceApps'),
+    kind: v.union(v.literal('slack'), v.literal('discord')),
+    /** Provider-issued webhook URL. Validated for kind-specific host. */
+    url: v.string(),
+    /** Optional human label — e.g. "#alerts" or "#payments". */
+    label: v.optional(v.string()),
+    /** Priority threshold:
+     *   - `'all'` forwards every push
+     *   - `'normal_high'` forwards priority >= 5 (default normal)
+     *   - `'high_only'` forwards priority >= 7 (urgent)
+     */
+    priorityFilter: v.union(
+      v.literal('all'),
+      v.literal('normal_high'),
+      v.literal('high_only')
+    ),
+    enabled: v.boolean(),
+    createdAt: v.number(),
+    /** ms-epoch of last successful POST. */
+    lastSentAt: v.optional(v.number()),
+    /** Last error message from the destination, surfaced in the UI so the
+     *  owner can see if a webhook is broken without digging into logs. */
+    lastError: v.optional(v.string())
+  }).index('by_sourceApp', ['sourceAppId']),
+
+  /**
    * Per-provider HMAC secret used to verify inbound webhook signatures from
    * a specific service (GitHub's X-Hub-Signature-256, Sentry's
    * Sentry-Hook-Signature, etc.). One row per (sourceApp, provider) pair —

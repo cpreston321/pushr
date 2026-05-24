@@ -35,7 +35,7 @@ export function ScreenHeader({ title, eyebrow, accessory, children }: Props) {
         }}
       >
         <Svg
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
           pointerEvents="none"
           preserveAspectRatio="none"
           viewBox="0 0 100 100"
@@ -62,7 +62,7 @@ export function ScreenHeader({ title, eyebrow, accessory, children }: Props) {
           pointerEvents="none"
           colors={['rgba(10,15,22,0)', 'rgba(10,15,22,0.7)', HERO_BG]}
           locations={[0.4, 0.8, 1]}
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
         />
 
         <View
