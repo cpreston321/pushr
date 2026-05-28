@@ -18,7 +18,7 @@
     "test": "vitest run --root ../.. apps/mobile/lib"
   },
   "dependencies": {
-    "@bacons/apple-targets": "^4.0.6",
+    "@bacons/apple-targets": "^4.0.7",
     "@better-auth/expo": "^1.6.9",
     "@convex-dev/better-auth": "^0.12.2",
     "@expo/ui": "~56.0.12",

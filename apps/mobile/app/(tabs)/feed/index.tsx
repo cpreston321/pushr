@@ -41,6 +41,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenHeader, ScreenBody } from "@/components/ScreenHeader";
 import { ScreenTransition } from "@/components/ScreenTransition";
 import { Avatar } from "@/components/Avatar";
+import {
+  NotificationContent,
+  LiveActivityBadge,
+  LiveActivityBody,
+} from "@/components/NotificationContent";
 import { useTheme, spacing, radius, type } from "@/lib/theme";
 import { haptic } from "@/lib/haptics";
 import { promptText } from "@/lib/prompt";
@@ -263,46 +268,53 @@ export default function Feed() {
           renderItem={({ item: entry, index }) => {
             const isFirst = index === 0;
             const isLast = index === entries.length - 1;
+
+            const entering = FadeIn.duration(220).delay(Math.min(index * 18, 120));
+
             if (entry.kind === "group") {
               return (
-                <FeedGroupRow
-                  group={entry}
-                  isFirst={isFirst}
-                  isLast={isLast}
-                  onOpenItem={(item) => {
-                    if (!item.readAt) markRead({ id: item._id });
-                    if (item.url || item.appUrl) {
-                      void openLink({ appUrl: item.appUrl, url: item.url });
-                    }
-                  }}
-                  onDeleteGroup={() => {
-                    haptic.warning();
-                    for (const it of entry.all) {
-                      void deleteOne({ id: it._id });
-                    }
-                  }}
-                />
+                <Animated.View entering={entering}>
+                  <FeedGroupRow
+                    group={entry}
+                    isFirst={isFirst}
+                    isLast={isLast}
+                    onOpenItem={(item) => {
+                      if (!item.readAt) markRead({ id: item._id });
+                      if (item.url || item.appUrl) {
+                        void openLink({ appUrl: item.appUrl, url: item.url });
+                      }
+                    }}
+                    onDeleteGroup={() => {
+                      haptic.warning();
+                      for (const it of entry.all) {
+                        void deleteOne({ id: it._id });
+                      }
+                    }}
+                  />
+                </Animated.View>
               );
             }
             return (
-              <FeedRow
-                item={entry.item}
-                isFirst={isFirst}
-                isLast={isLast}
-                onOpen={() => {
-                  if (!entry.item.readAt) markRead({ id: entry.item._id });
-                  if (entry.item.url || entry.item.appUrl) {
-                    void openLink({
-                      appUrl: entry.item.appUrl,
-                      url: entry.item.url,
-                    });
-                  }
-                }}
-                onDelete={() => {
-                  haptic.warning();
-                  deleteOne({ id: entry.item._id });
-                }}
-              />
+              <Animated.View entering={entering}>
+                <FeedRow
+                  item={entry.item}
+                  isFirst={isFirst}
+                  isLast={isLast}
+                  onOpen={() => {
+                    if (!entry.item.readAt) markRead({ id: entry.item._id });
+                    if (entry.item.url || entry.item.appUrl) {
+                      void openLink({
+                        appUrl: entry.item.appUrl,
+                        url: entry.item.url,
+                      });
+                    }
+                  }}
+                  onDelete={() => {
+                    haptic.warning();
+                    deleteOne({ id: entry.item._id });
+                  }}
+                />
+              </Animated.View>
             );
           }}
         />
@@ -1345,8 +1357,6 @@ function FeedRow({
   // More reliable than diffing rendered-vs-original chars on the visible
   // (already-capped) Text, which mishandles ellipsis and whitespace.
   const [bodyExpanded, setBodyExpanded] = useState(false);
-  const [naturalLines, setNaturalLines] = useState(0);
-  const bodyTruncates = naturalLines > 2;
 
   const a11yParts = [
     unread ? "Unread" : "Read",
@@ -1398,138 +1408,11 @@ function FeedRow({
           />
         )}
       </View>
-      <View style={{ flex: 1 }}>
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "baseline",
-          }}
-        >
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 6,
-              flex: 1,
-            }}
-          >
-            <Text
-              style={{ ...type.footnote, color: colors.secondaryLabel }}
-              numberOfLines={1}
-            >
-              {item.sourceAppName}
-            </Text>
-            {item.liveActivity && (
-              <LiveActivityBadge action={item.liveActivity.action} />
-            )}
-          </View>
-          <Text style={{ ...type.caption1, color: colors.tertiaryLabel }}>
-            {formatRelative(item.createdAt)}
-          </Text>
-        </View>
-        <Text
-          style={{ ...type.headline, color: colors.label, marginTop: 1 }}
-          numberOfLines={1}
-        >
-          {item.title}
-        </Text>
-        {item.liveActivity ? (
-          <LiveActivityBody state={item.liveActivity.state} />
-        ) : (
-          <>
-            <Text
-              style={{
-                ...type.subhead,
-                color: colors.secondaryLabel,
-                marginTop: 1,
-              }}
-              numberOfLines={bodyExpanded ? undefined : 2}
-            >
-              {item.body}
-            </Text>
-            {/* Hidden measurer: same Text styles, no line cap, absolutely
-                positioned so it doesn't affect layout. Reports the natural
-                line count so we know whether the visible (capped) Text would
-                truncate. */}
-            <Text
-              aria-hidden
-              pointerEvents="none"
-              style={{
-                ...type.subhead,
-                position: "absolute",
-                left: 0,
-                right: 0,
-                opacity: 0,
-              }}
-              onTextLayout={(e) => {
-                const n = e.nativeEvent.lines.length;
-                if (n !== naturalLines) setNaturalLines(n);
-              }}
-            >
-              {item.body}
-            </Text>
-            {bodyTruncates && (
-              <Pressable
-                onPress={() => {
-                  haptic.selection();
-                  setBodyExpanded((v) => !v);
-                }}
-                hitSlop={10}
-                style={({ pressed }) => ({
-                  marginTop: 4,
-                  alignSelf: "flex-start",
-                  opacity: pressed ? 0.5 : 1,
-                })}
-                accessibilityRole="button"
-                accessibilityLabel={bodyExpanded ? "Show less" : "Show more"}
-              >
-                <Text
-                  style={{
-                    ...type.footnote,
-                    color: colors.accent,
-                    fontWeight: "600",
-                  }}
-                >
-                  {bodyExpanded ? "Show less" : "Show more"}
-                </Text>
-              </Pressable>
-            )}
-          </>
-        )}
-        {item.ack && !item.acknowledgedAt && (
-          <View
-            style={{
-              marginTop: 6,
-              alignSelf: "flex-start",
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 4,
-              paddingHorizontal: 8,
-              paddingVertical: 3,
-              borderRadius: radius.md,
-              backgroundColor: tintBg(colors.destructive),
-            }}
-          >
-            <SymbolView
-              name="bell.badge"
-              size={11}
-              tintColor={colors.destructive}
-            />
-            <Text
-              style={{
-                ...type.caption2,
-                color: colors.destructive,
-                fontWeight: "600",
-              }}
-            >
-              {item.ack.attempts > 0
-                ? `Ack needed · re-alerted ${item.ack.attempts}×`
-                : "Ack needed"}
-            </Text>
-          </View>
-        )}
-      </View>
+      <NotificationContent
+        item={item}
+        bodyExpanded={bodyExpanded}
+        onToggleBodyExpanded={() => setBodyExpanded((v) => !v)}
+      />
       {item.image ? (
         <Image
           source={{ uri: item.image }}
@@ -1633,6 +1516,7 @@ function ActionButtonsBar({
   const invoke = useAction(api.actions.invoke);
   const [busy, setBusy] = useState<string | null>(null);
   const [done, setDone] = useState<Record<string, "ok" | "fail">>({});
+  const [results, setResults] = useState<Record<string, string>>({}); // short human result per action id
 
   async function handle(action: NotifAction) {
     if (busy || disabled) return;
@@ -1641,6 +1525,8 @@ function ActionButtonsBar({
     try {
       if (action.kind === "open_url") {
         void Linking.openURL(action.url).catch(() => {});
+        setDone((d) => ({ ...d, [action.id]: "ok" }));
+        setResults((r) => ({ ...r, [action.id]: "Opened" }));
       }
       if (action.kind === "reply") {
         const text = await promptText({
@@ -1654,9 +1540,14 @@ function ActionButtonsBar({
           actionIdentifier: action.id,
           reply: text,
         });
+        const ok = result?.ok;
         setDone((d) => ({
           ...d,
-          [action.id]: result?.ok ? "ok" : "fail",
+          [action.id]: ok ? "ok" : "fail",
+        }));
+        setResults((r) => ({
+          ...r,
+          [action.id]: ok ? "Reply sent" : "Failed",
         }));
         return;
       }
@@ -1664,7 +1555,12 @@ function ActionButtonsBar({
         notificationId,
         actionIdentifier: action.id,
       });
-      setDone((d) => ({ ...d, [action.id]: result?.ok ? "ok" : "fail" }));
+      const ok = result?.ok;
+      setDone((d) => ({ ...d, [action.id]: ok ? "ok" : "fail" }));
+      setResults((r) => ({
+        ...r,
+        [action.id]: ok ? "Sent" : "Failed",
+      }));
     } catch {
       setDone((d) => ({ ...d, [action.id]: "fail" }));
     } finally {
@@ -1673,194 +1569,105 @@ function ActionButtonsBar({
   }
 
   return (
-    <View
-      style={{
-        flexDirection: "row",
-        flexWrap: "wrap",
-        gap: spacing.xs,
-        paddingHorizontal: spacing.md,
-        paddingLeft: 64,
-        paddingBottom: spacing.md,
-        paddingTop: 2,
-      }}
-    >
-      {actions.map((a) => {
-        const status = done[a.id];
-        const tint =
-          status === "fail"
-            ? colors.destructive
-            : a.kind === "reply"
-              ? colors.accent
-              : a.destructive
-                ? colors.destructive
-                : colors.label;
-        return (
-          <Pressable
-            key={a.id}
-            onPress={() => handle(a)}
-            disabled={busy !== null || disabled}
-            accessibilityRole="button"
-            accessibilityLabel={a.label}
-            accessibilityState={{
-              disabled: busy !== null || disabled,
-              busy: busy === a.id,
-            }}
-            style={({ pressed }) => ({
-              paddingHorizontal: 12,
-              paddingVertical: 6,
-              borderRadius: radius.lg,
-              borderWidth: 0.5,
-              borderColor: colors.separator,
-              backgroundColor: pressed ? colors.cellHighlight : colors.fill,
-              opacity: busy !== null && busy !== a.id ? 0.5 : 1,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 4,
-            })}
-          >
-            {status === "ok" && (
-              <SymbolView
-                name="checkmark"
-                size={12}
-                tintColor={colors.accent}
-              />
-            )}
-            {status === "fail" && (
-              <SymbolView
-                name="exclamationmark.triangle"
-                size={12}
-                tintColor={colors.destructive}
-              />
-            )}
-            <Text
-              style={{
-                ...type.footnote,
-                color: tint,
-                fontWeight: "600",
-              }}
-            >
-              {a.label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
-function LiveActivityBadge({ action }: { action: "start" | "update" | "end" }) {
-  const { colors, tintBg } = useTheme();
-  const ended = action === "end";
-  const label = ended ? "Activity ended" : "Live Activity";
-  const tint = ended ? colors.tertiaryLabel : colors.accent;
-  const bg = ended ? colors.fill : tintBg(colors.accent, "1F");
-  return (
-    <View
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 3,
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        borderRadius: 6,
-        backgroundColor: bg,
-      }}
-    >
+    <View style={{ backgroundColor: colors.cell }}>
       <View
         style={{
-          width: 5,
-          height: 5,
-          borderRadius: 2.5,
-          backgroundColor: tint,
-          opacity: ended ? 0.6 : 1,
-        }}
-      />
-      <Text
-        style={{
-          ...type.caption2,
-          color: tint,
-          fontWeight: "700",
-          letterSpacing: 0.2,
+          flexDirection: "row",
+          flexWrap: "wrap",
+          gap: spacing.xs,
+          paddingHorizontal: spacing.md,
+          paddingLeft: 64,
+          paddingBottom: spacing.md,
+          paddingTop: 2,
         }}
       >
-        {label}
-      </Text>
-    </View>
-  );
-}
+        {actions.map((a) => {
+          const status = done[a.id];
+          const tint =
+            status === "fail"
+              ? colors.destructive
+              : a.kind === "reply"
+                ? colors.accent
+                : a.destructive
+                  ? colors.destructive
+                  : colors.label;
+          return (
+            <Pressable
+              key={a.id}
+              onPress={() => handle(a)}
+              disabled={busy !== null || disabled}
+              accessibilityRole="button"
+              accessibilityLabel={a.label}
+              accessibilityState={{
+                disabled: busy !== null || disabled,
+                busy: busy === a.id,
+              }}
+              style={({ pressed }) => ({
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                borderRadius: radius.lg,
+                borderWidth: 0.5,
+                borderColor: colors.separator,
+                backgroundColor: pressed ? colors.cellHighlight : colors.fill,
+                opacity: busy !== null && busy !== a.id ? 0.5 : 1,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 4,
+              })}
+            >
+              {status === "ok" && (
+                <SymbolView
+                  name="checkmark"
+                  size={12}
+                  tintColor={colors.accent}
+                />
+              )}
+              {status === "fail" && (
+                <SymbolView
+                  name="exclamationmark.triangle"
+                  size={12}
+                  tintColor={colors.destructive}
+                />
+              )}
+              <Text
+                style={{
+                  ...type.footnote,
+                  color: tint,
+                  fontWeight: "600",
+                }}
+              >
+                {a.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
 
-function LiveActivityBody({
-  state,
-}: {
-  state: {
-    title?: string;
-    status?: string;
-    progress?: number;
-    icon?: string;
-  };
-}) {
-  const { colors } = useTheme();
-  const hasProgress = typeof state.progress === "number";
-  const pct = hasProgress ? Math.max(0, Math.min(1, state.progress!)) : 0;
-  return (
-    <View style={{ marginTop: 4, gap: 6 }}>
-      {(state.icon || state.status) && (
+      {/* Subtle result feedback — turns the feed into a live command center */}
+      {Object.keys(results).length > 0 && (
         <View
           style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 6,
+            paddingLeft: 64,
+            paddingRight: spacing.md,
+            paddingBottom: spacing.sm,
+            gap: 4,
           }}
         >
-          {state.icon && (
-            <SymbolView
-              name={state.icon as any}
-              size={13}
-              tintColor={colors.secondaryLabel}
-            />
-          )}
-          {state.status && (
-            <Text
-              style={{
-                ...type.subhead,
-                color: colors.secondaryLabel,
-                flex: 1,
-              }}
-              numberOfLines={1}
-            >
-              {state.status}
-            </Text>
-          )}
-          {hasProgress && (
-            <Text
-              style={{
-                ...type.caption1,
-                color: colors.tertiaryLabel,
-                fontVariant: ["tabular-nums"],
-              }}
-            >
-              {Math.round(pct * 100)}%
-            </Text>
-          )}
-        </View>
-      )}
-      {hasProgress && (
-        <View
-          style={{
-            height: 4,
-            borderRadius: 2,
-            backgroundColor: colors.fill,
-            overflow: "hidden",
-          }}
-        >
-          <View
-            style={{
-              width: `${pct * 100}%`,
-              height: 4,
-              backgroundColor: colors.accent,
-              borderRadius: 2,
-            }}
-          />
+          {Object.entries(results).map(([id, message]) => {
+            const isError = done[id] === "fail";
+            return (
+              <Text
+                key={id}
+                style={{
+                  ...type.caption2,
+                  color: isError ? colors.destructive : colors.secondaryLabel,
+                  paddingLeft: 4,
+                }}
+              >
+                {message}
+              </Text>
+            );
+          })}
         </View>
       )}
     </View>

@@ -21,12 +21,15 @@ import {
   tomorrowAt8am,
   type AppRow
 } from '@/components/source-app/shared';
-import { useTheme, spacing, type } from '@/lib/theme';
+import { useTheme, spacing, radius, type } from '@/lib/theme';
 import { haptic } from '@/lib/haptics';
 import { showActionSheet } from '@/lib/actionSheet';
 import { promptText } from '@/lib/prompt';
 import { pickAndUploadLogo } from '@/lib/uploadLogo';
 import { forgetToken } from '@/lib/tokenStore';
+import { formatRelative } from '@/lib/feed-helpers';
+import { getProviderMeta } from '@/lib/providerDetection';
+import { RECIPES } from '@/lib/recipes';
 
 /**
  * formSheet — detail screen for a single source app. Replaces the
@@ -98,6 +101,8 @@ function Body({
   const deleteApp = useMutation(api.sourceApps.deleteApp);
   const setLogo = useMutation(api.sourceApps.setLogo);
   const removeLogo = useMutation(api.sourceApps.removeLogo);
+
+  const stats = useQuery(api.sourceApps.getStats, app ? { id: app._id } : 'skip');
   const generateUploadUrl = useMutation(api.sourceApps.generateLogoUploadUrl);
   const leaveApp = useMutation(api.sharing.leaveApp);
   const sendTestPush = useMutation(api.notifications.sendTest);
@@ -371,6 +376,98 @@ function Body({
       </DetailSection>
 
       <SharingSummarySection sourceAppId={app._id} onPress={onOpenSharing} />
+
+      {stats && (
+        <DetailSection title="Recent activity">
+          <View style={{ padding: spacing.md, gap: spacing.sm }}>
+            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+              <View style={{ flex: 1, backgroundColor: colors.fill, borderRadius: radius.md, padding: spacing.md }}>
+                <Text style={{ ...type.caption2, color: colors.secondaryLabel }}>7 days</Text>
+                <Text style={{ ...type.title3, color: colors.label, marginTop: 2 }}>{stats.notificationCount7d}</Text>
+              </View>
+              <View style={{ flex: 1, backgroundColor: colors.fill, borderRadius: radius.md, padding: spacing.md }}>
+                <Text style={{ ...type.caption2, color: colors.secondaryLabel }}>30 days</Text>
+                <Text style={{ ...type.title3, color: colors.label, marginTop: 2 }}>{stats.notificationCount30d}</Text>
+              </View>
+            </View>
+
+            <View style={{ gap: 4 }}>
+              {stats.lastNotificationAt && (
+                <Text style={{ ...type.caption2, color: colors.secondaryLabel }}>
+                  Last activity: {formatRelative(stats.lastNotificationAt)} ago
+                </Text>
+              )}
+              {stats.deliverySuccessRate !== undefined && (
+                <Text style={{ ...type.caption2, color: colors.secondaryLabel }}>
+                  Delivery success: {stats.deliverySuccessRate}%
+                </Text>
+              )}
+              {stats.ackRate !== undefined && (
+                <Text style={{ ...type.caption2, color: colors.secondaryLabel }}>
+                  Ack rate: {stats.ackRate}%
+                </Text>
+              )}
+              {stats.primaryProvider && (() => {
+                const meta = getProviderMeta(stats.primaryProvider as any);
+                return (
+                  <Text style={{ ...type.caption2, color: meta.tint || colors.secondaryLabel }}>
+                    Primary: {meta.label}
+                  </Text>
+                );
+              })()}
+            </View>
+          </View>
+        </DetailSection>
+      )}
+
+      {/* Recipe-aware smart recommendations (Phase 2 + Phase 3 connection) */}
+      {stats?.primaryProvider && (() => {
+        const matchingRecipe = RECIPES.find(r => r.provider === stats.primaryProvider);
+        if (!matchingRecipe) return null;
+
+        const hasQuietHours = app.quietStart !== undefined && app.quietEnd !== undefined;
+        const recommendedQuiet = matchingRecipe.suggestedQuietHours;
+
+        return (
+          <DetailSection title="Smart recommendations">
+            <View
+              style={{
+                marginHorizontal: spacing.lg,
+                padding: spacing.md,
+                backgroundColor: colors.fill,
+                borderRadius: radius.md,
+                borderWidth: 0.5,
+                borderColor: colors.separator,
+              }}
+            >
+              <Text style={{ ...type.footnote, color: colors.secondaryLabel }}>
+                This app matches the <Text style={{ fontWeight: '600', color: colors.label }}>{matchingRecipe.name}</Text> recipe
+              </Text>
+
+              {recommendedQuiet && !hasQuietHours && canEdit && (
+                <Pressable
+                  onPress={() => {
+                    haptic.selection();
+                    const [start, end] = recommendedQuiet;
+                    setQuietHours({ id: app._id, start, end });
+                  }}
+                  style={{ marginTop: spacing.sm }}
+                >
+                  <Text style={{ ...type.footnote, color: colors.accent, fontWeight: '600' }}>
+                    Apply recommended quiet hours ({Math.floor(recommendedQuiet[0]/60)}pm – {Math.floor(recommendedQuiet[1]/60)}am)
+                  </Text>
+                </Pressable>
+              )}
+
+              {hasQuietHours && recommendedQuiet && (
+                <Text style={{ ...type.caption2, color: colors.secondaryLabel, marginTop: spacing.sm }}>
+                  Quiet hours already set
+                </Text>
+              )}
+            </View>
+          </DetailSection>
+        );
+      })()}
 
       {canEdit && (
         <DetailSection title="Integration">

@@ -1,6 +1,7 @@
-import { useMutation, useQuery } from 'convex/react';
+import { useConvex, useMutation, useQuery } from 'convex/react';
 import { api } from '@pushr/backend/_generated/api';
 import type { Doc, Id } from '@pushr/backend/_generated/dataModel';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -28,6 +29,7 @@ import { showActionSheet } from '@/lib/actionSheet';
 import { promptText } from '@/lib/prompt';
 import { pickAndUploadLogo } from '@/lib/uploadLogo';
 import { recallToken } from '@/lib/tokenStore';
+import { getProviderMeta } from '@/lib/providerDetection';
 
 type AppRow = Doc<'sourceApps'> & {
   logoUrl: string | null;
@@ -85,6 +87,39 @@ export default function Apps() {
   const bottomPad = Math.max(120, insets.bottom + spacing.xxl + 60);
   const apps = useQuery(api.sourceApps.listMine) as AppRow[] | undefined;
   const pendingInvites = useQuery(api.sharing.listMyPendingInvites);
+  const convex = useConvex();
+
+  // Lightweight per-app recent activity for the list (fetched on demand)
+  const [activity, setActivity] = useState<Record<string, { count7d: number; primaryProvider?: string }>>({});
+
+  useEffect(() => {
+    if (!apps || apps.length === 0) return;
+
+    const loadActivity = async () => {
+      const toFetch = apps.slice(0, 8); // keep it very lightweight
+      const results = await Promise.all(
+        toFetch.map(async (app) => {
+          try {
+            const stats = await convex.query(api.sourceApps.getStats, { id: app._id });
+            return [
+              app._id,
+              {
+                count7d: stats?.notificationCount7d ?? 0,
+                primaryProvider: stats?.primaryProvider,
+              },
+            ] as const;
+          } catch {
+            return [app._id, { count7d: 0 }] as const;
+          }
+        })
+      );
+      const map: Record<string, any> = {};
+      for (const [id, data] of results) map[id] = data;
+      setActivity(map);
+    };
+
+    loadActivity();
+  }, [apps, convex]);
 
   const create = useMutation(api.sourceApps.create);
   const setEnabled = useMutation(api.sourceApps.setEnabled);
@@ -361,6 +396,33 @@ export default function Apps() {
                         >
                           {item.name}
                         </Text>
+
+                        {activity[item._id] && activity[item._id].count7d > 0 && (
+                          <View
+                            style={{
+                              paddingHorizontal: 6,
+                              paddingVertical: 1,
+                              borderRadius: radius.xs,
+                              backgroundColor: colors.fill,
+                            }}
+                          >
+                            <Text style={{ ...type.caption2, color: colors.secondaryLabel, fontVariant: ['tabular-nums'] }}>
+                              {activity[item._id].count7d} in 7d
+                            </Text>
+                          </View>
+                        )}
+
+                        {activity[item._id]?.primaryProvider && (
+                          <View
+                            style={{
+                              width: 6,
+                              height: 6,
+                              borderRadius: 3,
+                              backgroundColor: getProviderMeta(activity[item._id].primaryProvider as any).tint || colors.accent,
+                            }}
+                          />
+                        )}
+
                         {isMuted(item) && (
                           <View
                             style={{
@@ -387,7 +449,9 @@ export default function Apps() {
                       <Text
                         style={{
                           ...type.caption1,
-                          color: colors.secondaryLabel,
+                          color: item.lastUsedAt && Date.now() - item.lastUsedAt < 1000 * 60 * 60 * 24 * 3
+                            ? colors.success
+                            : colors.secondaryLabel,
                           marginTop: 2
                         }}
                         numberOfLines={1}

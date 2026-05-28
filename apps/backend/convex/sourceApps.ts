@@ -62,6 +62,64 @@ export const getById = query({
   }
 });
 
+/**
+ * Lightweight stats for the mini dashboard in source app detail.
+ * Uses bounded index queries only. Good enough for recent activity views.
+ */
+export const getStats = query({
+  args: { id: v.id('sourceApps') },
+  handler: async (ctx, { id }) => {
+    const userId = await requireAuth(ctx);
+    const access = await getSourceAppRole(ctx, id, userId);
+    if (!access) return null;
+
+    const now = Date.now();
+    const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+    const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
+
+    // Recent notifications (bounded)
+    const recent = await ctx.db
+      .query('notifications')
+      .withIndex('by_sourceApp_created', (q) => q.eq('sourceAppId', id))
+      .order('desc')
+      .take(100);
+
+    const count7d = recent.filter((n) => n.createdAt >= sevenDaysAgo).length;
+    const count30d = recent.filter((n) => n.createdAt >= thirtyDaysAgo).length;
+    const lastAt = recent.length > 0 ? recent[0].createdAt : undefined;
+
+    // Rough ack rate from recent items that had ack requested
+    const ackRequested = recent.filter((n) => n.ack);
+    const acked = ackRequested.filter((n) => n.acknowledgedAt);
+    const ackRate = ackRequested.length > 0 ? acked.length / ackRequested.length : undefined;
+
+    // Delivery success rate from aggregates already stored on notifications
+    const withAttempts = recent.filter((n) => n.attemptedDeviceCount > 0);
+    const totalAttempted = withAttempts.reduce((sum, n) => sum + n.attemptedDeviceCount, 0);
+    const totalSuccess = withAttempts.reduce((sum, n) => sum + n.successDeviceCount, 0);
+    const deliverySuccessRate = totalAttempted > 0 ? Math.round((totalSuccess / totalAttempted) * 100) : undefined;
+
+    // Infer primary provider from recent webhook activity (great for branding/recipes)
+    const providers = recent
+      .map((n) => n.webhookProvider)
+      .filter(Boolean) as string[];
+    const primaryProvider = providers.length > 0
+      ? providers.reduce((a, b, _, arr) =>
+          arr.filter(v => v === a).length >= arr.filter(v => v === b).length ? a : b
+        )
+      : undefined;
+
+    return {
+      notificationCount7d: count7d,
+      notificationCount30d: count30d,
+      lastNotificationAt: lastAt,
+      ackRate: ackRate !== undefined ? Math.round(ackRate * 100) : undefined,
+      deliverySuccessRate,
+      primaryProvider,
+    };
+  }
+});
+
 export const create = mutation({
   args: {
     name: v.string(),

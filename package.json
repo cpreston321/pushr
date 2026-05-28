@@ -43,5 +43,8 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "signal-exit": "^3.0.7"
+  },
+  "patchedDependencies": {
+    "@bacons/apple-targets@4.0.7": "patches/@bacons%2Fapple-targets@4.0.7.patch"
   }
 }
