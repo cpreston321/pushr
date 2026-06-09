@@ -22,9 +22,13 @@ export const SHEET_HEADER_HEIGHT = 72;
 export function SheetHeader({
   title,
   trailing,
+  onClose,
+  variant = "close",
 }: {
   title: string;
   trailing?: ReactNode;
+  onClose?: () => void;
+  variant?: "close" | "back";
 }) {
   const { colors } = useTheme();
   return (
@@ -41,7 +45,7 @@ export function SheetHeader({
         gap: spacing.md,
       }}
     >
-      <SheetCloseButton />
+      <SheetCloseButton onPress={onClose} variant={variant} />
       <Text
         style={{ ...type.headline, color: colors.label, flex: 1 }}
         numberOfLines={1}
@@ -53,14 +57,20 @@ export function SheetHeader({
   );
 }
 
-function SheetCloseButton() {
+function SheetCloseButton({
+  onPress,
+  variant,
+}: {
+  onPress?: () => void;
+  variant: "close" | "back";
+}) {
   const { colors } = useTheme();
   const inner = (
     <Pressable
-      onPress={() => router.back()}
+      onPress={onPress ?? (() => router.back())}
       hitSlop={10}
       accessibilityRole="button"
-      accessibilityLabel="Close"
+      accessibilityLabel={variant === "back" ? "Back" : "Close"}
       style={{
         width: 44,
         height: 44,
@@ -69,8 +79,8 @@ function SheetCloseButton() {
       }}
     >
       <SymbolView
-        name="xmark"
-        size={16}
+        name={variant === "back" ? "chevron.left" : "xmark"}
+        size={variant === "back" ? 18 : 16}
         weight="semibold"
         tintColor={colors.label}
       />

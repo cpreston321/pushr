@@ -1,13 +1,15 @@
-import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, Text, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
-import * as Clipboard from 'expo-clipboard';
-import { useMutation, useQuery } from 'convex/react';
-import { SymbolView } from 'expo-symbols';
-import { api } from '@pushr/backend/_generated/api';
-import type { Id } from '@pushr/backend/_generated/dataModel';
-import { SheetContainer } from '@/components/SheetContainer';
-import { SheetHeader } from '@/components/SheetHeader';
+import { useState } from "react";
+import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { router } from "expo-router";
+import * as Clipboard from "expo-clipboard";
+import { useMutation, useQuery } from "convex/react";
+import { SymbolView } from "expo-symbols";
+import { api } from "@pushr/backend/_generated/api";
+import type { Id } from "@pushr/backend/_generated/dataModel";
+import { SheetHeader } from "@/components/SheetHeader";
+import { useSheetNav } from "@/components/sheets/SheetNavigator";
+import { SourceAppForwarderAddFrame } from "@/components/sheets/ForwarderAddSheet";
 import {
   curlExample,
   DetailRow,
@@ -16,65 +18,75 @@ import {
   WEBHOOK_PROVIDER_ORDER,
   WEBHOOK_PROVIDERS,
   type AppRow,
-  type WebhookProviderId
-} from '@/components/source-app/shared';
-import { useIsPro } from '@/components/Pro';
-import { DiscordLogo, SlackLogo } from '@/components/source-app/BrandLogo';
-import { useTheme, spacing, radius, type } from '@/lib/theme';
-import { haptic } from '@/lib/haptics';
-import { showActionSheet } from '@/lib/actionSheet';
-import { promptText } from '@/lib/prompt';
-import { recallToken, rememberToken } from '@/lib/tokenStore';
+  type WebhookProviderId,
+} from "@/components/source-app/shared";
+import { useIsPro } from "@/components/Pro";
+import { DiscordLogo, SlackLogo } from "@/components/source-app/BrandLogo";
+import { useTheme, spacing, radius, type } from "@/lib/theme";
+import { haptic } from "@/lib/haptics";
+import { showActionSheet } from "@/lib/actionSheet";
+import { promptText } from "@/lib/prompt";
+import { recallToken, rememberToken } from "@/lib/tokenStore";
 
-type ForwarderKind = 'slack' | 'discord';
-type PriorityFilter = 'all' | 'normal_high' | 'high_only';
+type PriorityFilter = "all" | "normal_high" | "high_only";
 const PRIORITY_LABELS: Record<PriorityFilter, string> = {
-  all: 'All pushes',
-  normal_high: 'Normal & high priority',
-  high_only: 'High priority only'
+  all: "All pushes",
+  normal_high: "Normal & high priority",
+  high_only: "High priority only",
 };
 
-/**
- * formSheet — owner-only API & token management. After a token rotation
- * we `dismissAll()` to close both this sheet and the detail sheet, then
- * push `/token-reveal` so the user can copy the freshly-minted bearer.
- */
-export default function SourceAppApiScreen() {
+export function SourceAppApiFrame({ appId }: { appId: Id<"sourceApps"> }) {
   const { colors } = useTheme();
-  const params = useLocalSearchParams<{ id?: string }>();
-  const appId = params.id as Id<'sourceApps'> | undefined;
-
+  const insets = useSafeAreaInsets();
+  const nav = useSheetNav();
   return (
     <View style={{ flex: 1, backgroundColor: colors.sheet }}>
-      <SheetHeader title="API & token" />
-      <SheetContainer scrollView contentContainerStyle={{ paddingTop: spacing.md, gap: spacing.lg }}>
-        {appId ? <Body appId={appId} /> : null}
-      </SheetContainer>
+      <SheetHeader title="API & token" onClose={nav.pop} variant="back" />
+      <ScrollView
+        contentContainerStyle={{
+          paddingTop: spacing.md,
+          paddingHorizontal: spacing.lg,
+          paddingBottom: insets.bottom + spacing.xxl * 2,
+          gap: spacing.lg,
+        }}
+      >
+        <Body appId={appId} onDismissSheet={nav.dismissSheet} />
+      </ScrollView>
     </View>
   );
 }
 
-function Body({ appId }: { appId: Id<'sourceApps'> }) {
+function Body({
+  appId,
+  onDismissSheet,
+}: {
+  appId: Id<"sourceApps">;
+  onDismissSheet: () => void;
+}) {
   const { colors, tintBg } = useTheme();
   const apps = useQuery(api.sourceApps.listMine) as AppRow[] | undefined;
   const app = apps?.find((a) => a._id === appId);
   const rotateToken = useMutation(api.sourceApps.rotateToken);
-  const setProviderWebhookSecret = useMutation(api.sourceApps.setProviderWebhookSecret);
+  const setProviderWebhookSecret = useMutation(
+    api.sourceApps.setProviderWebhookSecret,
+  );
   const [rotating, setRotating] = useState(false);
   const [savingFor, setSavingFor] = useState<WebhookProviderId | null>(null);
 
   if (apps === undefined) {
     return (
-      <View style={{ paddingTop: spacing.xxl, alignItems: 'center' }}>
+      <View style={{ paddingTop: spacing.xxl, alignItems: "center" }}>
         <ActivityIndicator color={colors.accent} />
       </View>
     );
   }
 
-  if (!app || app.role !== 'owner') {
+  if (!app || app.role !== "owner") {
     return (
-      <View style={{ paddingTop: spacing.xxl, alignItems: 'center' }}>
-        <Text style={{ ...type.body, color: colors.secondaryLabel }}>Owner access required.</Text>
+      <View style={{ paddingTop: spacing.xxl, alignItems: "center" }}>
+        <Text style={{ ...type.body, color: colors.secondaryLabel }}>
+          Owner access required.
+        </Text>
       </View>
     );
   }
@@ -91,24 +103,30 @@ function Body({ appId }: { appId: Id<'sourceApps'> }) {
     const meta = WEBHOOK_PROVIDERS[providerId];
     const existing = configsByProvider.get(providerId);
     const value = await promptText({
-      title: existing ? `Update ${meta.label} signing secret` : `Set ${meta.label} signing secret`,
+      title: existing
+        ? `Update ${meta.label} signing secret`
+        : `Set ${meta.label} signing secret`,
       message: meta.configHint
         ? `Paste the secret from ${meta.configHint}. We'll verify ${meta.signatureHeader} on every delivery to ${meta.hookPath}.`
         : `We'll verify ${meta.signatureHeader} on every delivery to ${meta.hookPath}.`,
-      placeholder: 'Paste signing secret',
-      contentType: 'password',
-      confirmLabel: 'Save'
+      placeholder: "Paste signing secret",
+      contentType: "password",
+      confirmLabel: "Save",
     });
     if (!value) return;
     setSavingFor(providerId);
     try {
-      await setProviderWebhookSecret({ id: app._id, provider: providerId, secret: value });
+      await setProviderWebhookSecret({
+        id: app._id,
+        provider: providerId,
+        secret: value,
+      });
       haptic.success();
     } catch (err: any) {
       haptic.error();
       Alert.alert(
         `Couldn't save ${meta.label} secret`,
-        err?.data?.message ?? err?.message ?? 'Please try again.'
+        err?.data?.message ?? err?.message ?? "Please try again.",
       );
     } finally {
       setSavingFor(null);
@@ -122,27 +140,31 @@ function Body({ appId }: { appId: Id<'sourceApps'> }) {
       `Clear ${meta.label} signing secret?`,
       `${meta.label} deliveries to ${app.name} will stop being signature-verified. Other providers configured on this app are unaffected. The bearer token still authenticates each request.`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: "Cancel", style: "cancel" },
         {
-          text: 'Clear',
-          style: 'destructive',
+          text: "Clear",
+          style: "destructive",
           onPress: async () => {
             setSavingFor(providerId);
             try {
-              await setProviderWebhookSecret({ id: app._id, provider: providerId, secret: null });
+              await setProviderWebhookSecret({
+                id: app._id,
+                provider: providerId,
+                secret: null,
+              });
               haptic.success();
             } catch (err: any) {
               haptic.error();
               Alert.alert(
                 `Couldn't clear ${meta.label} secret`,
-                err?.data?.message ?? err?.message ?? 'Please try again.'
+                err?.data?.message ?? err?.message ?? "Please try again.",
               );
             } finally {
               setSavingFor(null);
             }
-          }
-        }
-      ]
+          },
+        },
+      ],
     );
   }
 
@@ -155,13 +177,16 @@ function Body({ appId }: { appId: Id<'sourceApps'> }) {
       showActionSheet({
         title: `${meta.label} webhook`,
         options: [
-          { label: 'Update signing secret', onPress: () => setSecretFor(providerId) },
           {
-            label: 'Clear signing secret',
+            label: "Update signing secret",
+            onPress: () => setSecretFor(providerId),
+          },
+          {
+            label: "Clear signing secret",
             destructive: true,
-            onPress: () => clearSecretFor(providerId)
-          }
-        ]
+            onPress: () => clearSecretFor(providerId),
+          },
+        ],
       });
     } else {
       setSecretFor(providerId);
@@ -186,8 +211,8 @@ function Body({ appId }: { appId: Id<'sourceApps'> }) {
     if (!token) {
       haptic.warning();
       Alert.alert(
-        'Token not on this device',
-        'We only cache the token on the device it was created on. To use it elsewhere, regenerate the token.'
+        "Token not on this device",
+        "We only cache the token on the device it was created on. To use it elsewhere, regenerate the token.",
       );
       return;
     }
@@ -198,42 +223,43 @@ function Body({ appId }: { appId: Id<'sourceApps'> }) {
   async function handleRotate() {
     if (!app || rotating) return;
     Alert.alert(
-      'Regenerate token?',
+      "Regenerate token?",
       `Any caller still using the current token for ${app.name} will stop working immediately. The notification feed history is preserved.`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: "Cancel", style: "cancel" },
         {
-          text: 'Regenerate',
-          style: 'destructive',
+          text: "Regenerate",
+          style: "destructive",
           onPress: async () => {
             setRotating(true);
             try {
               const { token } = await rotateToken({ id: app._id });
               haptic.success();
               await rememberToken(app._id, token);
-              // Close both this sheet and the detail sheet sitting under it,
-              // then push the one-time token reveal.
-              router.dismissAll();
+              // Close this sheet, then push the one-time token reveal.
+              // token-reveal is a fullscreen formSheet, so the detail sheet
+              // (if still open underneath) is hidden behind it.
+              onDismissSheet();
               setTimeout(
                 () =>
                   router.push({
-                    pathname: '/token-reveal' as never,
-                    params: { id: app._id, name: app.name, token }
+                    pathname: "/token-reveal" as never,
+                    params: { id: app._id, name: app.name, token },
                   }),
-                200
+                200,
               );
             } catch (err: any) {
               haptic.error();
               Alert.alert(
                 "Couldn't regenerate token",
-                err?.data?.message ?? err?.message ?? 'Please try again.'
+                err?.data?.message ?? err?.message ?? "Please try again.",
               );
             } finally {
               setRotating(false);
             }
-          }
-        }
-      ]
+          },
+        },
+      ],
     );
   }
 
@@ -243,9 +269,9 @@ function Body({ appId }: { appId: Id<'sourceApps'> }) {
         style={{
           ...type.footnote,
           color: colors.secondaryLabel,
-          textTransform: 'uppercase',
+          textTransform: "uppercase",
           letterSpacing: 0.5,
-          paddingHorizontal: spacing.sm
+          paddingHorizontal: spacing.sm,
         }}
       >
         Bearer token
@@ -256,13 +282,13 @@ function Body({ appId }: { appId: Id<'sourceApps'> }) {
         style={({ pressed }) => ({
           backgroundColor: colors.cell,
           borderRadius: radius.lg,
-          borderCurve: 'continuous',
+          borderCurve: "continuous",
           paddingHorizontal: spacing.lg,
           paddingVertical: spacing.md,
-          flexDirection: 'row',
-          alignItems: 'center',
+          flexDirection: "row",
+          alignItems: "center",
           gap: spacing.md,
-          opacity: pressed ? 0.7 : 1
+          opacity: pressed ? 0.7 : 1,
         })}
         accessibilityRole="button"
         accessibilityLabel="Copy token prefix"
@@ -273,8 +299,8 @@ function Body({ appId }: { appId: Id<'sourceApps'> }) {
             height: 36,
             borderRadius: radius.lg,
             backgroundColor: tintBg(colors.accent),
-            alignItems: 'center',
-            justifyContent: 'center'
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
           <SymbolView name="key.fill" size={18} tintColor={colors.accent} />
@@ -284,8 +310,8 @@ function Body({ appId }: { appId: Id<'sourceApps'> }) {
             style={{
               ...type.footnote,
               color: colors.secondaryLabel,
-              textTransform: 'uppercase',
-              letterSpacing: 0.5
+              textTransform: "uppercase",
+              letterSpacing: 0.5,
             }}
           >
             Prefix
@@ -293,13 +319,17 @@ function Body({ appId }: { appId: Id<'sourceApps'> }) {
           <Text
             selectable
             numberOfLines={1}
-            style={{ ...type.body, color: colors.label, fontFamily: 'Menlo' }}
+            style={{ ...type.body, color: colors.label, fontFamily: "Menlo" }}
           >
             {app.tokenPrefix}
             <Text style={{ color: colors.secondaryLabel }}>…</Text>
           </Text>
         </View>
-        <SymbolView name="doc.on.doc" size={16} tintColor={colors.secondaryLabel} />
+        <SymbolView
+          name="doc.on.doc"
+          size={16}
+          tintColor={colors.secondaryLabel}
+        />
       </Pressable>
 
       <View style={{ marginTop: spacing.sm }}>
@@ -321,7 +351,7 @@ function Body({ appId }: { appId: Id<'sourceApps'> }) {
           <DetailRow
             icon="arrow.triangle.2.circlepath"
             tint={colors.warning}
-            title={rotating ? 'Regenerating…' : 'Regenerate token'}
+            title={rotating ? "Regenerating…" : "Regenerate token"}
             subtitle="Invalidates the old token. The new one is shown once."
             onPress={rotating ? undefined : handleRotate}
             destructive
@@ -346,19 +376,27 @@ function Body({ appId }: { appId: Id<'sourceApps'> }) {
                 key={providerId}
                 icon={
                   saving
-                    ? 'arrow.triangle.2.circlepath'
+                    ? "arrow.triangle.2.circlepath"
                     : !meta.signs
-                      ? 'info.circle'
+                      ? "info.circle"
                       : isSet
-                        ? 'lock.shield.fill'
-                        : 'lock.open.fill'
+                        ? "lock.shield.fill"
+                        : "lock.open.fill"
                 }
-                tint={!meta.signs ? colors.secondaryLabel : isSet ? colors.success : colors.accent}
+                tint={
+                  !meta.signs
+                    ? colors.secondaryLabel
+                    : isSet
+                      ? colors.success
+                      : colors.accent
+                }
                 title={meta.label}
-                subtitle={saving ? 'Saving…' : subtitle}
-                onPress={meta.signs && !saving ? () => tapProvider(providerId) : undefined}
+                subtitle={saving ? "Saving…" : subtitle}
+                onPress={
+                  meta.signs && !saving ? () => tapProvider(providerId) : undefined
+                }
                 chevron={meta.signs && !saving}
-                badge={isSet ? 'ON' : undefined}
+                badge={isSet ? "ON" : undefined}
               />
             );
           })}
@@ -372,16 +410,13 @@ function Body({ appId }: { appId: Id<'sourceApps'> }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Outbound forwarders — mirror pushes into Slack / Discord
-// ---------------------------------------------------------------------------
-
-function ForwardersSection({ sourceAppId }: { sourceAppId: Id<'sourceApps'> }) {
+function ForwardersSection({ sourceAppId }: { sourceAppId: Id<"sourceApps"> }) {
   const { colors } = useTheme();
   const isPro = useIsPro();
+  const nav = useSheetNav();
   const forwarders = useQuery(
     api.forwarders.listForApp,
-    isPro ? { sourceAppId } : 'skip'
+    isPro ? { sourceAppId } : "skip",
   );
   const updateForwarder = useMutation(api.forwarders.update);
   const removeForwarder = useMutation(api.forwarders.remove);
@@ -395,7 +430,7 @@ function ForwardersSection({ sourceAppId }: { sourceAppId: Id<'sourceApps'> }) {
           tint={colors.accent}
           title="Forward to Slack & Discord"
           subtitle="Mirror pushes into channels. Available on Pro."
-          onPress={() => router.push('/upgrade')}
+          onPress={() => router.push("/upgrade")}
           chevron
           badge="PRO"
         />
@@ -405,22 +440,21 @@ function ForwardersSection({ sourceAppId }: { sourceAppId: Id<'sourceApps'> }) {
 
   function startAdd() {
     haptic.light();
-    router.push({
-      pathname: '/forwarder-add' as never,
-      params: { id: sourceAppId }
+    nav.push({
+      id: `forwarder-add-${sourceAppId}`,
+      node: <SourceAppForwarderAddFrame sourceAppId={sourceAppId} />,
     });
   }
 
-  function tapForwarder(
-    f: NonNullable<typeof forwarders>[number]
-  ) {
+  function tapForwarder(f: NonNullable<typeof forwarders>[number]) {
     haptic.light();
     showActionSheet({
-      title: f.label || (f.kind === 'slack' ? 'Slack forwarder' : 'Discord forwarder'),
+      title:
+        f.label || (f.kind === "slack" ? "Slack forwarder" : "Discord forwarder"),
       message: f.lastError ? `Last error: ${f.lastError}` : undefined,
       options: [
         {
-          label: f.enabled ? 'Disable' : 'Enable',
+          label: f.enabled ? "Disable" : "Enable",
           onPress: async () => {
             try {
               await updateForwarder({ id: f._id, enabled: !f.enabled });
@@ -429,58 +463,63 @@ function ForwardersSection({ sourceAppId }: { sourceAppId: Id<'sourceApps'> }) {
               haptic.error();
               Alert.alert(
                 "Couldn't update",
-                err?.data?.message ?? err?.message ?? 'Please try again.'
+                err?.data?.message ?? err?.message ?? "Please try again.",
               );
             }
-          }
+          },
         },
         {
-          label: 'Send test message',
+          label: "Send test message",
           onPress: async () => {
             try {
               await testForwarder({ id: f._id });
               haptic.success();
               Alert.alert(
-                'Test sent',
-                'pushr posted a test message — check the destination channel.'
+                "Test sent",
+                "pushr posted a test message — check the destination channel.",
               );
             } catch (err: any) {
               haptic.error();
               Alert.alert(
                 "Couldn't send test",
-                err?.data?.message ?? err?.message ?? 'Please try again.'
+                err?.data?.message ?? err?.message ?? "Please try again.",
               );
             }
-          }
+          },
         },
         {
-          label: 'Change priority filter',
+          label: "Change priority filter",
           onPress: () => {
             showActionSheet({
-              title: 'Which pushes should forward?',
-              options: (['all', 'normal_high', 'high_only'] as PriorityFilter[]).map((p) => ({
-                label: `${p === f.priorityFilter ? '✓ ' : ''}${PRIORITY_LABELS[p]}`,
-                onPress: async () => {
-                  try {
-                    await updateForwarder({ id: f._id, priorityFilter: p });
-                    haptic.success();
-                  } catch (err: any) {
-                    haptic.error();
-                  }
-                }
-              }))
+              title: "Which pushes should forward?",
+              options: (["all", "normal_high", "high_only"] as PriorityFilter[]).map(
+                (p) => ({
+                  label: `${p === f.priorityFilter ? "✓ " : ""}${PRIORITY_LABELS[p]}`,
+                  onPress: async () => {
+                    try {
+                      await updateForwarder({
+                        id: f._id,
+                        priorityFilter: p,
+                      });
+                      haptic.success();
+                    } catch (err: any) {
+                      haptic.error();
+                    }
+                  },
+                }),
+              ),
             });
-          }
+          },
         },
         {
-          label: 'Rename',
+          label: "Rename",
           onPress: async () => {
             const next = await promptText({
-              title: 'Rename forwarder',
-              defaultValue: f.label ?? '',
-              placeholder: 'e.g. #alerts',
-              allowEmpty: true
-            });
+              title: "Rename forwarder",
+              defaultValue: f.label ?? "",
+              placeholder: "e.g. #alerts",
+              allowEmpty: true,
+            } as never);
             if (next === null) return;
             try {
               await updateForwarder({ id: f._id, label: next });
@@ -488,45 +527,44 @@ function ForwardersSection({ sourceAppId }: { sourceAppId: Id<'sourceApps'> }) {
             } catch (err: any) {
               haptic.error();
             }
-          }
+          },
         },
         {
-          label: 'Remove forwarder',
+          label: "Remove forwarder",
           destructive: true,
           onPress: () => {
             Alert.alert(
-              'Remove forwarder?',
+              "Remove forwarder?",
               `Pushes from this app will stop being forwarded to ${
-                f.kind === 'slack' ? 'Slack' : 'Discord'
+                f.kind === "slack" ? "Slack" : "Discord"
               }.`,
               [
-                { text: 'Cancel', style: 'cancel' },
+                { text: "Cancel", style: "cancel" },
                 {
-                  text: 'Remove',
-                  style: 'destructive',
+                  text: "Remove",
+                  style: "destructive",
                   onPress: async () => {
                     haptic.warning();
                     await removeForwarder({ id: f._id });
-                  }
-                }
-              ]
+                  },
+                },
+              ],
             );
-          }
-        }
-      ]
+          },
+        },
+      ],
     });
   }
 
   const rows: React.ReactNode[] = [];
   for (const f of forwarders ?? []) {
-    const kindLabel = f.kind === 'slack' ? 'Slack' : 'Discord';
+    const kindLabel = f.kind === "slack" ? "Slack" : "Discord";
     const filterLabel = PRIORITY_LABELS[f.priorityFilter as PriorityFilter];
-    const subtitleParts: string[] = f.enabled
-      ? [filterLabel]
-      : ['Disabled'];
+    const subtitleParts: string[] = f.enabled ? [filterLabel] : ["Disabled"];
     if (f.lastError) subtitleParts.push(`⚠ ${f.lastError}`);
 
-    const brand = f.kind === 'slack' ? <SlackLogo size={32} /> : <DiscordLogo size={32} />;
+    const brand =
+      f.kind === "slack" ? <SlackLogo size={32} /> : <DiscordLogo size={32} />;
     const leading = (
       <View style={{ opacity: f.enabled ? 1 : 0.45 }}>{brand}</View>
     );
@@ -535,9 +573,15 @@ function ForwardersSection({ sourceAppId }: { sourceAppId: Id<'sourceApps'> }) {
       <DetailRow
         key={f._id}
         leading={leading}
-        tint={!f.enabled ? colors.secondaryLabel : f.lastError ? colors.warning : colors.accent}
+        tint={
+          !f.enabled
+            ? colors.secondaryLabel
+            : f.lastError
+              ? colors.warning
+              : colors.accent
+        }
         title={f.label?.trim() || `${kindLabel} channel`}
-        subtitle={subtitleParts.join(' · ')}
+        subtitle={subtitleParts.join(" · ")}
         onPress={() => tapForwarder(f)}
         chevron
         trailing={
@@ -547,7 +591,7 @@ function ForwardersSection({ sourceAppId }: { sourceAppId: Id<'sourceApps'> }) {
             colors={colors}
           />
         }
-      />
+      />,
     );
   }
   rows.push(
@@ -559,7 +603,7 @@ function ForwardersSection({ sourceAppId }: { sourceAppId: Id<'sourceApps'> }) {
       subtitle="Mirror pushes into a Slack or Discord channel"
       onPress={startAdd}
       chevron
-    />
+    />,
   );
 
   return <DetailSection title="Outbound forwarding">{rows}</DetailSection>;
@@ -568,20 +612,24 @@ function ForwardersSection({ sourceAppId }: { sourceAppId: Id<'sourceApps'> }) {
 function ForwarderStatusDot({
   enabled,
   errored,
-  colors
+  colors,
 }: {
   enabled: boolean;
   errored: boolean;
-  colors: ReturnType<typeof useTheme>['colors'];
+  colors: ReturnType<typeof useTheme>["colors"];
 }) {
-  const color = !enabled ? colors.tertiaryLabel : errored ? colors.destructive : colors.success;
+  const color = !enabled
+    ? colors.tertiaryLabel
+    : errored
+      ? colors.destructive
+      : colors.success;
   return (
     <View
       style={{
         width: 8,
         height: 8,
         borderRadius: 4,
-        backgroundColor: color
+        backgroundColor: color,
       }}
     />
   );

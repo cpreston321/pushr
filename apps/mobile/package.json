@@ -26,6 +26,7 @@
     "@pushr/backend": "workspace:*",
     "@pushr/live-activity": "workspace:*",
     "@pushr/widget-data": "workspace:*",
+    "@swmansion/react-native-bottom-sheet": "^0.10.0",
     "better-auth": "1.6.9",
     "convex": "^1.36.1",
     "expo": "^56.0.3",

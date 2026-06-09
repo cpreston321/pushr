@@ -1,67 +1,80 @@
-import { useState } from 'react';
-import { Alert, Pressable, Text, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
-import { useMutation } from 'convex/react';
-import { api } from '@pushr/backend/_generated/api';
-import type { Id } from '@pushr/backend/_generated/dataModel';
-import { Input } from '@/components/Input';
-import { SheetContainer } from '@/components/SheetContainer';
-import { SheetActionPill, SheetHeader } from '@/components/SheetHeader';
+import { useState } from "react";
+import { Alert, Pressable, ScrollView, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SymbolView } from "expo-symbols";
+import { useMutation } from "convex/react";
+import { api } from "@pushr/backend/_generated/api";
+import type { Id } from "@pushr/backend/_generated/dataModel";
+import { Input } from "@/components/Input";
+import { SheetActionPill, SheetHeader } from "@/components/SheetHeader";
+import { useSheetNav } from "@/components/sheets/SheetNavigator";
 import {
   DiscordLogo,
   SlackLogo,
   DISCORD_BG,
-  SLACK_BG
-} from '@/components/source-app/BrandLogo';
-import { useTheme, spacing, radius, type } from '@/lib/theme';
-import { haptic } from '@/lib/haptics';
+  SLACK_BG,
+} from "@/components/source-app/BrandLogo";
+import { useTheme, spacing, radius, type } from "@/lib/theme";
+import { haptic } from "@/lib/haptics";
 
-type ForwarderKind = 'slack' | 'discord';
-type PriorityFilter = 'all' | 'normal_high' | 'high_only';
+type ForwarderKind = "slack" | "discord";
+type PriorityFilter = "all" | "normal_high" | "high_only";
 
-const PRIORITY_OPTIONS: { value: PriorityFilter; title: string; body: string }[] = [
-  { value: 'all', title: 'All pushes', body: 'Forward every notification from this app.' },
+const PRIORITY_OPTIONS: {
+  value: PriorityFilter;
+  title: string;
+  body: string;
+}[] = [
+  { value: "all", title: "All pushes", body: "Forward every notification from this app." },
   {
-    value: 'normal_high',
-    title: 'Normal & high priority',
-    body: 'Skip pushes with priority below 5 (low-priority chatter).'
+    value: "normal_high",
+    title: "Normal & high priority",
+    body: "Skip pushes with priority below 5 (low-priority chatter).",
   },
   {
-    value: 'high_only',
-    title: 'High priority only',
-    body: 'Only urgent alerts (priority ≥ 7). Keep the channel quiet.'
-  }
+    value: "high_only",
+    title: "High priority only",
+    body: "Only urgent alerts (priority ≥ 7). Keep the channel quiet.",
+  },
 ];
 
-/**
- * formSheet — add a new outbound forwarder (Slack/Discord) for a source app.
- * Replaces the previous chained-action-sheet+prompts flow with a single
- * polished form. Reached via `router.push('/forwarder-add?id=...')`.
- */
-export default function ForwarderAddScreen() {
-  const { colors } = useTheme();
-  const params = useLocalSearchParams<{ id?: string }>();
-  const sourceAppId = params.id as Id<'sourceApps'> | undefined;
+export function SourceAppForwarderAddFrame({
+  sourceAppId,
+}: {
+  sourceAppId: Id<"sourceApps">;
+}) {
+  const nav = useSheetNav();
+  return <Form sourceAppId={sourceAppId} onDone={nav.pop} />;
+}
 
+function Form({
+  sourceAppId,
+  onDone,
+}: {
+  sourceAppId: Id<"sourceApps">;
+  onDone: () => void;
+}) {
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const create = useMutation(api.forwarders.create);
 
-  const [kind, setKind] = useState<ForwarderKind>('slack');
-  const [url, setUrl] = useState('');
-  const [label, setLabel] = useState('');
-  const [priority, setPriority] = useState<PriorityFilter>('all');
+  const [kind, setKind] = useState<ForwarderKind>("slack");
+  const [url, setUrl] = useState("");
+  const [label, setLabel] = useState("");
+  const [priority, setPriority] = useState<PriorityFilter>("all");
   const [submitting, setSubmitting] = useState(false);
 
-  // Light client-side hint — backend does the authoritative validation.
   const urlLooksRight =
-    kind === 'slack'
+    kind === "slack"
       ? /^https:\/\/hooks\.slack\.com\/services\//.test(url.trim())
-      : /^https:\/\/(canary\.|ptb\.)?discord(app)?\.com\/api\/webhooks\//.test(url.trim());
+      : /^https:\/\/(canary\.|ptb\.)?discord(app)?\.com\/api\/webhooks\//.test(
+          url.trim(),
+        );
 
-  const canSubmit = !!sourceAppId && !!url.trim() && !submitting;
+  const canSubmit = !!url.trim() && !submitting;
 
   async function submit() {
-    if (!sourceAppId || !canSubmit) return;
+    if (!canSubmit) return;
     setSubmitting(true);
     try {
       await create({
@@ -69,15 +82,15 @@ export default function ForwarderAddScreen() {
         kind,
         url: url.trim(),
         label: label.trim() || undefined,
-        priorityFilter: priority
+        priorityFilter: priority,
       });
       haptic.success();
-      router.back();
+      onDone();
     } catch (err: any) {
       haptic.error();
       Alert.alert(
         "Couldn't add forwarder",
-        err?.data?.message ?? err?.message ?? 'Please try again.'
+        err?.data?.message ?? err?.message ?? "Please try again.",
       );
     } finally {
       setSubmitting(false);
@@ -88,6 +101,8 @@ export default function ForwarderAddScreen() {
     <View style={{ flex: 1, backgroundColor: colors.sheet }}>
       <SheetHeader
         title="Add forwarder"
+        onClose={onDone}
+        variant="back"
         trailing={
           <SheetActionPill
             label="Add"
@@ -97,27 +112,31 @@ export default function ForwarderAddScreen() {
           />
         }
       />
-      <SheetContainer
-        scrollView
+      <ScrollView
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ paddingTop: spacing.md, gap: spacing.lg }}
+        contentContainerStyle={{
+          paddingTop: spacing.md,
+          paddingHorizontal: spacing.lg,
+          paddingBottom: insets.bottom + spacing.xxl * 2,
+          gap: spacing.lg,
+        }}
       >
         <FieldLabel>Destination</FieldLabel>
-        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+        <View style={{ flexDirection: "row", gap: spacing.sm }}>
           <BrandCard
             kind="slack"
-            active={kind === 'slack'}
+            active={kind === "slack"}
             onPress={() => {
               haptic.selection();
-              setKind('slack');
+              setKind("slack");
             }}
           />
           <BrandCard
             kind="discord"
-            active={kind === 'discord'}
+            active={kind === "discord"}
             onPress={() => {
               haptic.selection();
-              setKind('discord');
+              setKind("discord");
             }}
           />
         </View>
@@ -126,9 +145,9 @@ export default function ForwarderAddScreen() {
           <FieldLabel>Webhook URL</FieldLabel>
           <Input
             placeholder={
-              kind === 'slack'
-                ? 'https://hooks.slack.com/services/…'
-                : 'https://discord.com/api/webhooks/…'
+              kind === "slack"
+                ? "https://hooks.slack.com/services/…"
+                : "https://discord.com/api/webhooks/…"
             }
             value={url}
             onChangeText={setUrl}
@@ -137,18 +156,24 @@ export default function ForwarderAddScreen() {
             keyboardType="url"
             textContentType="URL"
           />
-          <Text style={{ ...type.caption1, color: colors.tertiaryLabel, paddingHorizontal: 4 }}>
-            {kind === 'slack'
-              ? 'Slack → your workspace → Apps → Incoming Webhooks → Add to channel.'
-              : 'Discord → channel settings → Integrations → Webhooks → New webhook.'}
+          <Text
+            style={{
+              ...type.caption1,
+              color: colors.tertiaryLabel,
+              paddingHorizontal: 4,
+            }}
+          >
+            {kind === "slack"
+              ? "Slack → your workspace → Apps → Incoming Webhooks → Add to channel."
+              : "Discord → channel settings → Integrations → Webhooks → New webhook."}
             {url.trim().length > 0 && !urlLooksRight && (
               <Text style={{ color: colors.warning }}>
-                {'  '}
+                {"  "}
                 <SymbolView
                   name="exclamationmark.triangle.fill"
                   size={10}
                   tintColor={colors.warning}
-                />{' '}
+                />{" "}
                 URL doesn't match the expected format.
               </Text>
             )}
@@ -158,7 +183,7 @@ export default function ForwarderAddScreen() {
         <View style={{ gap: spacing.sm }}>
           <FieldLabel>Label (optional)</FieldLabel>
           <Input
-            placeholder={kind === 'slack' ? 'e.g. #alerts' : 'e.g. ops channel'}
+            placeholder={kind === "slack" ? "e.g. #alerts" : "e.g. ops channel"}
             value={label}
             onChangeText={setLabel}
             autoCapitalize="none"
@@ -172,8 +197,8 @@ export default function ForwarderAddScreen() {
             style={{
               backgroundColor: colors.cell,
               borderRadius: radius.lg,
-              borderCurve: 'continuous',
-              overflow: 'hidden'
+              borderCurve: "continuous",
+              overflow: "hidden",
             }}
           >
             {PRIORITY_OPTIONS.map((opt, i) => {
@@ -186,31 +211,39 @@ export default function ForwarderAddScreen() {
                     setPriority(opt.value);
                   }}
                   style={({ pressed }) => ({
-                    flexDirection: 'row',
-                    alignItems: 'center',
+                    flexDirection: "row",
+                    alignItems: "center",
                     paddingHorizontal: spacing.md,
                     paddingVertical: spacing.md,
                     gap: spacing.md,
-                    backgroundColor: pressed ? colors.cellHighlight : 'transparent',
+                    backgroundColor: pressed
+                      ? colors.cellHighlight
+                      : "transparent",
                     borderTopWidth: i > 0 ? 0.5 : 0,
                     borderTopColor: colors.separator,
-                    marginLeft: i > 0 ? spacing.md : 0
+                    marginLeft: i > 0 ? spacing.md : 0,
                   })}
                 >
                   <View style={{ flex: 1 }}>
-                    <Text style={{ ...type.body, color: colors.label }}>{opt.title}</Text>
+                    <Text style={{ ...type.body, color: colors.label }}>
+                      {opt.title}
+                    </Text>
                     <Text
                       style={{
                         ...type.footnote,
                         color: colors.secondaryLabel,
-                        marginTop: 1
+                        marginTop: 1,
                       }}
                     >
                       {opt.body}
                     </Text>
                   </View>
                   {selected ? (
-                    <SymbolView name="checkmark" size={16} tintColor={colors.accent} />
+                    <SymbolView
+                      name="checkmark"
+                      size={16}
+                      tintColor={colors.accent}
+                    />
                   ) : (
                     <View style={{ width: 16, height: 16 }} />
                   )}
@@ -219,7 +252,7 @@ export default function ForwarderAddScreen() {
             })}
           </View>
         </View>
-      </SheetContainer>
+      </ScrollView>
     </View>
   );
 }
@@ -231,10 +264,10 @@ function FieldLabel({ children }: { children: string }) {
       style={{
         ...type.footnote,
         color: colors.secondaryLabel,
-        textTransform: 'uppercase',
+        textTransform: "uppercase",
         letterSpacing: 0.5,
-        fontWeight: '600',
-        paddingHorizontal: 4
+        fontWeight: "600",
+        paddingHorizontal: 4,
       }}
     >
       {children}
@@ -242,24 +275,18 @@ function FieldLabel({ children }: { children: string }) {
   );
 }
 
-/**
- * Big tappable brand card. Active = brand-colored background with high-
- * contrast logo and white label, mirrors how Apple Wallet / iOS Wallet
- * surfaces the network you're picking. Inactive = neutral cell with the
- * full-color logo so the brand is still visible.
- */
 function BrandCard({
   kind,
   active,
-  onPress
+  onPress,
 }: {
   kind: ForwarderKind;
   active: boolean;
   onPress: () => void;
 }) {
   const { colors } = useTheme();
-  const label = kind === 'slack' ? 'Slack' : 'Discord';
-  const brandBg = kind === 'slack' ? SLACK_BG : DISCORD_BG;
+  const label = kind === "slack" ? "Slack" : "Discord";
+  const brandBg = kind === "slack" ? SLACK_BG : DISCORD_BG;
   return (
     <Pressable
       onPress={onPress}
@@ -270,21 +297,21 @@ function BrandCard({
         flex: 1,
         backgroundColor: active ? brandBg : colors.cell,
         borderRadius: radius.lg,
-        borderCurve: 'continuous',
+        borderCurve: "continuous",
         paddingVertical: spacing.lg,
-        alignItems: 'center',
+        alignItems: "center",
         gap: spacing.sm,
         borderWidth: 1.5,
-        borderColor: active ? brandBg : 'transparent',
-        opacity: pressed ? 0.85 : 1
+        borderColor: active ? brandBg : "transparent",
+        opacity: pressed ? 0.85 : 1,
       })}
     >
-      {kind === 'slack' ? <SlackLogo size={44} /> : <DiscordLogo size={44} />}
+      {kind === "slack" ? <SlackLogo size={44} /> : <DiscordLogo size={44} />}
       <Text
         style={{
           ...type.subhead,
-          fontWeight: '600',
-          color: active ? '#FFFFFF' : colors.label
+          fontWeight: "600",
+          color: active ? "#FFFFFF" : colors.label,
         }}
       >
         {label}

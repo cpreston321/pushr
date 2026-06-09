@@ -1,28 +1,82 @@
-import { useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { Alert, Pressable, ScrollView, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Clipboard from "expo-clipboard";
 import { router } from "expo-router";
 import { Image } from "expo-image";
 import { SymbolView } from "expo-symbols";
+import { AppBottomSheet } from "@/components/sheets/AppBottomSheet";
 import { useMutation } from "convex/react";
 import { api } from "@pushr/backend/_generated/api";
 import type { Id } from "@pushr/backend/_generated/dataModel";
 import { Input } from "@/components/Input";
-import { SheetContainer } from "@/components/SheetContainer";
 import { SheetActionPill, SheetHeader } from "@/components/SheetHeader";
 import { useTheme, spacing, radius, type } from "@/lib/theme";
 import { haptic } from "@/lib/haptics";
 import { pickAndUploadLogo } from "@/lib/uploadLogo";
 import { rememberToken } from "@/lib/tokenStore";
-import { RECIPES, type Recipe } from "@/lib/recipes";
+import { RECIPES } from "@/lib/recipes";
 
-/**
- * formSheet route — create a new source app. On success the bearer token is
- * routed forward to `/token-reveal` (which is shown once) via `router.replace`
- * so the create sheet is dismissed in the same gesture.
- */
-export default function CreateAppScreen() {
+type CreateAppSheetApi = {
+  present: () => void;
+  dismiss: () => void;
+};
+
+type State = { index: number; setIndex: (i: number) => void };
+
+const ApiCtx = createContext<CreateAppSheetApi | null>(null);
+const StateCtx = createContext<State | null>(null);
+
+export function useCreateAppSheet(): CreateAppSheetApi {
+  const ctx = useContext(ApiCtx);
+  if (!ctx) {
+    throw new Error(
+      "useCreateAppSheet must be used inside <CreateAppSheetProvider>",
+    );
+  }
+  return ctx;
+}
+
+export function CreateAppSheetProvider({ children }: { children: ReactNode }) {
+  const [index, setIndex] = useState(0);
+
+  const api = useMemo<CreateAppSheetApi>(
+    () => ({
+      present: () => setIndex(1),
+      dismiss: () => setIndex(0),
+    }),
+    [],
+  );
+
+  const state = useMemo(() => ({ index, setIndex }), [index]);
+
+  return (
+    <StateCtx.Provider value={state}>
+      <ApiCtx.Provider value={api}>{children}</ApiCtx.Provider>
+    </StateCtx.Provider>
+  );
+}
+
+export function CreateAppSheetMount() {
+  const state = useContext(StateCtx);
+  if (!state) return null;
+  return (
+    <AppBottomSheet index={state.index} onIndexChange={state.setIndex}>
+      <CreateAppForm onDone={() => state.setIndex(0)} />
+    </AppBottomSheet>
+  );
+}
+
+function CreateAppForm({ onDone }: { onDone: () => void }) {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const create = useMutation(api.sourceApps.create);
   const generateUploadUrl = useMutation(api.sourceApps.generateLogoUploadUrl);
 
@@ -43,7 +97,7 @@ export default function CreateAppScreen() {
     : null;
   const canSubmit = !!name.trim() && !submitting;
 
-  async function pickLogo() {
+  const pickLogo = useCallback(async () => {
     if (uploading) return;
     setUploading(true);
     try {
@@ -61,9 +115,9 @@ export default function CreateAppScreen() {
     } finally {
       setUploading(false);
     }
-  }
+  }, [generateUploadUrl, uploading]);
 
-  async function submit() {
+  const submit = useCallback(async () => {
     const trimmed = name.trim();
     if (!trimmed || submitting) return;
     setSubmitting(true);
@@ -75,7 +129,8 @@ export default function CreateAppScreen() {
         logoStorageId: logo?.storageId,
       });
       await rememberToken(result.id, result.token);
-      router.replace({
+      onDone();
+      router.push({
         pathname: "/token-reveal" as never,
         params: { id: result.id, name: trimmed, token: result.token },
       });
@@ -85,12 +140,13 @@ export default function CreateAppScreen() {
     } finally {
       setSubmitting(false);
     }
-  }
+  }, [create, desc, logo?.storageId, name, onDone, submitting]);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.sheet }}>
       <SheetHeader
         title="New source app"
+        onClose={onDone}
         trailing={
           <SheetActionPill
             label={
@@ -102,51 +158,15 @@ export default function CreateAppScreen() {
           />
         }
       />
-      <SheetContainer
-        scrollView
+      <ScrollView
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ paddingTop: spacing.md, gap: spacing.lg }}
+        contentContainerStyle={{
+          paddingTop: spacing.md,
+          paddingHorizontal: spacing.lg,
+          paddingBottom: insets.bottom + spacing.xxl * 2,
+          gap: spacing.lg,
+        }}
       >
-        {/* Recipe picker — the delightful entry point for Phase 2 */}
-        {/* <View style={{ gap: spacing.sm }}>
-          <Text style={{ ...type.footnote, color: colors.secondaryLabel, paddingHorizontal: spacing.lg }}>
-            Start from a template
-          </Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: spacing.lg, gap: spacing.sm }}
-          >
-            {RECIPES.slice(0, 5).map((recipe) => (
-              <RecipeCard
-                key={recipe.id}
-                recipe={recipe}
-                selected={selectedRecipeId === recipe.id}
-                onPress={() => {
-                  haptic.selection();
-                  const isSame = selectedRecipeId === recipe.id;
-                  setSelectedRecipeId(isSame ? null : recipe.id);
-                  if (!isSame) {
-                    setName(recipe.suggestedName);
-                    setDesc(recipe.suggestedDescription || '');
-                  }
-                }}
-              />
-            ))}
-          </ScrollView>
-          <Pressable
-            onPress={() => {
-              haptic.selection();
-              setSelectedRecipeId(null);
-              // Keep existing name/desc if user has edited them, or we could clear — for now just deselect
-            }}
-            style={{ paddingHorizontal: spacing.lg, paddingTop: 4 }}
-          >
-            <Text style={{ ...type.footnote, color: colors.accent }}>Or create manually</Text>
-          </Pressable>
-        </View> */}
-
-        {/* Active template banner + details — powerful "use template" experience */}
         {selectedRecipe && (
           <View
             style={{
@@ -197,7 +217,6 @@ export default function CreateAppScreen() {
               </Pressable>
             </View>
 
-            {/* Mini example preview */}
             <View
               style={{
                 marginTop: spacing.sm,
@@ -229,7 +248,6 @@ export default function CreateAppScreen() {
               </Text>
             </View>
 
-            {/* Expandable template details */}
             <Pressable
               onPress={() => {
                 haptic.selection();
@@ -381,7 +399,6 @@ export default function CreateAppScreen() {
           </Pressable>
         </View>
 
-        {/* Branding hint from the selected recipe */}
         {selectedRecipeId &&
           (() => {
             const recipe = RECIPES.find((r) => r.id === selectedRecipeId);
@@ -413,73 +430,7 @@ export default function CreateAppScreen() {
           value={desc}
           onChangeText={setDesc}
         />
-      </SheetContainer>
+      </ScrollView>
     </View>
-  );
-}
-
-function RecipeCard({
-  recipe,
-  selected,
-  onPress,
-}: {
-  recipe: Recipe;
-  selected?: boolean;
-  onPress: () => void;
-}) {
-  const { colors } = useTheme();
-  const accent = recipe.accentHint || colors.accent;
-
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => ({
-        width: 160,
-        padding: spacing.md,
-        borderRadius: radius.lg,
-        backgroundColor: selected
-          ? accent + "18"
-          : pressed
-            ? colors.cellHighlight
-            : colors.fill,
-        borderWidth: selected ? 1 : 0.5,
-        borderColor: selected ? accent : colors.separator,
-      })}
-    >
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-        <View
-          style={{
-            width: 6,
-            height: 6,
-            borderRadius: 3,
-            backgroundColor: accent,
-          }}
-        />
-        <Text
-          style={{ ...type.headline, color: colors.label }}
-          numberOfLines={1}
-        >
-          {recipe.name}
-        </Text>
-      </View>
-      <Text
-        style={{ ...type.subhead, color: colors.secondaryLabel, marginTop: 4 }}
-        numberOfLines={2}
-      >
-        {recipe.description}
-      </Text>
-      {selected && recipe.setupNote && (
-        <Text
-          style={{
-            ...type.caption2,
-            color: colors.secondaryLabel,
-            marginTop: spacing.sm,
-          }}
-          numberOfLines={3}
-        >
-          {recipe.setupNote}
-        </Text>
-      )}
-    </Pressable>
   );
 }

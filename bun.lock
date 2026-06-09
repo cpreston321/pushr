@@ -40,6 +40,7 @@
         "@pushr/backend": "workspace:*",
         "@pushr/live-activity": "workspace:*",
         "@pushr/widget-data": "workspace:*",
+        "@swmansion/react-native-bottom-sheet": "^0.10.0",
         "better-auth": "1.6.9",
         "convex": "^1.36.1",
         "expo": "^56.0.3",
@@ -759,6 +760,8 @@
     "@sinclair/typebox": ["@sinclair/typebox@0.27.10", "", {}, "sha512-MTBk/3jGLNB2tVxv6uLlFh1iu64iYOQ2PbdOSK3NW8JZsmlaOh2q6sdtKowBhfw8QFLmYNzTW4/oK4uATIi6ZA=="],
 
     "@standard-schema/spec": ["@standard-schema/spec@1.1.0", "", {}, "sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w=="],
+
+    "@swmansion/react-native-bottom-sheet": ["@swmansion/react-native-bottom-sheet@0.10.0", "", { "peerDependencies": { "react": ">=18.0.0", "react-native": ">=0.76.0", "react-native-safe-area-context": ">=4.0.0" } }, "sha512-0QxsPj+IlszXrWHebEAzMpx/KQpf1LaRzIo5RirXq8uOtb1HspkRm8B3XYXKvka8JPAhslltCzbfOYtjicylHQ=="],
 
     "@tailwindcss/node": ["@tailwindcss/node@4.3.0", "", { "dependencies": { "@jridgewell/remapping": "^2.3.5", "enhanced-resolve": "^5.21.0", "jiti": "^2.6.1", "lightningcss": "1.32.0", "magic-string": "^0.30.21", "source-map-js": "^1.2.1", "tailwindcss": "4.3.0" } }, "sha512-aFb4gUhFOgdh9AXo4IzBEOzBkkAxm9VigwDJnMIYv3lcfXCJVesNfbEaBl4BNgVRyid92AmdviqwBUBRKSeY3g=="],
 

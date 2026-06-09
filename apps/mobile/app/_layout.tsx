@@ -9,6 +9,15 @@ import "react-native-reanimated";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { BottomSheetProvider } from "@swmansion/react-native-bottom-sheet";
+import {
+  CreateAppSheetProvider,
+  CreateAppSheetMount,
+} from "@/components/sheets/CreateAppSheet";
+import {
+  SourceAppDetailSheetProvider,
+  SourceAppDetailSheetMount,
+} from "@/components/sheets/SourceAppDetailSheet";
 import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
 import { convex, authClient, initBackend } from "@/lib/backend";
 import { ThemePreferencesProvider, useTheme } from "@/lib/theme";
@@ -74,7 +83,15 @@ function ThemedRoot() {
         authClient={authClient() as never}
       >
         <ThemeProvider value={navTheme}>
-          <AppShell isDark={isDark} bg={colors.grouped} />
+          <SourceAppDetailSheetProvider>
+            <CreateAppSheetProvider>
+              <BottomSheetProvider>
+                <CreateAppSheetMount />
+                <SourceAppDetailSheetMount />
+                <AppShell isDark={isDark} bg={colors.grouped} />
+              </BottomSheetProvider>
+            </CreateAppSheetProvider>
+          </SourceAppDetailSheetProvider>
         </ThemeProvider>
       </ConvexBetterAuthProvider>
     </GestureHandlerRootView>
@@ -145,18 +162,6 @@ function AppShell({ isDark, bg }: { isDark: boolean; bg: string }) {
           }}
         />
         <Stack.Screen
-          name="create-app"
-          options={{
-            presentation: "formSheet",
-            headerShown: false,
-            title: "",
-            sheetGrabberVisible: false,
-            sheetAllowedDetents: [0.85],
-            sheetExpandsWhenScrolledToEdge: false,
-            contentStyle: { backgroundColor: "transparent" },
-          }}
-        />
-        <Stack.Screen
           name="token-reveal"
           options={{
             presentation: "formSheet",
@@ -167,54 +172,6 @@ function AppShell({ isDark, bg }: { isDark: boolean; bg: string }) {
             sheetExpandsWhenScrolledToEdge: false,
             contentStyle: { backgroundColor: "transparent" },
             gestureEnabled: false,
-          }}
-        />
-        <Stack.Screen
-          name="source-app-detail"
-          options={{
-            presentation: "formSheet",
-            headerShown: false,
-            title: "",
-            sheetGrabberVisible: false,
-            sheetAllowedDetents: [0.85],
-            sheetExpandsWhenScrolledToEdge: false,
-            contentStyle: { backgroundColor: "transparent" },
-          }}
-        />
-        <Stack.Screen
-          name="source-app-sharing"
-          options={{
-            presentation: "formSheet",
-            headerShown: false,
-            title: "",
-            sheetGrabberVisible: false,
-            sheetAllowedDetents: [0.85],
-            sheetExpandsWhenScrolledToEdge: false,
-            contentStyle: { backgroundColor: "transparent" },
-          }}
-        />
-        <Stack.Screen
-          name="source-app-api"
-          options={{
-            presentation: "formSheet",
-            headerShown: false,
-            title: "",
-            sheetGrabberVisible: false,
-            sheetAllowedDetents: [0.85],
-            sheetExpandsWhenScrolledToEdge: false,
-            contentStyle: { backgroundColor: "transparent" },
-          }}
-        />
-        <Stack.Screen
-          name="forwarder-add"
-          options={{
-            presentation: "formSheet",
-            headerShown: false,
-            title: "",
-            sheetGrabberVisible: false,
-            sheetAllowedDetents: [0.85],
-            sheetExpandsWhenScrolledToEdge: false,
-            contentStyle: { backgroundColor: "transparent" },
           }}
         />
       </Stack>

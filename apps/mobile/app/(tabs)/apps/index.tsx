@@ -30,6 +30,8 @@ import { promptText } from '@/lib/prompt';
 import { pickAndUploadLogo } from '@/lib/uploadLogo';
 import { recallToken } from '@/lib/tokenStore';
 import { getProviderMeta } from '@/lib/providerDetection';
+import { useCreateAppSheet } from '@/components/sheets/CreateAppSheet';
+import { useSourceAppDetailSheet } from '@/components/sheets/SourceAppDetailSheet';
 
 type AppRow = Doc<'sourceApps'> & {
   logoUrl: string | null;
@@ -83,6 +85,8 @@ function formatMuteRemaining(until: number): string {
 
 export default function Apps() {
   const { colors } = useTheme();
+  const createAppSheet = useCreateAppSheet();
+  const sourceAppDetailSheet = useSourceAppDetailSheet();
   const insets = useSafeAreaInsets();
   const bottomPad = Math.max(120, insets.bottom + spacing.xxl + 60);
   const apps = useQuery(api.sourceApps.listMine) as AppRow[] | undefined;
@@ -190,7 +194,7 @@ export default function Apps() {
 
   function openActions(item: AppRow) {
     haptic.light();
-    router.push({ pathname: '/source-app-detail' as never, params: { id: item._id } });
+    sourceAppDetailSheet.present(item._id);
   }
 
   async function promptRename(item: AppRow) {
@@ -226,7 +230,7 @@ export default function Apps() {
             accessibilityRole="button"
             onPress={() => {
               haptic.light();
-              router.push('/create-app' as never);
+              createAppSheet.present();
             }}
             hitSlop={10}
           >
@@ -309,7 +313,7 @@ export default function Apps() {
               </Text>
               <Button
                 title="Create source app"
-                onPress={() => router.push('/create-app' as never)}
+                onPress={() => createAppSheet.present()}
               />
             </View>
           </ScrollView>

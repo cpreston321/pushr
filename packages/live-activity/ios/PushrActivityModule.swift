@@ -207,7 +207,7 @@ public class PushrActivityModule: Module {
             }
 
             if let existing = _activeActivities[activityId] {
-                await existing.end(dismissalPolicy: .immediate)
+                await existing.end(nil, dismissalPolicy: .immediate)
                 if let nid = _nativeIdToCallerId.first(where: {
                     $0.value == activityId
                 })?.key {
