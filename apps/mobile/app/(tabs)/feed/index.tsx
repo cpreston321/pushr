@@ -134,6 +134,11 @@ export default function Feed() {
     });
   })();
 
+  const entries = useMemo(
+    () => groupFeedItems(filtered ?? undefined),
+    [filtered],
+  );
+
   // Deep-link target from the Home Screen widget (pushr://feed?notif=<id>).
   // We wait for `items` to load so we can resolve the row's url/appUrl
   // before opening, then strip the param so navigating away and back
@@ -207,11 +212,6 @@ export default function Feed() {
 
   const pendingAckCount =
     items?.filter((i) => i.ack && !i.acknowledgedAt).length ?? 0;
-
-  const entries = useMemo(
-    () => groupFeedItems(filtered ?? undefined),
-    [filtered],
-  );
 
   return (
     <ScreenTransition style={{ backgroundColor: colors.background }}>

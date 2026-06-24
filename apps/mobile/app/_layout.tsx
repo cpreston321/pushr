@@ -23,7 +23,7 @@ import { convex, authClient, initBackend } from "@/lib/backend";
 import { ThemePreferencesProvider, useTheme } from "@/lib/theme";
 import { useNotificationResponses } from "@/lib/useNotificationResponses";
 import { useLiveActivityTokens } from "@/lib/useLiveActivityTokens";
-import { useAction, useConvexAuth, useQuery } from "convex/react";
+import { useAction, useConvexAuth, useMutation, useQuery } from "convex/react";
 import { api } from "@pushr/backend/_generated/api";
 import { useBadgeSync } from "@/lib/useBadgeSync";
 import { PromptHost } from "@/components/PromptHost";
@@ -124,6 +124,16 @@ function AppShell({ isDark, bg }: { isDark: boolean; bg: string }) {
       // expiration via proUntil and the webhook still drives grants.
     });
   }, [isAuthenticated, reconcileIap]);
+
+  // Reconcile the admin's plan to permanent Pro once per cold start. No-op for
+  // everyone else; gated server-side by the ADMIN_EMAILS env allowlist.
+  const syncMyPlan = useMutation(api.tiers.syncMyPlan);
+  const syncedPlanRef = useRef(false);
+  useEffect(() => {
+    if (!isAuthenticated || syncedPlanRef.current) return;
+    syncedPlanRef.current = true;
+    syncMyPlan({}).catch(() => {});
+  }, [isAuthenticated, syncMyPlan]);
   return (
     <>
       <Stack

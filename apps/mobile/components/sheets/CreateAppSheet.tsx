@@ -67,9 +67,16 @@ export function CreateAppSheetProvider({ children }: { children: ReactNode }) {
 export function CreateAppSheetMount() {
   const state = useContext(StateCtx);
   if (!state) return null;
+  // Only mount the form while the sheet is open. The sheet library keeps its
+  // children mounted even when collapsed (detent 0), so an always-rendered
+  // `CreateAppForm` would fire its `autoFocus` input on app launch and pop
+  // the keyboard on whatever screen is showing. Gating on `index` also gives
+  // the form fresh state on each open.
   return (
     <AppBottomSheet index={state.index} onIndexChange={state.setIndex}>
-      <CreateAppForm onDone={() => state.setIndex(0)} />
+      {state.index > 0 ? (
+        <CreateAppForm onDone={() => state.setIndex(0)} />
+      ) : null}
     </AppBottomSheet>
   );
 }

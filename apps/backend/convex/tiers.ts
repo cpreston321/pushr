@@ -1,7 +1,7 @@
 import { v, ConvexError } from 'convex/values';
 import { mutation, query, internalMutation, internalQuery } from './_generated/server';
 import type { QueryCtx, MutationCtx } from './_generated/server';
-import { requireAuth } from './lib/auth';
+import { requireAuth, requireAuthIdentity } from './lib/auth';
 
 /**
  * pushr subscription tiers. Centralizes limits + helpers so /notify,
@@ -33,6 +33,23 @@ export function currentYearMonth(now = Date.now()): string {
   const y = d.getUTCFullYear();
   const m = String(d.getUTCMonth() + 1).padStart(2, '0');
   return `${y}-${m}`;
+}
+
+/**
+ * Admin accounts that get permanent Pro. Configured via the `ADMIN_EMAILS`
+ * Convex env var (comma-separated, case-insensitive), e.g.
+ *   npx convex env set ADMIN_EMAILS admin@pushr.sh
+ */
+function adminEmails(): string[] {
+  return (process.env.ADMIN_EMAILS ?? '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+export function isAdminEmail(email: string | null): boolean {
+  if (!email) return false;
+  return adminEmails().includes(email.toLowerCase());
 }
 
 /** Resolve a user's effective tier, honoring `proUntil` expiration. */
@@ -150,6 +167,48 @@ export const grantProToMe = mutation({
         updatedAt: Date.now()
       });
     }
+  }
+});
+
+/**
+ * Idempotently reconcile the caller's plan. Today this grants permanent Pro
+ * (no expiry) to accounts whose email is in `ADMIN_EMAILS`. Safe for any user
+ * to call — non-admins are a no-op. The mobile app calls this once per cold
+ * start so the admin's `userTiers` row stays Pro-for-life, which makes every
+ * tier check (UI, /notify quota, source-app limits) honor it since they all
+ * resolve through `getEffectiveTier`.
+ */
+export const syncMyPlan = mutation({
+  args: {},
+  returns: v.object({ admin: v.boolean() }),
+  handler: async (ctx) => {
+    const { userId, email } = await requireAuthIdentity(ctx);
+    if (!isAdminEmail(email)) {
+      return { admin: false };
+    }
+    const existing = await ctx.db
+      .query('userTiers')
+      .withIndex('by_owner', (q) => q.eq('ownerId', userId))
+      .unique();
+    // Permanent Pro = tier 'pro' with no `proUntil`. Only write when the row
+    // isn't already in that state, to avoid needless mutations on every boot.
+    if (existing) {
+      if (existing.tier !== 'pro' || existing.proUntil !== undefined) {
+        await ctx.db.patch(existing._id, {
+          tier: 'pro',
+          proUntil: undefined,
+          updatedAt: Date.now()
+        });
+      }
+    } else {
+      await ctx.db.insert('userTiers', {
+        ownerId: userId,
+        tier: 'pro',
+        proUntil: undefined,
+        updatedAt: Date.now()
+      });
+    }
+    return { admin: true };
   }
 });
 

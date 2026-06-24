@@ -3,6 +3,7 @@ import { query, mutation, internalMutation, type MutationCtx } from './_generate
 import { internal } from './_generated/api';
 import { requireAuth } from './lib/auth';
 import { getSourceAppRole, listAccessibleSourceApps } from './lib/sharing';
+// region: tier-features
 import {
   getEffectiveTier,
   getMonthlyUsage,
@@ -10,6 +11,7 @@ import {
   quotaExceeded,
   TIER_LIMITS
 } from './tiers';
+// endregion: tier-features
 import type { Id } from './_generated/dataModel';
 
 /**
@@ -214,6 +216,10 @@ export const sendTest = mutation({
       throw new ConvexError('Source app is disabled — re-enable it first');
     }
 
+    // region: tier-features
+    // Quota enforcement: counts against the bill-paying owner's monthly
+    // allowance, mirroring the HTTP /notify path. Stripped from the public
+    // build so self-hosters get unlimited sends with no billing surface.
     const tier = await getEffectiveTier(ctx, app.ownerId);
     const limit = TIER_LIMITS[tier].pushesPerMonth;
     const current = await getMonthlyUsage(ctx, app.ownerId);
@@ -221,6 +227,7 @@ export const sendTest = mutation({
       throw quotaExceeded(tier, current, limit);
     }
     await incrementMonthlyUsage(ctx, app.ownerId);
+    // endregion: tier-features
     await ctx.db.patch(app._id, { lastUsedAt: Date.now() });
 
     const notificationId = await ctx.db.insert('notifications', {
