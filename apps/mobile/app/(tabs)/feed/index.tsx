@@ -348,9 +348,9 @@ function FloatingBar({
   const { colors, isDark, tintBg } = useTheme();
   const insets = useSafeAreaInsets();
   const canMarkAllRead = unreadCount > 0;
-  // On iOS 26+ we render each action as its own Liquid Glass pill, merged via
-  // a GlassContainer so they morph together natively. Older OS versions fall
-  // back to the previous BlurView pill (single capsule with a thin divider).
+  // On iOS 26+ we render both actions inside a single Liquid Glass capsule
+  // split by a hairline divider. Older OS versions fall back to the same
+  // shape built from a BlurView pill.
   const liquid = isLiquidGlassAvailable();
 
   // Two-tap confirm: first tap morphs the button into "Confirm clear", second
@@ -413,36 +413,35 @@ function FloatingBar({
       }}
     >
       {liquid ? (
-        // Outer glass = the bar tray (one continuous capsule). Inner glass =
-        // the two action buttons (separate pills sitting on top). Not wrapped
-        // in a GlassContainer because we *don't* want them to merge into the
-        // tray — Control Center uses the same nested-glass pattern.
+        // One continuous Liquid Glass capsule holding both actions, split by a
+        // hairline divider — no outer tray wrapping inner pills, so it reads as
+        // a single intentional element instead of a pill-inside-a-pill. The
+        // buttons carry their own press feedback, so the glass surface itself
+        // stays non-interactive (a whole-capsule lensing effect would light up
+        // both halves on either tap). Structure mirrors the BlurView fallback.
         <GlassView
           glassEffectStyle="regular"
           colorScheme={isDark ? "dark" : "light"}
           style={{
             flexDirection: "row",
-            alignItems: "center",
-            padding: 5,
-            gap: 14,
+            alignItems: "stretch",
+            padding: 6,
             borderRadius: 22,
             borderCurve: "continuous",
           }}
         >
-          <GlassView
-            isInteractive
-            glassEffectStyle="clear"
-            style={{ borderRadius: radius.lg, borderCurve: "continuous" }}
-          >
-            {markRead}
-          </GlassView>
-          <GlassView
-            isInteractive
-            glassEffectStyle="clear"
-            style={{ borderRadius: radius.lg, borderCurve: "continuous" }}
-          >
-            {clear}
-          </GlassView>
+          {markRead}
+          <View
+            style={{
+              width: 0.5,
+              backgroundColor: isDark
+                ? "rgba(255,255,255,0.15)"
+                : "rgba(0,0,0,0.1)",
+              alignSelf: "stretch",
+              marginVertical: 6,
+            }}
+          />
+          {clear}
         </GlassView>
       ) : (
         <View

@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -190,6 +191,11 @@ function Body({ appId }: { appId: Id<"sourceApps"> }) {
   const leaveApp = useMutation(api.sharing.leaveApp);
   const sendTestPush = useMutation(api.notifications.sendTest);
   const [sendingTest, setSendingTest] = useState(false);
+  // Local preview of a just-picked logo, shown instantly while the remote
+  // `logoUrl` round-trips (upload → mutation → reactive query → CDN download).
+  const [pendingLogoUri, setPendingLogoUri] = useState<string | null>(null);
+  // Drop the local preview when the sheet switches to a different app.
+  useEffect(() => setPendingLogoUri(null), [appId]);
 
   if (apps === undefined) {
     return (
@@ -224,6 +230,7 @@ function Body({ appId }: { appId: Id<"sourceApps"> }) {
       return;
     }
     haptic.success();
+    setPendingLogoUri(picked.localUri);
     await setLogo({ id: app._id, storageId: picked.storageId });
   }
 
@@ -243,6 +250,7 @@ function Body({ appId }: { appId: Id<"sourceApps"> }) {
           destructive: true,
           onPress: () => {
             haptic.warning();
+            setPendingLogoUri(null);
             removeLogo({ id: app._id });
           },
         },
@@ -381,7 +389,7 @@ function Body({ appId }: { appId: Id<"sourceApps"> }) {
           accessibilityLabel={canEdit ? "Change logo" : undefined}
           style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
         >
-          <Avatar url={app.logoUrl} name={app.name} size={72} />
+          <Avatar url={pendingLogoUri ?? app.logoUrl} name={app.name} size={72} />
           {canEdit && (
             <View
               style={{

@@ -1,4 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
+import { File, UploadType } from 'expo-file-system';
 import type { Id } from '@pushr/backend/_generated/dataModel';
 
 export type LogoPickResult =
@@ -29,15 +30,25 @@ export async function pickAndUploadLogo(uploadUrl: string): Promise<LogoPickResu
   const fileUri = asset.uri;
   const mimeType = asset.mimeType ?? 'image/jpeg';
 
-  const blob = await (await fetch(fileUri)).blob();
-  const res = await fetch(uploadUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': mimeType },
-    body: blob
-  });
-  if (!res.ok) {
-    return { ok: false, reason: `Upload failed: ${res.status}` };
+  try {
+    // Upload the raw bytes straight from the file URI. React Native's `fetch`
+    // can't reliably read a `file://` URI or send a `Blob` body, so we use the
+    // native binary uploader instead.
+    const res = await new File(fileUri).upload(uploadUrl, {
+      httpMethod: 'POST',
+      uploadType: UploadType.BINARY_CONTENT,
+      mimeType,
+      headers: { 'Content-Type': mimeType }
+    });
+    if (res.status < 200 || res.status >= 300) {
+      return { ok: false, reason: `Upload failed: ${res.status}` };
+    }
+    const json = JSON.parse(res.body) as { storageId: Id<'_storage'> };
+    return { ok: true, storageId: json.storageId, localUri: fileUri };
+  } catch (err) {
+    return {
+      ok: false,
+      reason: err instanceof Error ? err.message : 'Upload failed'
+    };
   }
-  const json = (await res.json()) as { storageId: Id<'_storage'> };
-  return { ok: true, storageId: json.storageId, localUri: fileUri };
 }
