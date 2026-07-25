@@ -97,6 +97,30 @@ export const markRead = mutation({
   }
 });
 
+/**
+ * Toggle a single notification's read state — backs the feed's leading
+ * swipe (mark read / mark unread). Clearing `readAt` returns the row to the
+ * unread state; `patch` with `undefined` removes the optional field.
+ */
+export const setRead = mutation({
+  args: {
+    id: v.id('notifications'),
+    read: v.boolean()
+  },
+  handler: async (ctx, args) => {
+    const userId = await requireAuth(ctx);
+    const row = await ctx.db.get(args.id);
+    if (!row) throw new ConvexError('Notification not found');
+    const access = await getSourceAppRole(ctx, row.sourceAppId, userId);
+    if (!access) throw new ConvexError('Notification not found');
+    if (args.read && !row.readAt) {
+      await ctx.db.patch(args.id, { readAt: Date.now() });
+    } else if (!args.read && row.readAt) {
+      await ctx.db.patch(args.id, { readAt: undefined });
+    }
+  }
+});
+
 export const markAllRead = mutation({
   args: {},
   handler: async (ctx) => {
@@ -244,6 +268,61 @@ export const sendTest = mutation({
       notificationId
     });
     return { id: notificationId };
+  }
+});
+
+/**
+ * Dev-only: drop a feed notification with a full set of actions so the action
+ * button styling can be eyeballed in the app. Clones owner/sourceApp from the
+ * most recent notification so it lands in the current user's feed. Run with
+ * `npx convex run notifications:devSeedActionDemo`. Not wired to any UI.
+ */
+export const devSeedActionDemo = internalMutation({
+  args: {},
+  returns: v.id('notifications'),
+  handler: async (ctx) => {
+    const recent = await ctx.db.query('notifications').order('desc').first();
+    if (!recent) {
+      throw new ConvexError('No existing notification to clone owner/app from');
+    }
+    return await ctx.db.insert('notifications', {
+      ownerId: recent.ownerId,
+      sourceAppId: recent.sourceAppId,
+      title: 'Order #4821 needs review',
+      body: 'Christian Preston placed an order — $207.60 (1 item). Choose an action below.',
+      priority: 5,
+      createdAt: Date.now(),
+      attemptedDeviceCount: 0,
+      successDeviceCount: 0,
+      actions: [
+        {
+          kind: 'callback',
+          id: 'confirm',
+          label: 'Confirm payment',
+          callbackUrl: 'https://example.com/cb'
+        },
+        {
+          kind: 'reply',
+          id: 'reply',
+          label: 'Reply',
+          callbackUrl: 'https://example.com/cb',
+          placeholder: 'Type a reply'
+        },
+        {
+          kind: 'open_url',
+          id: 'view',
+          label: 'View order',
+          url: 'https://example.com'
+        },
+        {
+          kind: 'callback',
+          id: 'dismiss',
+          label: 'Dismiss',
+          callbackUrl: 'https://example.com/cb',
+          destructive: true
+        }
+      ]
+    });
   }
 });
 

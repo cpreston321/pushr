@@ -78,8 +78,14 @@ export function ScreenHeader({ title, eyebrow, accessory, children }: Props) {
               <Text
                 style={{
                   ...type.subhead,
-                  color: 'rgba(255,255,255,0.65)',
-                  marginBottom: spacing.xs
+                  color: 'rgba(255,255,255,0.85)',
+                  fontWeight: '600',
+                  marginBottom: spacing.xs,
+                  // Soft ink shadow keeps the eyebrow legible wherever the
+                  // accent bloom is brightest.
+                  textShadowColor: 'rgba(0,0,0,0.35)',
+                  textShadowOffset: { width: 0, height: 1 },
+                  textShadowRadius: 6
                 }}
               >
                 {eyebrow}
@@ -90,7 +96,10 @@ export function ScreenHeader({ title, eyebrow, accessory, children }: Props) {
                 ...type.largeTitle,
                 color: '#FFFFFF',
                 fontSize: 38,
-                lineHeight: 44
+                lineHeight: 44,
+                textShadowColor: 'rgba(0,0,0,0.3)',
+                textShadowOffset: { width: 0, height: 1 },
+                textShadowRadius: 12
               }}
             >
               {title}

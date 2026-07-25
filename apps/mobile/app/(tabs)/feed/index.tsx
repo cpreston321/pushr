@@ -4,7 +4,6 @@ import type { FunctionReturnType } from "convex/server";
 import type { NotifAction } from "@pushr/backend/lib/actionsLayout";
 import type { Id } from "@pushr/backend/_generated/dataModel";
 import {
-  ActivityIndicator,
   FlatList,
   Linking,
   Pressable,
@@ -14,7 +13,9 @@ import {
   TextInput,
   View,
 } from "react-native";
-import ReanimatedSwipeable from "react-native-gesture-handler/ReanimatedSwipeable";
+import ReanimatedSwipeable, {
+  type SwipeableMethods,
+} from "react-native-gesture-handler/ReanimatedSwipeable";
 import Animated, {
   Easing,
   Extrapolation,
@@ -23,9 +24,13 @@ import Animated, {
   interpolate,
   interpolateColor,
   LinearTransition,
+  runOnJS,
+  useAnimatedReaction,
   useAnimatedStyle,
   useDerivedValue,
   useSharedValue,
+  withRepeat,
+  withSpring,
   withTiming,
   type SharedValue,
 } from "react-native-reanimated";
@@ -67,6 +72,32 @@ const SWIPE_FRICTION = 1;
 // barely overshoots once you're past the button width.
 const SWIPE_OVERSHOOT_FRICTION = 4;
 
+// Drag distance (px) past which the swipe fires an anticipation haptic — a
+// light tick that tells the user "release now and it commits", the detail iOS
+// Mail nails. Sits just beyond the delete threshold so it doesn't fire on a
+// glancing drag.
+const SWIPE_TICK_THRESHOLD = SWIPE_DELETE_THRESHOLD + 12;
+// Press-in scale for list rows. Subtle spring shrink so every tap feels
+// physical rather than a flat color swap.
+const PRESS_SCALE = 0.97;
+const PRESS_SPRING = { damping: 18, stiffness: 320, mass: 0.6 } as const;
+
+/**
+ * Spring scale-down on press. Returns an animated style plus press handlers to
+ * spread onto the row's Pressable; the style goes on a wrapping Animated.View.
+ */
+function usePressScale() {
+  const scale = useSharedValue(1);
+  const style = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const onPressIn = useCallback(() => {
+    scale.value = withSpring(PRESS_SCALE, PRESS_SPRING);
+  }, [scale]);
+  const onPressOut = useCallback(() => {
+    scale.value = withSpring(1, PRESS_SPRING);
+  }, [scale]);
+  return { style, onPressIn, onPressOut };
+}
+
 const FEED_PAGE_SIZE = 100;
 // Server caps at 500; mirror it so the client knows when to hide "Load older".
 const FEED_MAX = 500;
@@ -87,6 +118,7 @@ export default function Feed() {
   const [limit, setLimit] = useState(FEED_PAGE_SIZE);
   const items = useQuery(api.notifications.listMine, { limit });
   const markRead = useMutation(api.notifications.markRead);
+  const setRead = useMutation(api.notifications.setRead);
   const markAllRead = useMutation(api.notifications.markAllRead);
   const deleteOne = useMutation(api.notifications.deleteOne);
   const clearAll = useMutation(api.notifications.clearAll);
@@ -184,16 +216,7 @@ export default function Feed() {
       <ScreenTransition style={{ backgroundColor: colors.background }}>
         {header}
         <ScreenBody>
-          <View
-            style={{
-              flex: 1,
-              alignItems: "center",
-              justifyContent: "center",
-              paddingTop: spacing.xxl,
-            }}
-          >
-            <ActivityIndicator color={colors.accent} />
-          </View>
+          <FeedSkeleton />
         </ScreenBody>
       </ScreenTransition>
     );
@@ -284,6 +307,14 @@ export default function Feed() {
                         void openLink({ appUrl: item.appUrl, url: item.url });
                       }
                     }}
+                    onToggleGroupRead={() => {
+                      // If any item is unread, the swipe marks the whole group
+                      // read; otherwise it flips them all back to unread.
+                      const target = entry.all.some((i) => !i.readAt);
+                      for (const it of entry.all) {
+                        void setRead({ id: it._id, read: target });
+                      }
+                    }}
                     onDeleteGroup={() => {
                       haptic.warning();
                       for (const it of entry.all) {
@@ -308,6 +339,12 @@ export default function Feed() {
                         url: entry.item.url,
                       });
                     }
+                  }}
+                  onToggleRead={() => {
+                    void setRead({
+                      id: entry.item._id,
+                      read: !entry.item.readAt,
+                    });
                   }}
                   onDelete={() => {
                     haptic.warning();
@@ -1008,6 +1045,112 @@ function EmptyState() {
   );
 }
 
+/**
+ * First-load placeholder. A search-bar bar plus a card of ghost rows that
+ * pulse in unison — reads as "content is coming" and mirrors the real row
+ * layout so nothing jumps when data lands, instead of a bare spinner.
+ */
+function FeedSkeleton() {
+  const { colors } = useTheme();
+  const shimmer = useSharedValue(0.4);
+  useEffect(() => {
+    shimmer.value = withRepeat(
+      withTiming(1, { duration: 900, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true,
+    );
+  }, [shimmer]);
+  const pulse = useAnimatedStyle(() => ({ opacity: shimmer.value }));
+  const rows = [0, 1, 2, 3, 4];
+  return (
+    <View style={{ marginTop: spacing.xl }}>
+      <Animated.View
+        style={[
+          {
+            height: 44,
+            marginHorizontal: spacing.lg,
+            borderRadius: radius.md,
+            borderCurve: "continuous",
+            backgroundColor: colors.fill,
+            marginBottom: spacing.lg,
+          },
+          pulse,
+        ]}
+      />
+      <View
+        style={{
+          marginHorizontal: spacing.lg,
+          borderRadius: radius.lg,
+          borderCurve: "continuous",
+          overflow: "hidden",
+          backgroundColor: colors.cell,
+        }}
+      >
+        {rows.map((i) => (
+          <View key={i}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: spacing.md,
+                paddingLeft: spacing.md,
+                paddingRight: spacing.lg,
+                paddingVertical: spacing.md,
+                minHeight: 72,
+              }}
+            >
+              <Animated.View
+                style={[
+                  {
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
+                    backgroundColor: colors.fill,
+                  },
+                  pulse,
+                ]}
+              />
+              <View style={{ flex: 1, gap: 8 }}>
+                <Animated.View
+                  style={[
+                    {
+                      height: 12,
+                      width: "45%",
+                      borderRadius: 6,
+                      backgroundColor: colors.fill,
+                    },
+                    pulse,
+                  ]}
+                />
+                <Animated.View
+                  style={[
+                    {
+                      height: 12,
+                      width: "80%",
+                      borderRadius: 6,
+                      backgroundColor: colors.fill,
+                    },
+                    pulse,
+                  ]}
+                />
+              </View>
+            </View>
+            {i < rows.length - 1 && (
+              <View
+                style={{
+                  height: 0.5,
+                  backgroundColor: colors.separator,
+                  marginLeft: 64,
+                }}
+              />
+            )}
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 // Feed types and pure helpers live in `@/lib/feed-helpers` so they can be
 // unit-tested in jest without dragging in the whole screen module.
 
@@ -1016,19 +1159,24 @@ function FeedGroupRow({
   isFirst,
   isLast,
   onOpenItem,
+  onToggleGroupRead,
   onDeleteGroup,
 }: {
   group: Extract<FeedEntry, { kind: "group" }>;
   isFirst: boolean;
   isLast: boolean;
   onOpenItem: (item: FeedItem) => void;
+  onToggleGroupRead: () => void;
   onDeleteGroup: () => void;
 }) {
   const { colors } = useTheme();
   const [expanded, setExpanded] = useState(false);
   const latest = group.latest;
   const anyEnded = group.all.some((i) => i.liveActivity?.action === "end");
+  const anyUnread = group.all.some((i) => !i.readAt);
   const eventCount = group.all.length;
+  const swipeRef = useRef<SwipeableMethods | null>(null);
+  const pressScale = usePressScale();
 
   const header = (
     <Pressable
@@ -1036,6 +1184,8 @@ function FeedGroupRow({
         haptic.selection();
         setExpanded((e) => !e);
       }}
+      onPressIn={pressScale.onPressIn}
+      onPressOut={pressScale.onPressOut}
       accessibilityRole="button"
       accessibilityLabel={`Live activity from ${latest.sourceAppName}, ${latest.title}, ${eventCount} ${eventCount === 1 ? "event" : "events"}${anyEnded ? ", ended" : ""}`}
       accessibilityState={{ expanded }}
@@ -1249,15 +1399,32 @@ function FeedGroupRow({
       }}
     >
       <ReanimatedSwipeable
+        ref={swipeRef}
         friction={SWIPE_FRICTION}
         overshootFriction={SWIPE_OVERSHOOT_FRICTION}
         rightThreshold={SWIPE_DELETE_THRESHOLD}
+        leftThreshold={SWIPE_DELETE_THRESHOLD}
+        renderLeftActions={(progress) => (
+          <SwipeAction
+            progress={progress}
+            side="left"
+            tint={colors.accent}
+            label={anyUnread ? "Read" : "Unread"}
+            icon={anyUnread ? "checkmark.circle.fill" : "circle"}
+            onPress={() => {
+              haptic.selection();
+              onToggleGroupRead();
+              swipeRef.current?.close();
+            }}
+          />
+        )}
         // Render the action against the row's full unswiped width so the
         // destructive surface can grow with the gesture (iOS Mail style)
         // rather than sitting as a fixed 96pt pill.
-        renderRightActions={(progress) => (
+        renderRightActions={(progress, translation) => (
           <SwipeAction
             progress={progress}
+            translation={translation}
             tint={colors.destructive}
             label="Delete all"
             icon="trash.fill"
@@ -1272,13 +1439,17 @@ function FeedGroupRow({
           if (direction === "right") {
             haptic.warning();
             onDeleteGroup();
+          } else {
+            haptic.selection();
+            onToggleGroupRead();
+            swipeRef.current?.close();
           }
         }}
       >
-        <View>
+        <Animated.View style={pressScale.style}>
           {header}
           {expandedList}
-        </View>
+        </Animated.View>
       </ReanimatedSwipeable>
       {!isLast && (
         <View
@@ -1339,16 +1510,20 @@ function FeedRow({
   isFirst,
   isLast,
   onOpen,
+  onToggleRead,
   onDelete,
 }: {
   item: FeedItem;
   isFirst: boolean;
   isLast: boolean;
   onOpen: () => void;
+  onToggleRead: () => void;
   onDelete: () => void;
 }) {
   const { colors, tintBg } = useTheme();
   const unread = !item.readAt;
+  const swipeRef = useRef<SwipeableMethods | null>(null);
+  const pressScale = usePressScale();
 
   // Inline body expansion. A hidden absolute Text (no line cap) sits over
   // the visible body and reports the natural line count via `onTextLayout`.
@@ -1371,6 +1546,8 @@ function FeedRow({
         haptic.selection();
         onOpen();
       }}
+      onPressIn={pressScale.onPressIn}
+      onPressOut={pressScale.onPressOut}
       accessibilityRole="button"
       accessibilityLabel={a11yParts.join(", ")}
       accessibilityHint={item.url ? "Opens linked URL" : "Marks as read"}
@@ -1465,12 +1642,29 @@ function FeedRow({
       }}
     >
       <ReanimatedSwipeable
+        ref={swipeRef}
         friction={SWIPE_FRICTION}
         overshootFriction={SWIPE_OVERSHOOT_FRICTION}
         rightThreshold={SWIPE_DELETE_THRESHOLD}
-        renderRightActions={(progress) => (
+        leftThreshold={SWIPE_DELETE_THRESHOLD}
+        renderLeftActions={(progress) => (
           <SwipeAction
             progress={progress}
+            side="left"
+            tint={colors.accent}
+            label={unread ? "Read" : "Unread"}
+            icon={unread ? "checkmark.circle.fill" : "circle"}
+            onPress={() => {
+              haptic.selection();
+              onToggleRead();
+              swipeRef.current?.close();
+            }}
+          />
+        )}
+        renderRightActions={(progress, translation) => (
+          <SwipeAction
+            progress={progress}
+            translation={translation}
             tint={colors.destructive}
             label="Delete"
             icon="trash.fill"
@@ -1484,10 +1678,16 @@ function FeedRow({
           if (direction === "right") {
             haptic.warning();
             onDelete();
+          } else {
+            // Leading swipe toggles read/unread as a single gesture, then
+            // snaps closed — the row stays in place (unlike delete).
+            haptic.selection();
+            onToggleRead();
+            swipeRef.current?.close();
           }
         }}
       >
-        {rowStack}
+        <Animated.View style={pressScale.style}>{rowStack}</Animated.View>
       </ReanimatedSwipeable>
       {!isLast && (
         <View
@@ -1502,6 +1702,21 @@ function FeedRow({
   );
 }
 
+// `destructive` only exists on the open_url / callback variants, so narrow
+// before reading it.
+function isDestructiveAction(a: NotifAction): boolean {
+  return "destructive" in a && !!a.destructive;
+}
+
+// Honest leading glyph per action kind. Callbacks that aren't destructive get
+// none — a generic checkmark would mislabel arbitrary actions.
+function actionIcon(a: NotifAction): string | null {
+  if (a.kind === "reply") return "arrowshape.turn.up.left.fill";
+  if (a.kind === "open_url") return "arrow.up.right";
+  if (isDestructiveAction(a)) return "xmark";
+  return null;
+}
+
 function ActionButtonsBar({
   notificationId,
   actions,
@@ -1512,6 +1727,9 @@ function ActionButtonsBar({
   disabled: boolean;
 }) {
   const { colors } = useTheme();
+  // Filled-primary hierarchy: the first non-destructive action becomes the
+  // solid accent CTA; everything else renders as a quiet ghost button.
+  const primaryId = actions.find((a) => !isDestructiveAction(a))?.id;
   const invoke = useAction(api.actions.invoke);
   const [busy, setBusy] = useState<string | null>(null);
   const [done, setDone] = useState<Record<string, "ok" | "fail">>({});
@@ -1582,14 +1800,18 @@ function ActionButtonsBar({
       >
         {actions.map((a) => {
           const status = done[a.id];
-          const tint =
-            status === "fail"
+          const failed = status === "fail";
+          const destructive = isDestructiveAction(a);
+          const isPrimary = a.id === primaryId;
+          // Each button's semantic color; the primary fills with it, ghosts
+          // wear it as their label/icon color.
+          const themeColor = destructive ? colors.destructive : colors.accent;
+          const fg = isPrimary
+            ? colors.accentContrast
+            : failed
               ? colors.destructive
-              : a.kind === "reply"
-                ? colors.accent
-                : a.destructive
-                  ? colors.destructive
-                  : colors.label;
+              : themeColor;
+          const leadIcon = actionIcon(a);
           return (
             <Pressable
               key={a.id}
@@ -1602,37 +1824,46 @@ function ActionButtonsBar({
                 busy: busy === a.id,
               }}
               style={({ pressed }) => ({
-                paddingHorizontal: 12,
-                paddingVertical: 6,
+                paddingHorizontal: isPrimary ? 14 : 12,
+                paddingVertical: 7,
                 borderRadius: radius.lg,
-                borderWidth: 0.5,
+                borderCurve: "continuous",
+                borderWidth: isPrimary ? 0 : 0.5,
                 borderColor: colors.separator,
-                backgroundColor: pressed ? colors.cellHighlight : colors.fill,
-                opacity: busy !== null && busy !== a.id ? 0.5 : 1,
+                backgroundColor: isPrimary
+                  ? failed
+                    ? colors.destructive
+                    : themeColor
+                  : pressed
+                    ? colors.cellHighlight
+                    : "transparent",
+                opacity:
+                  busy !== null && busy !== a.id
+                    ? 0.5
+                    : isPrimary && pressed
+                      ? 0.85
+                      : 1,
                 flexDirection: "row",
                 alignItems: "center",
-                gap: 4,
+                gap: 5,
               })}
             >
-              {status === "ok" && (
+              {status === "ok" ? (
+                <SymbolView name="checkmark" size={12} tintColor={fg} />
+              ) : status === "fail" ? (
                 <SymbolView
-                  name="checkmark"
+                  name="exclamationmark.triangle.fill"
                   size={12}
-                  tintColor={colors.accent}
+                  tintColor={isPrimary ? colors.accentContrast : colors.destructive}
                 />
-              )}
-              {status === "fail" && (
-                <SymbolView
-                  name="exclamationmark.triangle"
-                  size={12}
-                  tintColor={colors.destructive}
-                />
-              )}
+              ) : leadIcon ? (
+                <SymbolView name={leadIcon as any} size={12} tintColor={fg} />
+              ) : null}
               <Text
                 style={{
                   ...type.footnote,
-                  color: tint,
-                  fontWeight: "600",
+                  color: fg,
+                  fontWeight: isPrimary ? "700" : "600",
                 }}
               >
                 {a.label}
@@ -1682,24 +1913,47 @@ function ActionButtonsBar({
  */
 function SwipeAction({
   progress,
+  translation,
+  side = "right",
   tint,
   label,
   icon,
   onPress,
 }: {
   progress: SharedValue<number>;
+  // Live drag distance. When provided, crossing SWIPE_TICK_THRESHOLD fires a
+  // one-shot anticipation haptic (with hysteresis so it re-arms on the way
+  // back). Only the destructive action passes this so the tick doesn't
+  // double-fire across both swipe directions.
+  translation?: SharedValue<number>;
+  side?: "left" | "right";
   tint: string;
   label: string;
   icon: string;
   onPress: () => void;
 }) {
+  const armed = useSharedValue(false);
+  useAnimatedReaction(
+    () => (translation ? Math.abs(translation.value) : 0),
+    (dist) => {
+      if (!translation) return;
+      if (!armed.value && dist >= SWIPE_TICK_THRESHOLD) {
+        armed.value = true;
+        runOnJS(haptic.light)();
+      } else if (armed.value && dist < SWIPE_TICK_THRESHOLD - 12) {
+        armed.value = false;
+      }
+    },
+  );
+  // Icon glides in from the edge the action is anchored to.
+  const from = side === "right" ? 20 : -20;
   const iconStyle = useAnimatedStyle(() => ({
     transform: [
       {
         translateX: interpolate(
           progress.value,
           [0, 1],
-          [20, 0],
+          [from, 0],
           Extrapolation.CLAMP,
         ),
       },

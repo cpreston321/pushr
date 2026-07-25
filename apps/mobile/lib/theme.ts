@@ -76,11 +76,18 @@ const basePalettes: { light: Palette; dark: Palette } = {
     background: '#000000',
     grouped: '#000000',
     sheet: '#141416',
-    cell: '#1C1C1E',
-    cellHighlight: '#2C2C2E',
+    // Lifted above Apple's stock #1C1C1E so cards read as distinct surfaces
+    // floating on the pure-black (OLED) canvas instead of melting into it. A
+    // faint cool tint ties them to the blue hero header.
+    cell: '#202127',
+    cellHighlight: '#2C2E36',
     label: '#FFFFFF',
-    secondaryLabel: 'rgba(235,235,245,0.6)',
-    tertiaryLabel: 'rgba(235,235,245,0.3)',
+    // Bumped above Apple's stock dark label alphas (0.6 / 0.3) — those sit
+    // around 2–2.5:1 on our #1C1C1E cells for timestamps and captions, well
+    // under the WCAG AA 4.5:1 target. These lift secondary/tertiary text to a
+    // legible level while preserving the label > secondary > tertiary hierarchy.
+    secondaryLabel: 'rgba(235,235,245,0.75)',
+    tertiaryLabel: 'rgba(235,235,245,0.5)',
     separator: 'rgba(84,84,88,0.65)',
     accent: ACCENT_PRESETS[DEFAULT_ACCENT].dark,
     accentContrast: '#FFFFFF',
@@ -88,7 +95,7 @@ const basePalettes: { light: Palette; dark: Palette } = {
     success: '#30D158',
     warning: '#FF9F0A',
     fill: 'rgba(120,120,128,0.24)',
-    placeholder: 'rgba(235,235,245,0.3)'
+    placeholder: 'rgba(235,235,245,0.5)'
   }
 };
 
