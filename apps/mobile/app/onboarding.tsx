@@ -16,6 +16,8 @@ import { useMutation } from 'convex/react';
 import { api } from '@pushr/backend/_generated/api';
 import { Screen } from '@/components/Screen';
 import { Button } from '@/components/Button';
+import { Card } from '@/components/Card';
+import { Halo } from '@/components/Glow';
 import {
   useTheme,
   useThemePreferences,
@@ -44,7 +46,7 @@ type Step = {
 };
 
 export default function Onboarding() {
-  const { colors, tintBg } = useTheme();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
   const scrollRef = useRef<ScrollView>(null);
@@ -160,36 +162,25 @@ export default function Onboarding() {
                 justifyContent: 'center'
               }}
             >
-              <View
-                style={{
-                  width: 88,
-                  height: 88,
-                  borderRadius: 44,
-                  backgroundColor: tintBg(s.tint ?? colors.accent),
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  alignSelf: 'flex-start'
-                }}
-              >
-                <SymbolView name={s.icon} size={44} tintColor={s.tint ?? colors.accent} />
-              </View>
+              <Halo size={92} tint={s.tint ?? colors.accent} style={{ alignSelf: 'flex-start' }}>
+                <SymbolView name={s.icon} size={42} tintColor={s.tint ?? colors.accent} />
+              </Halo>
               <View style={{ gap: spacing.sm }}>
                 <Text
                   style={{
-                    ...type.footnote,
+                    ...type.eyebrow,
                     color: s.tint ?? colors.accent,
-                    textTransform: 'uppercase',
-                    letterSpacing: 0.6
+                    textTransform: 'uppercase'
                   }}
                 >
                   {s.eyebrow}
                 </Text>
-                <Text style={{ ...type.largeTitle, color: colors.label }}>{s.title}</Text>
+                <Text style={{ ...type.display, color: colors.strongLabel }}>{s.title}</Text>
                 <Text
                   style={{
                     ...type.body,
                     color: colors.secondaryLabel,
-                    lineHeight: 24
+                    lineHeight: 25
                   }}
                 >
                   {s.body}
@@ -243,7 +234,7 @@ function StatusPanel({
   error: string | null;
   onRetry: () => void;
 }) {
-  const { colors, tintBg } = useTheme();
+  const { colors } = useTheme();
   if (status === 'idle') return null;
   const tint =
     status === 'granted'
@@ -265,17 +256,7 @@ function StatusPanel({
         : 'Asking iOS for permission…';
 
   return (
-    <View
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.md,
-        padding: spacing.md,
-        borderRadius: radius.lg,
-        borderCurve: 'continuous',
-        backgroundColor: tintBg(tint, '18')
-      }}
-    >
+    <Card tint={tint} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
       <SymbolView name={icon} size={22} tintColor={tint} />
       <Text style={{ ...type.subhead, color: tint, flex: 1 }}>{message}</Text>
       {status === 'denied' && (
@@ -283,7 +264,7 @@ function StatusPanel({
           <Text style={{ ...type.footnote, color: tint, fontWeight: '600' }}>Retry</Text>
         </Pressable>
       )}
-    </View>
+    </Card>
   );
 }
 
@@ -317,9 +298,9 @@ function StepFooter({
           <View
             key={i}
             style={{
-              width: i === page ? 20 : 6,
-              height: 6,
-              borderRadius: 3,
+              width: i === page ? 22 : 7,
+              height: 7,
+              borderRadius: 3.5,
               backgroundColor: i === page ? colors.accent : colors.fill
             }}
           />
@@ -349,7 +330,7 @@ function StepFooter({
 }
 
 function ThemePicker() {
-  const { colors, isDark, tintBg } = useTheme();
+  const { colors, isDark, ov, tint: tintOf } = useTheme();
   const { mode, setMode, accentKey, setAccent } = useThemePreferences();
 
   const modes: { value: ThemeMode; label: string; icon: SFSymbol }[] = [
@@ -370,23 +351,26 @@ function ThemePicker() {
                 haptic.selection();
                 setMode(m.value);
               }}
+              accessibilityRole="button"
+              accessibilityLabel={`${m.label} appearance`}
+              accessibilityState={{ selected }}
               style={({ pressed }) => ({
                 flex: 1,
-                aspectRatio: 1.1,
-                borderRadius: radius.md,
+                paddingVertical: spacing.lg - 2,
+                borderRadius: radius.button,
                 borderCurve: 'continuous',
-                backgroundColor: selected ? tintBg(colors.accent) : colors.fill,
-                borderWidth: 1.5,
-                borderColor: selected ? colors.accent : 'transparent',
+                backgroundColor: selected ? tintOf(0.18) : ov(0.05),
+                borderWidth: 1,
+                borderColor: selected ? tintOf(0.55) : ov(0.05),
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: spacing.xs,
+                gap: spacing.sm,
                 opacity: pressed ? 0.8 : 1
               })}
             >
               <SymbolView
                 name={m.icon}
-                size={26}
+                size={22}
                 tintColor={selected ? colors.accent : colors.secondaryLabel}
               />
               <Text
@@ -408,14 +392,17 @@ function ThemePicker() {
           flexDirection: 'row',
           justifyContent: 'space-between',
           alignItems: 'center',
-          padding: spacing.md,
-          borderRadius: radius.md,
+          paddingHorizontal: spacing.lg - 2,
+          paddingVertical: spacing.md,
+          borderRadius: radius.lg,
           borderCurve: 'continuous',
-          backgroundColor: colors.fill
+          backgroundColor: ov(0.05),
+          borderWidth: 1,
+          borderColor: ov(0.05)
         }}
       >
-        <Text style={{ ...type.subhead, color: colors.label, fontWeight: '500' }}>Accent</Text>
-        <View style={{ flexDirection: 'row', gap: spacing.md }}>
+        <Text style={{ ...type.subhead, color: colors.label, fontWeight: '600' }}>Accent</Text>
+        <View style={{ flexDirection: 'row', gap: 9 }}>
           {ACCENT_ORDER.map((key: AccentKey) => {
             const color = ACCENT_PRESETS[key][isDark ? 'dark' : 'light'];
             const selected = accentKey === key;
@@ -427,19 +414,29 @@ function ThemePicker() {
                   setAccent(key);
                 }}
                 hitSlop={6}
+                accessibilityRole="button"
+                accessibilityLabel={`${key} accent`}
+                accessibilityState={{ selected }}
               >
                 <View
                   style={{
-                    width: 26,
-                    height: 26,
-                    borderRadius: 13,
-                    borderWidth: selected ? 2 : 0,
-                    borderColor: color,
-                    padding: selected ? 3 : 0
+                    width: 28,
+                    height: 28,
+                    borderRadius: 14,
+                    backgroundColor: color,
+                    ...(selected
+                      ? {
+                          shadowColor: color,
+                          shadowOpacity: 0.55,
+                          shadowRadius: 7,
+                          shadowOffset: { width: 0, height: 0 },
+                          borderWidth: 2,
+                          borderColor: color,
+                          transform: [{ scale: 1.06 }]
+                        }
+                      : null)
                   }}
-                >
-                  <View style={{ flex: 1, borderRadius: radius.pill, backgroundColor: color }} />
-                </View>
+                />
               </Pressable>
             );
           })}

@@ -1,9 +1,10 @@
-import { useQuery, useMutation, useAction } from "convex/react";
+import { useAction, useMutation, usePaginatedQuery } from "convex/react";
 import { api } from "@pushr/backend/_generated/api";
 import type { FunctionReturnType } from "convex/server";
 import type { NotifAction } from "@pushr/backend/lib/actionsLayout";
 import type { Id } from "@pushr/backend/_generated/dataModel";
 import {
+  Alert,
   FlatList,
   Linking,
   Pressable,
@@ -43,19 +44,30 @@ import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ScreenHeader, ScreenBody } from "@/components/ScreenHeader";
+import {
+  ScreenHeader,
+  ScreenBody,
+  ScreenShell,
+} from "@/components/ScreenHeader";
 import { ScreenTransition } from "@/components/ScreenTransition";
 import { Avatar } from "@/components/Avatar";
+import { Card } from "@/components/Card";
+import { CardBloom } from "@/components/Glow";
+import { Chip, SectionDivider } from "@/components/Chip";
+import { EmptyState } from "@/components/EmptyState";
 import {
   NotificationContent,
   LiveActivityBadge,
   LiveActivityBody,
 } from "@/components/NotificationContent";
 import { useTheme, spacing, radius, type } from "@/lib/theme";
+import { identityTint } from "@/lib/appColor";
 import { haptic } from "@/lib/haptics";
 import { promptText } from "@/lib/prompt";
 import { openLink } from "@/lib/openLink";
 import {
+  entryTimestamp,
+  feedBucket,
   formatRelative,
   groupFeedItems,
   type FeedItem,
@@ -98,9 +110,10 @@ function usePressScale() {
   return { style, onPressIn, onPressOut };
 }
 
-const FEED_PAGE_SIZE = 100;
-// Server caps at 500; mirror it so the client knows when to hide "Load older".
-const FEED_MAX = 500;
+// One page of feed rows. The server walks its per-app indexes lazily, so this
+// is roughly how many documents a page costs — not `size × app-count` like the
+// old take-everything-and-slice query.
+const FEED_PAGE_SIZE = 50;
 
 // Above this many source apps, the horizontal chip strip collapses into a
 // SwiftUI menu — scrolling 20 chips to find one is worse than tapping a
@@ -115,8 +128,15 @@ export default function Feed() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams<{ notif?: string }>();
-  const [limit, setLimit] = useState(FEED_PAGE_SIZE);
-  const items = useQuery(api.notifications.listMine, { limit });
+  const {
+    results: items,
+    status: feedStatus,
+    loadMore,
+  } = usePaginatedQuery(
+    api.notifications.listMine,
+    {},
+    { initialNumItems: FEED_PAGE_SIZE },
+  );
   const markRead = useMutation(api.notifications.markRead);
   const setRead = useMutation(api.notifications.setRead);
   const markAllRead = useMutation(api.notifications.markAllRead);
@@ -124,14 +144,16 @@ export default function Feed() {
   const clearAll = useMutation(api.notifications.clearAll);
   const [search, setSearch] = useState("");
   const [filterAppId, setFilterAppId] = useState<string | null>(null);
-  const canLoadMore =
-    items != null && items.length === limit && limit < FEED_MAX;
+  const canLoadMore = feedStatus === "CanLoadMore";
+  const loadingMore = feedStatus === "LoadingMore";
+  // `usePaginatedQuery` hands back `[]` while the first page is in flight;
+  // "loading" is a status, not an absent array.
+  const loadingFirstPage = feedStatus === "LoadingFirstPage";
 
-  const unreadCount = items?.filter((i) => !i.readAt).length ?? 0;
-  const total = items?.length ?? 0;
+  const total = items.length;
 
   const sourceApps = (() => {
-    if (!items)
+    if (loadingFirstPage)
       return [] as { id: string; name: string; logoUrl: string | null }[];
     const seen = new Map<
       string,
@@ -151,7 +173,6 @@ export default function Feed() {
   })();
 
   const filtered = (() => {
-    if (!items) return items;
     const q = search.trim().toLowerCase();
     return items.filter((n) => {
       if (filterAppId && (n.sourceAppId as unknown as string) !== filterAppId) {
@@ -171,6 +192,10 @@ export default function Feed() {
     [filtered],
   );
 
+  // Counted off the filtered set: the bar's badge has to promise the same
+  // scope its button acts on.
+  const unreadCount = filtered?.filter((i) => !i.readAt).length ?? 0;
+
   // Deep-link target from the Home Screen widget (pushr://feed?notif=<id>).
   // We wait for `items` to load so we can resolve the row's url/appUrl
   // before opening, then strip the param so navigating away and back
@@ -178,7 +203,7 @@ export default function Feed() {
   const consumedNotifRef = useRef<string | null>(null);
   useEffect(() => {
     const target = params.notif;
-    if (!target || items === undefined) return;
+    if (!target || loadingFirstPage) return;
     if (consumedNotifRef.current === target) return;
     consumedNotifRef.current = target;
     const hit = items.find((n) => (n._id as unknown as string) === target);
@@ -189,57 +214,103 @@ export default function Feed() {
       }
     }
     router.setParams({ notif: undefined });
-  }, [params.notif, items, markRead, router]);
+  }, [params.notif, items, loadingFirstPage, markRead, router]);
 
   // The actual destructive op — the FloatingBar handles its own two-tap
-  // confirm UX, so we just commit on demand.
-  const handleClear = useCallback(() => {
+  // confirm UX, so we just commit on demand. Clear means "clear what I'm
+  // looking at": with an app filter on, only that app's notifications go, and
+  // the filter drops back to All since the app it named is now empty (and its
+  // chip is about to disappear with it).
+  const handleClear = useCallback(async () => {
     haptic.warning();
-    clearAll({});
-  }, [clearAll]);
-
-  const header = (
-    <ScreenHeader
-      eyebrow={
-        total > 0
-          ? unreadCount > 0
-            ? `${unreadCount} unread`
-            : `${total} ${total === 1 ? "item" : "items"}`
-          : `0 items`
+    try {
+      const deleted = await clearAll(
+        filterAppId
+          ? { sourceAppId: filterAppId as unknown as Id<"sourceApps"> }
+          : {},
+      );
+      // Clearing only removes notifications from apps you own — deleting from
+      // a shared app would wipe them out of every other member's feed too. So
+      // a member clearing a shared app deletes nothing, and saying so beats
+      // leaving them to wonder why the feed didn't change.
+      if (deleted === 0) {
+        haptic.warning();
+        Alert.alert(
+          "Nothing cleared",
+          "These notifications come from an app that's shared with you. Only the app's owner can delete them.",
+        );
+        return;
       }
-      title="Feed"
-    />
+      // Only now — if the mutation failed, dropping the filter would leave the
+      // feed looking untouched but unfiltered, which reads as "clear did
+      // nothing" with no clue why.
+      setFilterAppId(null);
+    } catch {
+      haptic.error();
+    }
+  }, [clearAll, filterAppId]);
+
+  const handleMarkAllRead = useCallback(() => {
+    haptic.success();
+    // Same scoping rule as Clear: act on what's on screen.
+    markAllRead(
+      filterAppId
+        ? { sourceAppId: filterAppId as unknown as Id<"sourceApps"> }
+        : {},
+    );
+  }, [markAllRead, filterAppId]);
+
+  const filteredApp = filterAppId
+    ? (sourceApps.find((a) => a.id === filterAppId) ?? null)
+    : null;
+
+  // Unread gets the live accent-glow chip; a fully-read feed states its size
+  // quietly instead, so the glow only ever means "there's something for you".
+  const header = (
+    <ScreenHeader title="Feed">
+      {unreadCount > 0 ? (
+        <Chip label={`${unreadCount} unread`} variant="tint" dot="glow" />
+      ) : (
+        <Chip label={`${total} ${total === 1 ? "item" : "items"}`} variant="ghost" />
+      )}
+    </ScreenHeader>
   );
 
-  if (items === undefined) {
+  if (loadingFirstPage) {
     return (
-      <ScreenTransition style={{ backgroundColor: colors.background }}>
-        {header}
-        <ScreenBody>
-          <FeedSkeleton />
-        </ScreenBody>
+      <ScreenTransition>
+        <ScreenShell>
+          {header}
+          <ScreenBody>
+            <FeedSkeleton />
+          </ScreenBody>
+        </ScreenShell>
       </ScreenTransition>
     );
   }
 
   if (items.length === 0) {
     return (
-      <ScreenTransition style={{ backgroundColor: colors.background }}>
-        {header}
-        <ScreenBody>
-          <EmptyState />
-        </ScreenBody>
+      <ScreenTransition>
+        <ScreenShell>
+          {header}
+          <ScreenBody>
+            <FeedEmpty />
+          </ScreenBody>
+        </ScreenShell>
       </ScreenTransition>
     );
   }
 
-  const pendingAckCount =
-    items?.filter((i) => i.ack && !i.acknowledgedAt).length ?? 0;
+  const pendingAckCount = items.filter(
+    (i) => i.ack && !i.acknowledgedAt,
+  ).length;
 
   return (
-    <ScreenTransition style={{ backgroundColor: colors.background }}>
-      {header}
-      <ScreenBody>
+    <ScreenTransition>
+      <ScreenShell>
+        {header}
+        <ScreenBody>
         <FeedToolbar
           search={search}
           onSearchChange={setSearch}
@@ -256,7 +327,13 @@ export default function Feed() {
           }
           contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={{
-            paddingBottom: Math.max(160, insets.bottom + 100),
+            // Derived from the bar's own geometry rather than a magic number,
+            // so raising the gap can't leave the last card under the capsule.
+            paddingBottom:
+              insets.bottom +
+              FLOATING_BAR_GAP +
+              FLOATING_BAR_HEIGHT +
+              spacing.lg,
           }}
           ListEmptyComponent={
             <View
@@ -279,28 +356,37 @@ export default function Feed() {
           ListFooterComponent={
             <FeedFooter
               canLoadMore={canLoadMore}
-              limit={limit}
-              max={FEED_MAX}
+              loading={loadingMore}
+              exhausted={feedStatus === "Exhausted"}
               shown={filtered?.length ?? 0}
               onLoadMore={() => {
                 haptic.selection();
-                setLimit((l) => Math.min(l + FEED_PAGE_SIZE, FEED_MAX));
+                loadMore(FEED_PAGE_SIZE);
               }}
             />
           }
           renderItem={({ item: entry, index }) => {
             const isFirst = index === 0;
-            const isLast = index === entries.length - 1;
 
             const entering = FadeIn.duration(220).delay(Math.min(index * 18, 120));
+
+            // Headings mark where one age bucket gives way to the next. Read
+            // state can't drive this — it alternates freely down the list, which
+            // is what made every row grow its own heading.
+            const bucket = feedBucket(entryTimestamp(entry));
+            const prevBucket =
+              index > 0 ? feedBucket(entryTimestamp(entries[index - 1])) : null;
+            const divider =
+              isFirst || bucket !== prevBucket ? (
+                <SectionDivider>{bucket}</SectionDivider>
+              ) : null;
 
             if (entry.kind === "group") {
               return (
                 <Animated.View entering={entering}>
+                  {divider}
                   <FeedGroupRow
                     group={entry}
-                    isFirst={isFirst}
-                    isLast={isLast}
                     onOpenItem={(item) => {
                       if (!item.readAt) markRead({ id: item._id });
                       if (item.url || item.appUrl) {
@@ -327,10 +413,9 @@ export default function Feed() {
             }
             return (
               <Animated.View entering={entering}>
+                {divider}
                 <FeedRow
                   item={entry.item}
-                  isFirst={isFirst}
-                  isLast={isLast}
                   onOpen={() => {
                     if (!entry.item.readAt) markRead({ id: entry.item._id });
                     if (entry.item.url || entry.item.appUrl) {
@@ -355,18 +440,36 @@ export default function Feed() {
             );
           }}
         />
-      </ScreenBody>
-      <FloatingBar
-        unreadCount={unreadCount}
-        onMarkAllRead={() => {
-          haptic.success();
-          markAllRead({});
-        }}
-        onClear={handleClear}
-      />
+        </ScreenBody>
+        <FloatingBar
+          unreadCount={unreadCount}
+          onMarkAllRead={handleMarkAllRead}
+          onClear={handleClear}
+          scope={filteredApp?.name ?? null}
+        />
+      </ScreenShell>
     </ScreenTransition>
   );
 }
+
+// Longest app name the confirm pill spells out before eliding — past this the
+// floating capsule starts crowding the screen edges.
+const CLEAR_SCOPE_MAX_CHARS = 14;
+
+function truncateName(name: string): string {
+  const trimmed = name.trim();
+  return trimmed.length > CLEAR_SCOPE_MAX_CHARS
+    ? `${trimmed.slice(0, CLEAR_SCOPE_MAX_CHARS - 1)}\u2026`
+    : trimmed;
+}
+
+// Clearance between the floating action bar and the tab bar under it. At the
+// old `spacing.lg` the two chrome layers read as one stacked block, and the bar
+// looked like it belonged to the last card rather than the screen.
+const FLOATING_BAR_GAP = spacing.xl;
+// The bar capsule's own height (6pt padding + a 34pt row + 6pt). The list
+// reserves this plus the gap so the last card scrolls clear of it.
+const FLOATING_BAR_HEIGHT = 52;
 
 // How long the Clear button stays in "Confirm" state before reverting on its
 // own. Long enough to read + commit, short enough that a stray tap can't fire
@@ -377,10 +480,13 @@ function FloatingBar({
   unreadCount,
   onMarkAllRead,
   onClear,
+  scope,
 }: {
   unreadCount: number;
   onMarkAllRead: () => void;
   onClear: () => void;
+  /** Name of the app the feed is filtered to, or `null` for the whole feed. */
+  scope: string | null;
 }) {
   const { colors, isDark, tintBg } = useTheme();
   const insets = useSafeAreaInsets();
@@ -401,6 +507,13 @@ function FloatingBar({
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, []);
+  // Switching the filter mid-confirm would leave "Confirm clear X" armed over
+  // a different scope — drop back to idle instead.
+  useEffect(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = null;
+    setConfirming(false);
+  }, [scope]);
 
   const handleClearTap = useCallback(() => {
     if (confirming) {
@@ -422,18 +535,32 @@ function FloatingBar({
   const markRead = (
     <BarAction
       icon="checkmark.circle"
-      label="Mark all read"
+      label={scope ? "Mark read" : "Mark all read"}
+      accessibilityLabel={
+        scope
+          ? `Mark notifications from ${scope} read`
+          : "Mark all notifications read"
+      }
       disabled={!canMarkAllRead || confirming}
       badge={canMarkAllRead ? unreadCount : undefined}
       onPress={onMarkAllRead}
       color={colors.accent}
     />
   );
+  // The confirm state spells out what's about to go: the filtered app by name,
+  // or the whole feed when nothing is filtered.
+  const confirmLabel = scope
+    ? `Clear ${truncateName(scope)}`
+    : "Confirm clear";
   const clear = (
     <ClearPill
+      // Remount on scope change so the pill re-measures its label widths.
+      key={confirmLabel}
       destructive={colors.destructive}
       destructiveTint={tintBg(colors.destructive)}
       confirming={confirming}
+      confirmLabel={confirmLabel}
+      scope={scope}
       onPress={handleClearTap}
     />
   );
@@ -445,7 +572,7 @@ function FloatingBar({
         position: "absolute",
         left: 0,
         right: 0,
-        bottom: Math.max(insets.bottom, 0) + spacing.lg,
+        bottom: Math.max(insets.bottom, 0) + FLOATING_BAR_GAP,
         alignItems: "center",
       }}
     >
@@ -536,11 +663,16 @@ function ClearPill({
   destructive,
   destructiveTint,
   confirming,
+  confirmLabel,
+  scope,
   onPress,
 }: {
   destructive: string;
   destructiveTint: string;
   confirming: boolean;
+  /** Label shown in the armed state — names the filtered app when there is one. */
+  confirmLabel: string;
+  scope: string | null;
   onPress: () => void;
 }) {
   const progress = useSharedValue(0);
@@ -602,7 +734,15 @@ function ClearPill({
       <Pressable
         onPress={onPress}
         accessibilityRole="button"
-        accessibilityLabel={confirming ? "Confirm clear feed" : "Clear feed"}
+        accessibilityLabel={
+          confirming
+            ? scope
+              ? `Confirm clear notifications from ${scope}`
+              : "Confirm clear feed"
+            : scope
+              ? `Clear notifications from ${scope}`
+              : "Clear feed"
+        }
         accessibilityHint={
           confirming ? "Commits the clear" : "Tap again to confirm"
         }
@@ -648,7 +788,7 @@ function ClearPill({
               style={[labelStyle, { position: "absolute", opacity: 0 }]}
               onLayout={(e) => setConfirmW(e.nativeEvent.layout.width)}
             >
-              Confirm clear
+              {confirmLabel}
             </Text>
           )}
 
@@ -664,14 +804,14 @@ function ClearPill({
                 style={[StyleSheet.absoluteFill, labelStyle, confirmTextStyle]}
                 numberOfLines={1}
               >
-                Confirm clear
+                {confirmLabel}
               </Animated.Text>
             </Animated.View>
           ) : (
             // First-frame placeholder before measurement completes — keeps
             // the pill from rendering at width=0 for one frame on cold mount.
             <Animated.Text style={[labelStyle, textStyle]} numberOfLines={1}>
-              {confirming ? "Confirm clear" : "Clear"}
+              {confirming ? confirmLabel : "Clear"}
             </Animated.Text>
           )}
         </Animated.View>
@@ -683,6 +823,7 @@ function ClearPill({
 function BarAction({
   icon,
   label,
+  accessibilityLabel,
   onPress,
   color,
   disabled,
@@ -691,6 +832,8 @@ function BarAction({
 }: {
   icon: string;
   label: string;
+  /** Spoken label when the visible one is abbreviated to fit the capsule. */
+  accessibilityLabel?: string;
   onPress: () => void;
   color: string;
   disabled?: boolean;
@@ -709,7 +852,9 @@ function BarAction({
       disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={
-        badge !== undefined ? `${label}, ${badge} unread` : label
+        badge !== undefined
+          ? `${accessibilityLabel ?? label}, ${badge} unread`
+          : (accessibilityLabel ?? label)
       }
       accessibilityState={{ disabled: !!disabled }}
       style={({ pressed }) => ({
@@ -775,13 +920,12 @@ function FeedToolbar({
   onFilterChange: (id: string | null) => void;
   pendingAckCount: number;
 }) {
-  const { colors, tintBg } = useTheme();
+  const { colors, ov, tint } = useTheme();
   return (
     <View
       style={{
-        gap: spacing.sm,
-        marginBottom: spacing.lg,
-        marginTop: spacing.xl,
+        gap: spacing.md,
+        marginBottom: spacing.sm,
       }}
     >
       {pendingAckCount > 0 && (
@@ -792,7 +936,9 @@ function FeedToolbar({
             paddingVertical: spacing.sm,
             borderRadius: radius.md,
             borderCurve: "continuous",
-            backgroundColor: tintBg(colors.destructive, "1F"),
+            backgroundColor: tint(0.14, colors.destructive),
+            borderWidth: 1,
+            borderColor: tint(0.26, colors.destructive),
             flexDirection: "row",
             alignItems: "center",
             gap: spacing.sm,
@@ -813,18 +959,20 @@ function FeedToolbar({
           flexDirection: "row",
           alignItems: "center",
           marginHorizontal: spacing.lg,
-          paddingHorizontal: spacing.md,
-          height: 44,
-          borderRadius: radius.md,
+          paddingHorizontal: spacing.lg - 2,
+          height: 46,
+          borderRadius: radius.button,
           borderCurve: "continuous",
-          backgroundColor: colors.fill,
-          gap: spacing.sm,
+          backgroundColor: ov(0.06),
+          borderWidth: 1,
+          borderColor: ov(0.05),
+          gap: spacing.sm + 2,
         }}
       >
         <SymbolView
           name="magnifyingglass"
-          size={16}
-          tintColor={colors.secondaryLabel}
+          size={17}
+          tintColor={colors.tertiaryLabel}
         />
         <TextInput
           value={search}
@@ -913,56 +1061,31 @@ function FilterChip({
   selected: boolean;
   onPress: () => void;
 }) {
-  const { colors } = useTheme();
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`Filter by ${label}`}
-      accessibilityState={{ selected }}
-      style={({ pressed }) => ({
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: radius.lg,
-        backgroundColor: selected
-          ? colors.accent
-          : pressed
-            ? colors.cellHighlight
-            : colors.fill,
-      })}
-    >
-      <Text
-        style={{
-          ...type.footnote,
-          fontWeight: "600",
-          color: selected ? colors.accentContrast : colors.label,
-        }}
-      >
-        {label}
-      </Text>
-    </Pressable>
+    <Chip label={label} variant={selected ? "solid" : "ghost"} onPress={onPress} />
   );
 }
 
 function FeedFooter({
   canLoadMore,
-  limit,
-  max,
+  loading,
+  exhausted,
   shown,
   onLoadMore,
 }: {
   canLoadMore: boolean;
-  limit: number;
-  max: number;
+  loading: boolean;
+  exhausted: boolean;
   shown: number;
   onLoadMore: () => void;
 }) {
   const { colors } = useTheme();
   if (shown === 0) return null;
-  if (canLoadMore) {
+  if (canLoadMore || loading) {
     return (
       <Pressable
         onPress={onLoadMore}
+        disabled={loading}
         accessibilityRole="button"
         accessibilityLabel="Load older notifications"
         style={({ pressed }) => ({
@@ -978,12 +1101,12 @@ function FeedFooter({
         <Text
           style={{ ...type.subhead, color: colors.accent, fontWeight: "600" }}
         >
-          Load older
+          {loading ? "Loading…" : "Load older"}
         </Text>
       </Pressable>
     );
   }
-  if (limit >= max) {
+  if (exhausted) {
     return (
       <Text
         style={{
@@ -993,55 +1116,20 @@ function FeedFooter({
           marginTop: spacing.lg,
         }}
       >
-        Showing the latest {max}. Older notifications stay on the server.
+        That's everything.
       </Text>
     );
   }
   return null;
 }
 
-function EmptyState() {
-  const { colors } = useTheme();
+function FeedEmpty() {
   return (
-    <View
-      style={{
-        flex: 1,
-        alignItems: "center",
-        justifyContent: "center",
-        padding: spacing.xxl,
-        gap: spacing.md,
-      }}
-    >
-      <View
-        style={{
-          width: 88,
-          height: 88,
-          borderRadius: 44,
-          backgroundColor: colors.fill,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <SymbolView
-          name="bell.slash"
-          size={40}
-          tintColor={colors.tertiaryLabel}
-        />
-      </View>
-      <Text style={{ ...type.title3, color: colors.label }}>
-        Your feed is empty
-      </Text>
-      <Text
-        style={{
-          ...type.subhead,
-          color: colors.secondaryLabel,
-          textAlign: "center",
-          maxWidth: 280,
-        }}
-      >
-        Create a source app in the Apps tab and send your first push.
-      </Text>
-    </View>
+    <EmptyState
+      icon="checkmark.circle"
+      title="You're all caught up"
+      message="New notifications from your connected apps will show up here."
+    />
   );
 }
 
@@ -1156,20 +1244,16 @@ function FeedSkeleton() {
 
 function FeedGroupRow({
   group,
-  isFirst,
-  isLast,
   onOpenItem,
   onToggleGroupRead,
   onDeleteGroup,
 }: {
   group: Extract<FeedEntry, { kind: "group" }>;
-  isFirst: boolean;
-  isLast: boolean;
   onOpenItem: (item: FeedItem) => void;
   onToggleGroupRead: () => void;
   onDeleteGroup: () => void;
 }) {
-  const { colors } = useTheme();
+  const { colors, ov } = useTheme();
   const [expanded, setExpanded] = useState(false);
   const latest = group.latest;
   const anyEnded = group.all.some((i) => i.liveActivity?.action === "end");
@@ -1177,6 +1261,13 @@ function FeedGroupRow({
   const eventCount = group.all.length;
   const swipeRef = useRef<SwipeableMethods | null>(null);
   const pressScale = usePressScale();
+  // Same rule as a single row — see the note there on uploaded logos.
+  const identity = identityTint(
+    latest.sourceAppLogoUrl,
+    latest.sourceAppId as unknown as string,
+    latest.sourceAppLogoColor,
+  );
+  const tint = identity ?? (anyUnread && !anyEnded ? colors.accent : null);
 
   const header = (
     <Pressable
@@ -1191,13 +1282,13 @@ function FeedGroupRow({
       accessibilityState={{ expanded }}
       accessibilityHint="Toggles event history"
       style={({ pressed }) => ({
-        backgroundColor: pressed ? colors.cellHighlight : colors.cell,
-        paddingLeft: spacing.md,
+        backgroundColor: pressed ? ov(0.05) : "transparent",
+        paddingLeft: spacing.lg,
         paddingRight: spacing.lg,
-        paddingVertical: spacing.md,
+        paddingVertical: spacing.lg,
         flexDirection: "row",
         alignItems: "center",
-        gap: spacing.md,
+        gap: 13,
         minHeight: 72,
         opacity: anyEnded ? 0.85 : 1,
       })}
@@ -1206,7 +1297,8 @@ function FeedGroupRow({
         <Avatar
           url={latest.sourceAppLogoUrl}
           name={latest.sourceAppName}
-          size={40}
+          colorKey={latest.sourceAppId as unknown as string}
+          size={44}
         />
         {!latest.readAt && !anyEnded && (
           <View
@@ -1386,17 +1478,11 @@ function FeedGroupRow({
   );
 
   return (
-    <View
-      style={{
-        marginHorizontal: spacing.lg,
-        borderTopLeftRadius: isFirst ? radius.lg : 0,
-        borderTopRightRadius: isFirst ? radius.lg : 0,
-        borderBottomLeftRadius: isLast ? radius.lg : 0,
-        borderBottomRightRadius: isLast ? radius.lg : 0,
-        overflow: "hidden",
-        backgroundColor: colors.cell,
-        borderCurve: "continuous",
-      }}
+    <Card
+      tint={tint}
+      bloom={false}
+      padding={false}
+      style={{ marginHorizontal: spacing.lg, marginBottom: spacing.md }}
     >
       <ReanimatedSwipeable
         ref={swipeRef}
@@ -1447,20 +1533,18 @@ function FeedGroupRow({
         }}
       >
         <Animated.View style={pressScale.style}>
-          {header}
-          {expandedList}
+          {/* Opaque so the swipe actions stay hidden underneath as the row
+              slides — which is why this layer, not the Card, blooms. */}
+          <View style={{ backgroundColor: colors.cell }}>
+            {tint ? (
+              <CardBloom tint={tint} strength={anyUnread && !anyEnded ? 0.3 : 0.13} />
+            ) : null}
+            {header}
+            {expandedList}
+          </View>
         </Animated.View>
       </ReanimatedSwipeable>
-      {!isLast && (
-        <View
-          style={{
-            height: 0.1,
-            backgroundColor: colors.separator,
-            marginLeft: 64,
-          }}
-        />
-      )}
-    </View>
+    </Card>
   );
 }
 
@@ -1507,23 +1591,29 @@ function ActionBadge({ action }: { action?: "start" | "update" | "end" }) {
 
 function FeedRow({
   item,
-  isFirst,
-  isLast,
   onOpen,
   onToggleRead,
   onDelete,
 }: {
   item: FeedItem;
-  isFirst: boolean;
-  isLast: boolean;
   onOpen: () => void;
   onToggleRead: () => void;
   onDelete: () => void;
 }) {
-  const { colors, tintBg } = useTheme();
+  const { colors, ov } = useTheme();
   const unread = !item.readAt;
   const swipeRef = useRef<SwipeableMethods | null>(null);
   const pressScale = usePressScale();
+  // An uploaded logo's color is sampled server-side; a generated avatar shares
+  // the hash its monogram is drawn from. When neither is available the card
+  // carries the accent while unread — a state signal, not a claim about the
+  // artwork — and stays plain once read.
+  const identity = identityTint(
+    item.sourceAppLogoUrl,
+    item.sourceAppId as unknown as string,
+    item.sourceAppLogoColor,
+  );
+  const tint = identity ?? (unread ? colors.accent : null);
 
   // Inline body expansion. A hidden absolute Text (no line cap) sits over
   // the visible body and reports the natural line count via `onTextLayout`.
@@ -1552,13 +1642,13 @@ function FeedRow({
       accessibilityLabel={a11yParts.join(", ")}
       accessibilityHint={item.url ? "Opens linked URL" : "Marks as read"}
       style={({ pressed }) => ({
-        backgroundColor: pressed ? colors.cellHighlight : colors.cell,
-        paddingLeft: spacing.md,
+        backgroundColor: pressed ? ov(0.05) : "transparent",
+        paddingLeft: spacing.lg,
         paddingRight: spacing.lg,
-        paddingVertical: spacing.md,
+        paddingVertical: spacing.lg,
         flexDirection: "row",
         alignItems: "center",
-        gap: spacing.md,
+        gap: 13,
         minHeight: 72,
       })}
     >
@@ -1566,7 +1656,8 @@ function FeedRow({
         <Avatar
           url={item.sourceAppLogoUrl}
           name={item.sourceAppName}
-          size={40}
+          colorKey={item.sourceAppId as unknown as string}
+          size={44}
         />
         {unread && (
           <View
@@ -1616,12 +1707,16 @@ function FeedRow({
 
   const actions = (item.actions ?? []) as NotifAction[];
   const rowStack = (
+    // Opaque so the swipe actions stay hidden underneath as the row slides,
+    // which is why this layer — not the Card — carries the corner bloom.
     <View style={{ backgroundColor: colors.cell }}>
+      {tint ? <CardBloom tint={tint} strength={unread ? 0.3 : 0.13} /> : null}
       {row}
       {actions.length > 0 && (
         <ActionButtonsBar
           notificationId={item._id}
           actions={actions}
+          serverResults={item.actionResults}
           disabled={item.acknowledgedAt !== undefined}
         />
       )}
@@ -1629,17 +1724,11 @@ function FeedRow({
   );
 
   return (
-    <View
-      style={{
-        marginHorizontal: spacing.lg,
-        borderTopLeftRadius: isFirst ? radius.lg : 0,
-        borderTopRightRadius: isFirst ? radius.lg : 0,
-        borderBottomLeftRadius: isLast ? radius.lg : 0,
-        borderBottomRightRadius: isLast ? radius.lg : 0,
-        overflow: "hidden",
-        backgroundColor: colors.cell,
-        borderCurve: "continuous",
-      }}
+    <Card
+      tint={tint}
+      bloom={false}
+      padding={false}
+      style={{ marginHorizontal: spacing.lg, marginBottom: spacing.md }}
     >
       <ReanimatedSwipeable
         ref={swipeRef}
@@ -1689,18 +1778,17 @@ function FeedRow({
       >
         <Animated.View style={pressScale.style}>{rowStack}</Animated.View>
       </ReanimatedSwipeable>
-      {!isLast && (
-        <View
-          style={{
-            height: 0.5,
-            backgroundColor: colors.separator,
-            marginLeft: 64,
-          }}
-        />
-      )}
-    </View>
+    </Card>
   );
 }
+
+// Action buttons line up with the row's text column rather than its outer
+// padding, so they read as part of the notification instead of a floating
+// strip: row padding + avatar + the gap between them.
+const ACTION_INDENT = spacing.lg + 44 + 13;
+// Matches the compact chip height used elsewhere; keeps the buttons from
+// out-weighing the two lines of text above them.
+const ACTION_HEIGHT = 32;
 
 // `destructive` only exists on the open_url / callback variants, so narrow
 // before reading it.
@@ -1717,34 +1805,58 @@ function actionIcon(a: NotifAction): string | null {
   return null;
 }
 
+type ActionOutcome = { ok: boolean; detail?: string; spent: boolean };
+
 function ActionButtonsBar({
   notificationId,
   actions,
+  serverResults,
   disabled,
 }: {
   notificationId: Id<"notifications">;
   actions: NotifAction[];
+  /** Settled outcomes from the backend — survives scroll, remount and relaunch. */
+  serverResults: FeedItem["actionResults"];
   disabled: boolean;
 }) {
-  const { colors } = useTheme();
-  // Filled-primary hierarchy: the first non-destructive action becomes the
-  // solid accent CTA; everything else renders as a quiet ghost button.
+  const { colors, ov, tint } = useTheme();
+  // One suggested action per notification: the first non-destructive action
+  // wears the accent tint, everything else stays neutral.
   const primaryId = actions.find((a) => !isDestructiveAction(a))?.id;
   const invoke = useAction(api.actions.invoke);
   const [busy, setBusy] = useState<string | null>(null);
-  const [done, setDone] = useState<Record<string, "ok" | "fail">>({});
-  const [results, setResults] = useState<Record<string, string>>({}); // short human result per action id
+  // Optimistic, for the window between the tap and the backend's answer. The
+  // server's own results are authoritative and land over the top of these.
+  const [local, setLocal] = useState<Record<string, ActionOutcome>>({});
+
+  const outcomes = useMemo(() => {
+    const merged: Record<string, ActionOutcome> = { ...local };
+    for (const r of serverResults ?? []) {
+      merged[r.actionId] = {
+        ok: r.ok,
+        detail: r.detail,
+        // A successful callback or reply is spent — the backend refuses to fire
+        // it twice, so the button stops offering. A link is always re-openable.
+        spent: r.ok && r.kind !== "open_url",
+      };
+    }
+    return merged;
+  }, [local, serverResults]);
+
+  function record(actionId: string, outcome: ActionOutcome) {
+    setLocal((l) => ({ ...l, [actionId]: outcome }));
+  }
 
   async function handle(action: NotifAction) {
-    if (busy || disabled) return;
+    if (busy || disabled || outcomes[action.id]?.spent) return;
     haptic.selection();
     setBusy(action.id);
     try {
       if (action.kind === "open_url") {
         void Linking.openURL(action.url).catch(() => {});
-        setDone((d) => ({ ...d, [action.id]: "ok" }));
-        setResults((r) => ({ ...r, [action.id]: "Opened" }));
+        record(action.id, { ok: true, detail: "Opened", spent: false });
       }
+      let reply: string | undefined;
       if (action.kind === "reply") {
         const text = await promptText({
           title: action.label,
@@ -1752,119 +1864,143 @@ function ActionButtonsBar({
           confirmLabel: "Send",
         });
         if (text === null) return;
-        const result = await invoke({
-          notificationId,
-          actionIdentifier: action.id,
-          reply: text,
-        });
-        const ok = result?.ok;
-        setDone((d) => ({
-          ...d,
-          [action.id]: ok ? "ok" : "fail",
-        }));
-        setResults((r) => ({
-          ...r,
-          [action.id]: ok ? "Reply sent" : "Failed",
-        }));
-        return;
+        reply = text;
       }
+      if (action.kind === "open_url") return;
       const result = await invoke({
         notificationId,
         actionIdentifier: action.id,
+        ...(reply !== undefined ? { reply } : {}),
       });
-      const ok = result?.ok;
-      setDone((d) => ({ ...d, [action.id]: ok ? "ok" : "fail" }));
-      setResults((r) => ({
-        ...r,
-        [action.id]: ok ? "Sent" : "Failed",
-      }));
+      const ok = !!result?.ok;
+      // `alreadyDone` means another tap (or another device) got there first and
+      // nothing was sent this time — the outcome is still "done", not an error.
+      // `pending` means one is in flight, so leave the button alone and let the
+      // subscription deliver the real result.
+      if (result?.pending) return;
+      record(action.id, {
+        ok,
+        detail:
+          result?.detail ??
+          (ok
+            ? result?.alreadyDone
+              ? "Already sent"
+              : action.kind === "reply"
+                ? "Reply sent"
+                : "Sent"
+            : "Failed"),
+        spent: ok,
+      });
     } catch {
-      setDone((d) => ({ ...d, [action.id]: "fail" }));
+      record(action.id, { ok: false, detail: "Failed", spent: false });
     } finally {
       setBusy(null);
     }
   }
 
   return (
-    <View style={{ backgroundColor: colors.cell }}>
+    // Deliberately transparent: the card's corner bloom is painted by the
+    // stack above this and an opaque background would clip it off in a hard
+    // line right above the buttons. The parent already paints `cell`, so the
+    // swipe actions stay hidden underneath either way.
+    <View>
       <View
         style={{
           flexDirection: "row",
           flexWrap: "wrap",
-          gap: spacing.xs,
-          paddingHorizontal: spacing.md,
-          paddingLeft: 64,
-          paddingBottom: spacing.md,
-          paddingTop: 2,
+          gap: spacing.sm - 2,
+          paddingLeft: ACTION_INDENT,
+          paddingRight: spacing.lg,
+          paddingBottom: spacing.lg,
+          // The row above already ends on 16pt of padding — the buttons sit on
+          // that, so the strip adds none of its own on top.
+          paddingTop: 0,
         }}
       >
         {actions.map((a) => {
-          const status = done[a.id];
-          const failed = status === "fail";
+          const outcome = outcomes[a.id];
+          const failed = outcome?.ok === false;
+          const spent = !!outcome?.spent;
+          const inert = busy !== null || disabled || spent;
           const destructive = isDestructiveAction(a);
           const isPrimary = a.id === primaryId;
-          // Each button's semantic color; the primary fills with it, ghosts
-          // wear it as their label/icon color.
-          const themeColor = destructive ? colors.destructive : colors.accent;
-          const fg = isPrimary
-            ? colors.accentContrast
-            : failed
+          // Each button's semantic color. The primary wears it as a wash +
+          // hairline + label (the design's `tinted` treatment); everything
+          // else stays neutral so one action reads as the suggested one
+          // without a saturated block shouting over the notification text.
+          const themeColor = failed
+            ? colors.destructive
+            : destructive
               ? colors.destructive
-              : themeColor;
+              : colors.accent;
+          // A spent action stops being emphasized — it's a record of what
+          // happened, not an invitation.
+          const emphasized = (isPrimary || destructive || failed) && !spent;
+          const fg = spent
+            ? colors.secondaryLabel
+            : emphasized
+              ? themeColor
+              : colors.label;
           const leadIcon = actionIcon(a);
           return (
             <Pressable
               key={a.id}
               onPress={() => handle(a)}
-              disabled={busy !== null || disabled}
+              disabled={inert}
               accessibilityRole="button"
-              accessibilityLabel={a.label}
+              accessibilityLabel={
+                spent ? `${a.label} — already done` : a.label
+              }
               accessibilityState={{
-                disabled: busy !== null || disabled,
+                disabled: inert,
                 busy: busy === a.id,
               }}
               style={({ pressed }) => ({
-                paddingHorizontal: isPrimary ? 14 : 12,
-                paddingVertical: 7,
-                borderRadius: radius.lg,
+                minHeight: ACTION_HEIGHT,
+                paddingHorizontal: 14,
+                borderRadius: radius.pill,
                 borderCurve: "continuous",
-                borderWidth: isPrimary ? 0 : 0.5,
-                borderColor: colors.separator,
-                backgroundColor: isPrimary
-                  ? failed
-                    ? colors.destructive
-                    : themeColor
-                  : pressed
-                    ? colors.cellHighlight
-                    : "transparent",
-                opacity:
-                  busy !== null && busy !== a.id
-                    ? 0.5
-                    : isPrimary && pressed
-                      ? 0.85
-                      : 1,
+                borderWidth: 1,
+                borderColor: emphasized ? tint(0.32, themeColor) : ov(0.08),
+                backgroundColor: emphasized ? tint(0.13, themeColor) : ov(0.05),
+                opacity: pressed || (busy !== null && busy !== a.id) ? 0.6 : 1,
                 flexDirection: "row",
                 alignItems: "center",
-                gap: 5,
+                justifyContent: "center",
+                gap: 6,
               })}
             >
-              {status === "ok" ? (
-                <SymbolView name="checkmark" size={12} tintColor={fg} />
-              ) : status === "fail" ? (
+              {outcome?.ok ? (
+                <SymbolView
+                  name="checkmark"
+                  size={12}
+                  weight="semibold"
+                  tintColor={fg}
+                />
+              ) : failed ? (
                 <SymbolView
                   name="exclamationmark.triangle.fill"
                   size={12}
-                  tintColor={isPrimary ? colors.accentContrast : colors.destructive}
+                  weight="semibold"
+                  tintColor={colors.destructive}
                 />
               ) : leadIcon ? (
-                <SymbolView name={leadIcon as any} size={12} tintColor={fg} />
+                <SymbolView
+                  name={leadIcon as any}
+                  size={12}
+                  weight="semibold"
+                  tintColor={fg}
+                />
               ) : null}
               <Text
                 style={{
-                  ...type.footnote,
+                  fontSize: 13,
+                  lineHeight: 17,
+                  fontWeight: "600",
+                  letterSpacing: -0.08,
                   color: fg,
-                  fontWeight: isPrimary ? "700" : "600",
                 }}
+                numberOfLines={1}
               >
                 {a.label}
               </Text>
@@ -1874,30 +2010,29 @@ function ActionButtonsBar({
       </View>
 
       {/* Subtle result feedback — turns the feed into a live command center */}
-      {Object.keys(results).length > 0 && (
+      {Object.keys(outcomes).length > 0 && (
         <View
           style={{
-            paddingLeft: 64,
-            paddingRight: spacing.md,
-            paddingBottom: spacing.sm,
+            paddingLeft: ACTION_INDENT,
+            paddingRight: spacing.lg,
+            paddingBottom: spacing.md,
+            marginTop: -spacing.sm,
             gap: 4,
           }}
         >
-          {Object.entries(results).map(([id, message]) => {
-            const isError = done[id] === "fail";
-            return (
+          {Object.entries(outcomes).map(([id, outcome]) =>
+            outcome.detail ? (
               <Text
                 key={id}
                 style={{
-                  ...type.caption2,
-                  color: isError ? colors.destructive : colors.secondaryLabel,
-                  paddingLeft: 4,
+                  ...type.caption1,
+                  color: outcome.ok ? colors.secondaryLabel : colors.destructive,
                 }}
               >
-                {message}
+                {outcome.detail}
               </Text>
-            );
-          })}
+            ) : null,
+          )}
         </View>
       )}
     </View>

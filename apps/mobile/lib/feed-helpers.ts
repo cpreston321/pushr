@@ -1,7 +1,7 @@
 import type { FunctionReturnType } from 'convex/server';
 import { api } from '@pushr/backend/_generated/api';
 
-export type FeedItem = FunctionReturnType<typeof api.notifications.listMine>[number];
+export type FeedItem = FunctionReturnType<typeof api.notifications.listMine>['page'][number];
 
 export type FeedEntry =
   | { kind: 'single'; item: FeedItem }
@@ -40,6 +40,43 @@ export function groupFeedItems(items?: FeedItem[]): FeedEntry[] {
     indexByActivity.set(activityId, out.length - 1);
   }
   return out;
+}
+
+/** Timestamp a feed entry sorts by — a group sorts by its most recent event. */
+export function entryTimestamp(entry: FeedEntry): number {
+  return entry.kind === 'group' ? entry.latest.createdAt : entry.item.createdAt;
+}
+
+/**
+ * Age buckets the feed is divided into. Ordered newest → oldest, and the feed
+ * itself is newest-first, so an entry's bucket index only ever increases as you
+ * scroll. That's what keeps each heading appearing exactly once.
+ */
+export const FEED_BUCKETS = ['New', 'Yesterday', 'Previous 7 days', 'Earlier'] as const;
+
+export type FeedBucket = (typeof FEED_BUCKETS)[number];
+
+/**
+ * Which age bucket a timestamp falls into, by calendar day rather than elapsed
+ * hours — something sent at 11pm should read "Yesterday" the next morning, not
+ * "New" for another 23 hours.
+ */
+export function feedBucket(ts: number, now: number = Date.now()): FeedBucket {
+  const startOfDay = (t: number) => {
+    const d = new Date(t);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  };
+  const dayMs = 24 * 60 * 60 * 1000;
+  // Round rather than floor: a DST transition between the two dates shifts the
+  // span by an hour, which would otherwise tip the division to the wrong day.
+  const daysBack = Math.round((startOfDay(now) - startOfDay(ts)) / dayMs);
+
+  // `<= 0` also absorbs a clock-skewed future timestamp as current.
+  if (daysBack <= 0) return 'New';
+  if (daysBack === 1) return 'Yesterday';
+  if (daysBack <= 6) return 'Previous 7 days';
+  return 'Earlier';
 }
 
 /**

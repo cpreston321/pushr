@@ -9,7 +9,6 @@ import {
   KeyboardAvoidingView,
   Pressable,
   ScrollView,
-  Switch,
   Text,
   View
 } from 'react-native';
@@ -19,11 +18,21 @@ import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ScreenHeader, ScreenBody } from '@/components/ScreenHeader';
+import {
+  ScreenHeader,
+  ScreenBody,
+  ScreenShell,
+  HeaderButton
+} from '@/components/ScreenHeader';
 import { ScreenTransition } from '@/components/ScreenTransition';
 import { Avatar } from '@/components/Avatar';
-import { Button } from '@/components/Button';
+import { Card } from '@/components/Card';
+import { CardBloom } from '@/components/Glow';
+import { Toggle } from '@/components/Toggle';
+import { Chip } from '@/components/Chip';
+import { EmptyState } from '@/components/EmptyState';
 import { useTheme, spacing, radius, type } from '@/lib/theme';
+import { identityTint } from '@/lib/appColor';
 import { haptic } from '@/lib/haptics';
 import { showActionSheet } from '@/lib/actionSheet';
 import { promptText } from '@/lib/prompt';
@@ -84,7 +93,7 @@ function formatMuteRemaining(until: number): string {
 }
 
 export default function Apps() {
-  const { colors } = useTheme();
+  const { colors, ov } = useTheme();
   const createAppSheet = useCreateAppSheet();
   const sourceAppDetailSheet = useSourceAppDetailSheet();
   const insets = useSafeAreaInsets();
@@ -213,29 +222,18 @@ export default function Apps() {
       title="Apps"
       accessory={
         atLimit ? (
-          <Pressable
+          <HeaderButton
+            icon="sparkles"
             accessibilityLabel="Upgrade to add more apps"
-            accessibilityRole="button"
-            onPress={() => {
-              haptic.light();
-              router.push('/upgrade');
-            }}
-            hitSlop={10}
-          >
-            <SymbolView name="sparkles" size={24} tintColor={colors.warning} />
-          </Pressable>
+            onPress={() => router.push('/upgrade')}
+          />
         ) : (
-          <Pressable
+          <HeaderButton
+            icon="plus"
+            variant="accent"
             accessibilityLabel="Create source app"
-            accessibilityRole="button"
-            onPress={() => {
-              haptic.light();
-              createAppSheet.present();
-            }}
-            hitSlop={10}
-          >
-            <SymbolView name="plus" size={26} tintColor={colors.accent} />
-          </Pressable>
+            onPress={() => createAppSheet.present()}
+          />
         )
       }
     />
@@ -243,20 +241,22 @@ export default function Apps() {
 
   if (apps === undefined) {
     return (
-      <ScreenTransition style={{ backgroundColor: colors.background }}>
-        {header}
-        <ScreenBody>
-          <View
-            style={{
-              flex: 1,
-              alignItems: 'center',
-              justifyContent: 'center',
-              paddingTop: spacing.xxl
-            }}
-          >
-            <ActivityIndicator color={colors.accent} />
-          </View>
-        </ScreenBody>
+      <ScreenTransition>
+        <ScreenShell>
+          {header}
+          <ScreenBody>
+            <View
+              style={{
+                flex: 1,
+                alignItems: 'center',
+                justifyContent: 'center',
+                paddingTop: spacing.xxl
+              }}
+            >
+              <ActivityIndicator color={colors.accent} />
+            </View>
+          </ScreenBody>
+        </ScreenShell>
       </ScreenTransition>
     );
   }
@@ -278,75 +278,56 @@ export default function Apps() {
 
   if (apps.length === 0) {
     return (
-      <ScreenTransition style={{ backgroundColor: colors.background }}>
-        {header}
-        <ScreenBody>
-          <ScrollView
-            contentInsetAdjustmentBehavior="automatic"
-            contentContainerStyle={{
-              flexGrow: 1,
-              paddingTop: spacing.xl,
-              paddingBottom: bottomPad
-            }}
-          >
-            {invitesBanner}
-            <View
-              style={{
-                flex: 1,
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: spacing.xxl,
-                gap: spacing.md
+      <ScreenTransition>
+        <ScreenShell>
+          {header}
+          <ScreenBody>
+            <ScrollView
+              contentInsetAdjustmentBehavior="automatic"
+              contentContainerStyle={{
+                flexGrow: 1,
+                paddingBottom: bottomPad
               }}
             >
-              <SymbolView name="app.badge" size={48} tintColor={colors.tertiaryLabel} />
-              <Text style={{ ...type.title3, color: colors.label }}>No source apps</Text>
-              <Text
-                style={{
-                  ...type.subhead,
-                  color: colors.secondaryLabel,
-                  textAlign: 'center',
-                  marginBottom: spacing.lg
-                }}
-              >
-                Create one for each project or service that should be able to send you pushes.
-              </Text>
-              <Button
-                title="Create source app"
-                onPress={() => createAppSheet.present()}
+              {invitesBanner}
+              <EmptyState
+                icon="square.grid.2x2"
+                title="No apps yet"
+                message="Connect a source to start receiving pushes on your devices."
+                actionLabel="Add your first app"
+                actionIcon="plus"
+                onAction={() => createAppSheet.present()}
               />
-            </View>
-          </ScrollView>
-        </ScreenBody>
+            </ScrollView>
+          </ScreenBody>
+        </ScreenShell>
       </ScreenTransition>
     );
   }
 
   return (
-    <ScreenTransition style={{ backgroundColor: colors.background }}>
-      {header}
-      <ScreenBody>
+    <ScreenTransition>
+      <ScreenShell>
+        {header}
+        <ScreenBody>
         <FlatList
           data={apps}
           keyExtractor={(a) => a._id}
           contentInsetAdjustmentBehavior="automatic"
-          contentContainerStyle={{ paddingTop: spacing.xl, paddingBottom: bottomPad }}
+          contentContainerStyle={{ paddingTop: spacing.sm, paddingBottom: bottomPad }}
           ListHeaderComponent={invitesBanner}
-          renderItem={({ item, index }) => {
-            const isFirst = index === 0;
-            const isLast = index === apps.length - 1;
+          renderItem={({ item }) => {
+            // Lit by the same value its monogram avatar is drawn from, so the
+            // list reads as a set of distinct services. Apps with uploaded
+            // artwork get no identity bloom — see `identityTint`. A disabled app
+            // keeps its hue but barely glows, since it isn't accepting pushes.
+            const tint = identityTint(item.logoUrl, item._id, item.logoColor);
             return (
-              <View
-                style={{
-                  marginHorizontal: spacing.lg,
-                  backgroundColor: colors.cell,
-                  borderTopLeftRadius: isFirst ? radius.lg : 0,
-                  borderTopRightRadius: isFirst ? radius.lg : 0,
-                  borderBottomLeftRadius: isLast ? radius.lg : 0,
-                  borderBottomRightRadius: isLast ? radius.lg : 0,
-                  borderCurve: 'continuous',
-                  overflow: 'hidden'
-                }}
+              <Card
+                tint={tint}
+                bloom={false}
+                padding={false}
+                style={{ marginHorizontal: spacing.lg, marginBottom: spacing.md }}
               >
                 <ReanimatedSwipeable
                   friction={2}
@@ -371,6 +352,10 @@ export default function Apps() {
                     </Pressable>
                   )}
                 >
+                  <View style={{ backgroundColor: colors.cell }}>
+                  {tint ? (
+                    <CardBloom tint={tint} strength={item.enabled ? 0.18 : 0.05} />
+                  ) : null}
                   <Pressable
                     onPress={() => openActions(item)}
                     onLongPress={() => changeLogo(item._id)}
@@ -382,38 +367,40 @@ export default function Apps() {
                     }`}
                     accessibilityHint="Opens app actions. Swipe left to copy token."
                     style={({ pressed }) => ({
-                      backgroundColor: pressed ? colors.cellHighlight : colors.cell,
-                      paddingHorizontal: spacing.lg,
-                      paddingVertical: spacing.md,
+                      backgroundColor: pressed ? ov(0.05) : 'transparent',
+                      paddingHorizontal: spacing.lg - 2,
+                      paddingVertical: spacing.lg - 2,
                       flexDirection: 'row',
                       alignItems: 'center',
-                      gap: spacing.md,
-                      minHeight: 64
+                      gap: 13,
+                      minHeight: 72
                     })}
                   >
-                    <Avatar url={item.logoUrl} name={item.name} size={44} />
+                    <Avatar
+                      url={item.logoUrl}
+                      name={item.name}
+                      colorKey={item._id}
+                      size={48}
+                    />
                     <View style={{ flex: 1 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
                         <Text
-                          style={{ ...type.body, color: colors.label, flexShrink: 1 }}
+                          style={{
+                            ...type.headline,
+                            color: colors.label,
+                            flexShrink: 1
+                          }}
                           numberOfLines={1}
                         >
                           {item.name}
                         </Text>
 
                         {activity[item._id] && activity[item._id].count7d > 0 && (
-                          <View
-                            style={{
-                              paddingHorizontal: 6,
-                              paddingVertical: 1,
-                              borderRadius: radius.xs,
-                              backgroundColor: colors.fill,
-                            }}
-                          >
-                            <Text style={{ ...type.caption2, color: colors.secondaryLabel, fontVariant: ['tabular-nums'] }}>
-                              {activity[item._id].count7d} in 7d
-                            </Text>
-                          </View>
+                          <Chip
+                            label={`${activity[item._id].count7d} in 7d`}
+                            size="sm"
+                            variant="ghost"
+                          />
                         )}
 
                         {activity[item._id]?.primaryProvider && (
@@ -450,23 +437,36 @@ export default function Apps() {
                           </View>
                         )}
                       </View>
-                      <Text
+                      <View
                         style={{
-                          ...type.caption1,
-                          color: item.lastUsedAt && Date.now() - item.lastUsedAt < 1000 * 60 * 60 * 24 * 3
-                            ? colors.success
-                            : colors.secondaryLabel,
-                          marginTop: 2
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 6,
+                          marginTop: 5
                         }}
-                        numberOfLines={1}
                       >
-                        {item.lastUsedAt
-                          ? `Last used ${formatRelative(item.lastUsedAt)}`
-                          : 'Never used'}
-                      </Text>
+                        <View
+                          style={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: 3,
+                            backgroundColor: recentlyUsed(item.lastUsedAt)
+                              ? colors.success
+                              : colors.tertiaryLabel
+                          }}
+                        />
+                        <Text
+                          style={{ ...type.footnote, color: colors.secondaryLabel }}
+                          numberOfLines={1}
+                        >
+                          {item.lastUsedAt
+                            ? `Last used ${formatRelative(item.lastUsedAt)}`
+                            : 'Never used'}
+                        </Text>
+                      </View>
                     </View>
                     {item.role !== 'owner' && <RoleBadge role={item.role} />}
-                    <Switch
+                    <Toggle
                       value={item.enabled}
                       disabled={item.role === 'viewer'}
                       onValueChange={(v) => {
@@ -474,26 +474,23 @@ export default function Apps() {
                         setEnabled({ id: item._id, enabled: v });
                       }}
                       accessibilityLabel={`${item.name} enabled`}
-                      style={{ alignSelf: 'center' }}
                     />
                   </Pressable>
+                  </View>
                 </ReanimatedSwipeable>
-                {!isLast && (
-                  <View
-                    style={{
-                      height: 0.5,
-                      backgroundColor: colors.separator,
-                      marginLeft: 76
-                    }}
-                  />
-                )}
-              </View>
+              </Card>
             );
           }}
         />
-      </ScreenBody>
+        </ScreenBody>
+      </ScreenShell>
     </ScreenTransition>
   );
+}
+
+/** True when the app has sent something in the last three days. */
+function recentlyUsed(lastUsedAt: number | undefined): boolean {
+  return !!lastUsedAt && Date.now() - lastUsedAt < 1000 * 60 * 60 * 24 * 3;
 }
 
 

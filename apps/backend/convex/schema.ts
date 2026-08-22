@@ -70,6 +70,11 @@ export default defineSchema({
     tokenHash: v.string(), // sha256(token)
     tokenPrefix: v.string(), // "pshr_abcd1234" — safe to display
     logoStorageId: v.optional(v.id('_storage')),
+    // Identity color sampled from the uploaded logo, as '#RRGGBB'. Drives the
+    // card bloom in the mobile feed / apps list so the glow matches the actual
+    // artwork instead of a hash of the app id. Left unset when the logo can't be
+    // decoded or is monochrome; the client then renders no identity bloom.
+    logoColor: v.optional(v.string()),
     enabled: v.boolean(),
     createdAt: v.number(),
     lastUsedAt: v.optional(v.number()),
@@ -248,6 +253,35 @@ export default defineSchema({
    * Notification history — every inbound notification, successful or not.
    * Mobile app shows this as the live feed.
    */
+  /**
+   * Replay guard for `/notify`. A caller that retries a timed-out or
+   * network-failed POST with the same `Idempotency-Key` gets the original
+   * notification id back instead of a second push — the property that makes
+   * the API safe to call from cron jobs, CI and webhook receivers, all of
+   * which retry by default.
+   *
+   * Scoped per source app: the key namespace belongs to whoever holds the
+   * token, so two apps can use the same key without colliding.
+   *
+   * Rows are swept after `IDEMPOTENCY_RETAIN_MS` (see convex/cleanup.ts).
+   * Retries outside that window create a new notification, which is the
+   * conventional trade — the alternative is keeping every key forever.
+   */
+  idempotencyKeys: defineTable({
+    sourceAppId: v.id('sourceApps'),
+    key: v.string(),
+    notificationId: v.id('notifications'),
+    /** Echoed back on replay so the response is byte-identical. */
+    scheduledFor: v.optional(v.number()),
+    /**
+     * SHA-256 of the request's meaningful fields. A replay whose body differs
+     * is a client bug — reusing a key for a different message — and is
+     * rejected rather than silently answered with the old notification.
+     */
+    requestHash: v.string(),
+    createdAt: v.number()
+  }).index('by_app_key', ['sourceAppId', 'key']),
+
   notifications: defineTable({
     ownerId: v.string(),
     sourceAppId: v.id('sourceApps'),
@@ -317,6 +351,33 @@ export default defineSchema({
     successDeviceCount: v.number(),
     failureMessages: v.optional(v.array(v.string())),
     readAt: v.optional(v.number()),
+    /**
+     * Settled outcome per interactive action, written by `actions.invoke`.
+     *
+     * Denormalized onto the notification on purpose: the feed renders up to 500
+     * rows and needs each button's state immediately, which a per-row query
+     * into `actionEvents` would make N index reads. `actionEvents` stays the
+     * append-only log (every attempt, callback status, reply text); this is the
+     * one-line summary the UI binds to.
+     *
+     * A `callback` / `reply` action with `ok: true` here is spent — `invoke`
+     * refuses to fire it a second time. A failed entry is retryable, so a flaky
+     * network can't permanently brick a button.
+     */
+    actionResults: v.optional(
+      v.array(
+        v.object({
+          actionId: v.string(),
+          kind: v.union(v.literal('open_url'), v.literal('callback'), v.literal('reply')),
+          /** Who took it — the acting member, not the source app's bill-payer. */
+          by: v.string(),
+          at: v.number(),
+          ok: v.boolean(),
+          /** Short human line for the UI ("Sent", "HTTP 502"). */
+          detail: v.optional(v.string())
+        })
+      )
+    ),
     // Ack-or-escalate. When `ack` is set the backend will re-push at high
     // priority every `timeoutSec` until the user acknowledges (by tapping
     // the notification, which sets `acknowledgedAt`) or `maxAttempts`
@@ -367,7 +428,19 @@ export default defineSchema({
     )
   })
     .index('by_owner_created', ['ownerId', 'createdAt'])
-    .index('by_sourceApp_created', ['sourceAppId', 'createdAt']),
+    .index('by_sourceApp_created', ['sourceAppId', 'createdAt'])
+    /**
+     * Unread lookups, which are hot: the badge query is reactive, and delivery
+     * recomputes a count per recipient on every push. Without this they walked
+     * `by_sourceApp_created` and post-filtered on `readAt`, so an app with
+     * 5,000 read notifications and 3 unread read all 5,003 rows to answer "3".
+     *
+     * `readAt` is optional and unread rows simply omit it — a missing field
+     * indexes as `undefined`, which is exactly what `.eq('readAt', undefined)`
+     * matches, so this needs no backfill. `setRead` un-reading a row patches
+     * `readAt: undefined`, which lands in the same bucket.
+     */
+    .index('by_sourceApp_read', ['sourceAppId', 'readAt']),
 
   /**
    * Per-device delivery record. One row per (notification × device) the
@@ -426,6 +499,7 @@ export default defineSchema({
     createdAt: v.number()
   })
     .index('by_notification', ['notificationId'])
+    .index('by_notification_action', ['notificationId', 'actionId'])
     .index('by_owner', ['ownerId']),
 
   /**
@@ -459,6 +533,9 @@ export default defineSchema({
     deviceId: v.optional(v.id('devices'))
   })
     .index('by_owner_activity', ['ownerId', 'activityId'])
+    // Members of a shared app report update tokens for activities owned by
+    // the app's bill-payer, so the lookup can't be owner-scoped.
+    .index('by_activity', ['activityId'])
     .index('by_owner_started', ['ownerId', 'startedAt'])
     .index('by_sourceApp', ['sourceAppId'])
     .index('by_native_activity_id', ['nativeActivityId'])

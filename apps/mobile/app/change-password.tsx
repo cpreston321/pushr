@@ -3,6 +3,7 @@ import { Alert, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
 import { authClient } from "@/lib/auth-client";
 import { Input } from "@/components/Input";
+import { DrawerSurface } from "@/components/Sheet";
 import { SheetContainer } from "@/components/SheetContainer";
 import { SheetActionPill, SheetHeader } from "@/components/SheetHeader";
 import { useTheme, spacing, type } from "@/lib/theme";
@@ -57,7 +58,7 @@ export default function ChangePasswordScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.sheet }}>
+    <DrawerSurface>
       <SheetHeader
         title="Change Password"
         trailing={
@@ -130,7 +131,7 @@ export default function ChangePasswordScreen() {
           )}
         </View>
       </SheetContainer>
-    </View>
+    </DrawerSurface>
   );
 }
 

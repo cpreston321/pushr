@@ -1,69 +1,60 @@
 import { Children, ReactNode, isValidElement } from 'react';
-import { Text, View } from 'react-native';
-import { useTheme, spacing, radius, type } from '@/lib/theme';
+import { Text, View, type ViewStyle } from 'react-native';
+import { useTheme, spacing, type } from '@/lib/theme';
+import { Card } from './Card';
+import { SectionLabel } from './Chip';
 
 type Props = {
   header?: string;
   footer?: string;
+  /** Tint the card's corner bloom and border — use for a status-bearing group. */
+  tint?: string | null;
+  /**
+   * Outer wrapper style. A headerless section has no `SectionLabel` to supply
+   * the vertical rhythm, so pass a `marginTop` when one follows another group.
+   */
+  style?: ViewStyle;
   children: ReactNode;
 };
 
 /**
- * iOS-grouped list section: rounded card containing rows with hairline
- * separators (automatically inserted between children). Header/footer
- * strings render as uppercase caption above / footnote below the card.
+ * Grouped list section: a `Card` holding rows separated by hairlines, with an
+ * uppercase header above and an optional footnote below. Separators are inset
+ * past the row's icon tile so they line up under the text column.
  */
-export function ListSection({ header, footer, children }: Props) {
-  const { colors } = useTheme();
+export function ListSection({ header, footer, tint, style, children }: Props) {
+  const { colors, ov } = useTheme();
   const rows = Children.toArray(children).filter(isValidElement);
 
   return (
-    <View>
-      {header && (
-        <Text
-          style={{
-            ...type.footnote,
-            color: colors.secondaryLabel,
-            textTransform: 'uppercase',
-            letterSpacing: 0.5,
-            paddingHorizontal: spacing.xl,
-            paddingBottom: spacing.xs
-          }}
-        >
-          {header}
-        </Text>
-      )}
-      <View
-        style={{
-          marginHorizontal: spacing.lg,
-          backgroundColor: colors.cell,
-          borderRadius: radius.lg,
-          borderCurve: 'continuous',
-          overflow: 'hidden'
-        }}
-      >
+    <View style={style}>
+      {header && <SectionLabel>{header}</SectionLabel>}
+      <Card tint={tint} padding={false} style={{ marginHorizontal: spacing.lg }}>
         {rows.map((child, idx) => (
           <View key={idx}>
             {child}
             {idx < rows.length - 1 && (
               <View
                 style={{
-                  height: 0.5,
-                  backgroundColor: colors.separator,
-                  marginLeft: 60
+                  height: 1,
+                  backgroundColor: ov(0.06),
+                  // Clears the 16pt inset + 38pt icon tile + 13pt gap so the
+                  // hairline starts under the text column.
+                  marginLeft: 67
                 }}
               />
             )}
           </View>
         ))}
-      </View>
+      </Card>
       {footer && (
         <Text
           style={{
             ...type.footnote,
-            color: colors.secondaryLabel,
+            lineHeight: 18,
+            color: colors.tertiaryLabel,
             paddingHorizontal: spacing.xl,
-            paddingTop: spacing.xs
+            paddingTop: spacing.sm
           }}
         >
           {footer}

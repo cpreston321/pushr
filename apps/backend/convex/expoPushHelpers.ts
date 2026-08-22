@@ -24,8 +24,7 @@ export const unreadCountForOwner = internalQuery({
     for (const { app } of accessible) {
       const unread = await ctx.db
         .query('notifications')
-        .withIndex('by_sourceApp_created', (q) => q.eq('sourceAppId', app._id))
-        .filter((q) => q.eq(q.field('readAt'), undefined))
+        .withIndex('by_sourceApp_read', (q) => q.eq('sourceAppId', app._id).eq('readAt', undefined))
         .take(500);
       total += unread.length;
     }

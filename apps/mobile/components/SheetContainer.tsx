@@ -1,25 +1,36 @@
-import { type ReactNode } from 'react';
-import { ScrollView, useWindowDimensions, View, type ViewStyle } from 'react-native';
+import { useState, type ReactNode } from 'react';
+import {
+  ScrollView,
+  useWindowDimensions,
+  View,
+  type LayoutChangeEvent,
+  type ViewStyle
+} from 'react-native';
+import { spacing } from '@/lib/theme';
 
 /**
- * Workaround wrapper for `presentation: 'formSheet'` routes whose ScrollView
- * collapses or fails to scroll inside the iOS form-sheet host container.
+ * Wrapper for `presentation: 'formSheet'` routes whose ScrollView collapses or
+ * fails to scroll inside the iOS form-sheet host container.
  *
- * - Pins the ScrollView's height to `useWindowDimensions().height` so it
- *   doesn't depend on the (sometimes ambiguous) flex chain inside the sheet.
- * - Pads the bottom of `contentContainerStyle` by 30% of the window height
- *   so there's always enough scrollable surface, preventing the "snap back"
- *   bounce iOS does when content is shorter than the sheet.
- * - `flexGrow: 1` keeps the content container expanding to fill the
- *   scrollable area for short bodies.
+ * The ScrollView needs an explicit height — inside the sheet host the flex
+ * chain is sometimes ambiguous and it collapses to nothing. We take that height
+ * from the wrapper's own layout, which *is* the sheet's visible area, so the
+ * scroll viewport matches what the user can see and content scrolls naturally.
+ *
+ * The fallback, until that first layout pass lands (or if the host hands us a
+ * zero height), is the old behaviour: pin to the window and pad the bottom by
+ * 30% of it. That pad is load-bearing in the fallback — a viewport taller than
+ * the sheet leaves the bottom of the content visible-but-unreachable unless the
+ * content is forced past the viewport's end. Once measured, the pad drops to a
+ * normal gutter, so a short sheet no longer scrolls into empty space.
  *
  * Use as the body of any formSheet route; siblings (a sticky `SheetHeader`,
  * etc.) sit outside of `SheetContainer`:
  *
- *   <View style={{ flex: 1, backgroundColor: colors.sheet }}>
+ *   <DrawerSurface>
  *     <SheetHeader title="..." />
  *     <SheetContainer scrollView>{body}</SheetContainer>
- *   </View>
+ *   </DrawerSurface>
  */
 export function SheetContainer({
   children,
@@ -32,21 +43,27 @@ export function SheetContainer({
   contentContainerStyle?: ViewStyle;
   keyboardShouldPersistTaps?: 'never' | 'always' | 'handled';
 }) {
-  const { height } = useWindowDimensions();
-  const bottomPad = height * 0.3;
+  const { height: windowHeight } = useWindowDimensions();
+  const [available, setAvailable] = useState(0);
 
   if (!scrollView) {
     return <View style={{ flex: 1 }}>{children}</View>;
   }
 
+  const measured = available > 0;
+  const onLayout = (e: LayoutChangeEvent) => {
+    const next = Math.round(e.nativeEvent.layout.height);
+    if (next !== available) setAvailable(next);
+  };
+
   return (
-    <View style={{ flex: 1, overflow: 'hidden' }}>
+    <View style={{ flex: 1, overflow: 'hidden' }} onLayout={onLayout}>
       <ScrollView
-        style={{ height }}
+        style={{ height: measured ? available : windowHeight }}
         contentContainerStyle={{
           flexGrow: 1,
           paddingHorizontal: 20,
-          paddingBottom: bottomPad,
+          paddingBottom: measured ? spacing.xxl : windowHeight * 0.3,
           ...contentContainerStyle
         }}
         keyboardShouldPersistTaps={keyboardShouldPersistTaps}

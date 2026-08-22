@@ -180,8 +180,8 @@ function GlassChip({ children }: { children: ReactNode }) {
           right: 0,
           bottom: 0,
           backgroundColor: isDark
-            ? "rgba(40,40,42,0.55)"
-            : "rgba(255,255,255,0.55)",
+            ? "rgba(255,255,255,0.12)"
+            : "rgba(0,0,0,0.06)",
         }}
       />
       {children}

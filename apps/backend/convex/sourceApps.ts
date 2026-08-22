@@ -33,6 +33,7 @@ async function decorateApp(
   return {
     ...app,
     logoUrl,
+    logoColor: app.logoColor ?? null,
     role,
     webhookConfigs
   };
@@ -478,7 +479,75 @@ export const setLogo = mutation({
         // Already gone — ignore.
       }
     }
-    await ctx.db.patch(args.id, { logoStorageId: args.storageId });
+    // Clear the previous color up front — a stale one is worse than none while
+    // the new logo's color is still being derived.
+    await ctx.db.patch(args.id, {
+      logoStorageId: args.storageId,
+      logoColor: undefined
+    });
+    // Decoding needs the Node runtime, so it can't happen inside this
+    // transaction. Scheduling it keeps the upload fast and lets a failure to
+    // read the image be non-fatal.
+    await ctx.scheduler.runAfter(0, internal.logoColor.extract, {
+      id: args.id,
+      storageId: args.storageId
+    });
+  }
+});
+
+/**
+ * Write back a color derived by `logoColor.extract`.
+ *
+ * `storageId` guards against a race: if the user replaced the logo again while
+ * the first extraction was in flight, the late result would otherwise stamp the
+ * old logo's color onto the new one.
+ */
+export const setLogoColorInternal = internalMutation({
+  args: {
+    id: v.id('sourceApps'),
+    storageId: v.id('_storage'),
+    color: v.union(v.string(), v.null())
+  },
+  handler: async (ctx, args) => {
+    const app = await ctx.db.get(args.id);
+    if (!app) return;
+    if (app.logoStorageId !== args.storageId) return;
+    await ctx.db.patch(args.id, { logoColor: args.color ?? undefined });
+  }
+});
+
+/**
+ * Derive colors for logos uploaded before `logoColor` existed.
+ *
+ * Batched and self-rescheduling so it stays inside a single transaction's
+ * read/write limits however many apps exist. Run once from the dashboard:
+ * `npx convex run sourceApps:backfillLogoColors '{}'`
+ */
+export const backfillLogoColors = internalMutation({
+  args: { cursor: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const BATCH = 50;
+    const page = await ctx.db.query('sourceApps').paginate({
+      numItems: BATCH,
+      cursor: args.cursor ?? null
+    });
+
+    let scheduled = 0;
+    for (const app of page.page) {
+      if (!app.logoStorageId || app.logoColor !== undefined) continue;
+      await ctx.scheduler.runAfter(0, internal.logoColor.extract, {
+        id: app._id,
+        storageId: app.logoStorageId
+      });
+      scheduled++;
+    }
+
+    if (!page.isDone) {
+      await ctx.scheduler.runAfter(0, internal.sourceApps.backfillLogoColors, {
+        cursor: page.continueCursor
+      });
+    }
+    return { scheduled, done: page.isDone };
   }
 });
 
@@ -494,6 +563,9 @@ export const removeLogo = mutation({
         // Already gone — ignore.
       }
     }
-    await ctx.db.patch(args.id, { logoStorageId: undefined });
+    await ctx.db.patch(args.id, {
+      logoStorageId: undefined,
+      logoColor: undefined
+    });
   }
 });

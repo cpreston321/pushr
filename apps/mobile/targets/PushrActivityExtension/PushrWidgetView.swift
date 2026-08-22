@@ -110,7 +110,7 @@ private struct GroupedList: View {
                     Rectangle()
                         .fill(Token.separator)
                         .frame(height: 0.5)
-                        .padding(.leading, 52) // align past the avatar
+                        .padding(.leading, 58) // 12pt row padding + 36pt avatar + 10pt gap
                 }
             }
         }
@@ -148,7 +148,7 @@ private struct FeedRow: View {
             AppAvatar(appId: item.sourceAppId, name: app?.name ?? "?", size: 36)
                 .overlay(alignment: .topLeading) {
                     UnreadDot(accent: accent, ringColor: Token.cell)
-                        .offset(x: -3, y: -3)
+                        .offset(x: 1, y: 1)
                 }
 
             VStack(alignment: .leading, spacing: 2) {
@@ -300,7 +300,7 @@ private struct SkeletonCard: View {
 private struct SkeletonRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            Circle()
                 .fill(Token.cellHi)
                 .frame(width: 28, height: 28)
 
@@ -381,34 +381,39 @@ private struct AppAvatar: View {
                     .resizable()
                     .scaledToFill()
             } else {
-                InitialBadge(name: name)
+                InitialBadge(appId: appId, name: name, size: size)
             }
         }
         .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: size * 0.28, style: .continuous))
+        .clipShape(Circle())
     }
 }
 
+/// Monogram fallback for an app with no uploaded logo. Drawn from the same
+/// identity hash the app uses (see `PushrAppIdentity`), so an app looks the same
+/// on the home screen as it does in the feed — it was a flat gray gradient with
+/// a single letter, which matched nothing.
 @available(iOS 17.0, *)
 private struct InitialBadge: View {
+    let appId: String
     let name: String
+    let size: CGFloat
 
     var body: some View {
+        // The app keys the color on the source-app id and falls back to the
+        // name, so the widget does too.
+        let identity = AppIdentity.identity(for: appId.isEmpty ? name : appId)
         ZStack {
             LinearGradient(
-                colors: [Token.cellHi, Token.cell],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
+                colors: [identity.from, identity.to],
+                startPoint: UnitPoint(x: 0.15, y: 0),
+                endPoint: UnitPoint(x: 0.85, y: 1)
             )
-            Text(initial(for: name))
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(Token.label)
+            Text(AppIdentity.monogram(name))
+                .font(.system(size: size * 0.34, weight: .bold))
+                .tracking(-0.4)
+                .foregroundStyle(identity.label)
         }
-    }
-
-    private func initial(for name: String) -> String {
-        guard let c = name.trimmingCharacters(in: .whitespaces).first else { return "?" }
-        return String(c).uppercased()
     }
 }
 

@@ -11,7 +11,7 @@ import { useTheme, spacing, radius, type } from '@/lib/theme';
 import { haptic } from '@/lib/haptics';
 
 export default function Login() {
-  const { colors, isDark } = useTheme();
+  const { colors, isDark, shadow } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -52,11 +52,12 @@ export default function Login() {
               style={{
                 width: 72,
                 height: 72,
-                borderRadius: radius.xl,
+                borderRadius: 22,
                 borderCurve: 'continuous',
                 backgroundColor: colors.accent,
                 alignItems: 'center',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                ...shadow.glow()
               }}
             >
               <Image
@@ -70,8 +71,8 @@ export default function Login() {
                 accessibilityLabel="pushr"
               />
             </View>
-            <Text style={{ ...type.largeTitle, color: colors.label }}>pushr</Text>
-            <Text style={{ ...type.subhead, color: colors.secondaryLabel, textAlign: 'center' }}>
+            <Text style={{ ...type.display, fontSize: 34, color: colors.strongLabel }}>pushr</Text>
+            <Text style={{ ...type.callout, color: colors.secondaryLabel, textAlign: 'center' }}>
               Your personal push-notification hub.
             </Text>
           </View>

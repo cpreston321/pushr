@@ -81,7 +81,7 @@ export function DrawerHeader({
           flex: 1,
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: isDark ? 'rgba(40,40,42,0.55)' : 'rgba(255,255,255,0.55)'
+          backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.06)'
         }}
       >
         <SymbolView

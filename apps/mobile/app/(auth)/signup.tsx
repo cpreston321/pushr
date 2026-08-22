@@ -66,8 +66,8 @@ export default function Signup() {
         style={{ flex: 1, padding: spacing.xl, justifyContent: 'center', gap: spacing.lg }}
       >
         <View style={{ marginBottom: spacing.lg }}>
-          <Text style={{ ...type.largeTitle, color: colors.label }}>Create account</Text>
-          <Text style={{ ...type.subhead, color: colors.secondaryLabel, marginTop: spacing.xs }}>
+          <Text style={{ ...type.largeTitle, color: colors.strongLabel }}>Create account</Text>
+          <Text style={{ ...type.callout, color: colors.secondaryLabel, marginTop: spacing.sm }}>
             Start receiving pushes from your own apps.
           </Text>
         </View>

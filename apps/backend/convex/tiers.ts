@@ -1,6 +1,7 @@
 import { v, ConvexError } from 'convex/values';
 import { mutation, query, internalMutation, internalQuery } from './_generated/server';
 import type { QueryCtx, MutationCtx } from './_generated/server';
+import type { Id } from './_generated/dataModel';
 import { requireAuth, requireAuthIdentity } from './lib/auth';
 
 /**
@@ -100,6 +101,66 @@ export async function incrementMonthlyUsage(ctx: MutationCtx, ownerId: string): 
   }
   await ctx.db.insert('usageCounters', { ownerId, yearMonth, count: 1 });
   return 1;
+}
+
+/**
+ * Quota check + increment against a single read of the counter row.
+ *
+ * Every accepted push read this row twice — once for the limit check, once
+ * inside the increment — which doubled the indexed reads on the one document
+ * in the whole transaction that's already contended (`usageCounters` shows up
+ * in `convex insights` as an OCC hotspot: same owner, same month, every push).
+ * Reading it once keeps the transaction's read set as small as the write
+ * demands.
+ *
+ * Throws `QUOTA_EXCEEDED` without writing when the caller is at their limit.
+ */
+export async function chargeUsage(
+  ctx: MutationCtx,
+  ownerId: string,
+  tier: Tier
+): Promise<number> {
+  const limit = TIER_LIMITS[tier].pushesPerMonth;
+  const yearMonth = currentYearMonth();
+  const existing = await ctx.db
+    .query('usageCounters')
+    .withIndex('by_owner_month', (q) => q.eq('ownerId', ownerId).eq('yearMonth', yearMonth))
+    .unique();
+  const current = existing?.count ?? 0;
+  if (current >= limit) {
+    throw quotaExceeded(tier, current, limit);
+  }
+  if (existing) {
+    const next = current + 1;
+    await ctx.db.patch(existing._id, { count: next });
+    return next;
+  }
+  await ctx.db.insert('usageCounters', { ownerId, yearMonth, count: 1 });
+  return 1;
+}
+
+/**
+ * How stale `sourceApps.lastUsedAt` is allowed to get.
+ *
+ * It used to be patched on every accepted push, which put a write to the app
+ * document in every ingest transaction — a second contention point next to the
+ * usage counter, and an invalidation of every subscription that reads source
+ * apps (the apps list, the feed's app join, the unread badge) on every single
+ * notification. The value is only ever rendered as coarse relative time
+ * ("Last used 7h ago"), so a minute of staleness is invisible.
+ */
+const LAST_USED_COALESCE_MS = 60_000;
+
+/** Patch `lastUsedAt` only when the stored value has actually gone stale. */
+export async function touchLastUsed(
+  ctx: MutationCtx,
+  app: { _id: Id<'sourceApps'>; lastUsedAt?: number }
+): Promise<void> {
+  const now = Date.now();
+  if (app.lastUsedAt !== undefined && now - app.lastUsedAt < LAST_USED_COALESCE_MS) {
+    return;
+  }
+  await ctx.db.patch(app._id, { lastUsedAt: now });
 }
 
 /**

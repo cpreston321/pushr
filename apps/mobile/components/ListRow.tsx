@@ -1,8 +1,9 @@
 import { ReactNode } from 'react';
 import { Pressable, Text, View, ViewStyle } from 'react-native';
 import { SymbolView, SFSymbol } from 'expo-symbols';
-import { useTheme, spacing, radius, type } from '@/lib/theme';
+import { useTheme, spacing, type } from '@/lib/theme';
 import { haptic } from '@/lib/haptics';
+import { IconTile } from './IconTile';
 
 type Props = {
   title: string;
@@ -15,7 +16,9 @@ type Props = {
   leading?: ReactNode;
   trailing?: ReactNode;
   icon?: SFSymbol;
+  /** Tints the icon tile's glyph and wash. Defaults to the accent. */
   iconTint?: string;
+  /** Legacy override for a fully custom tile fill. */
   iconBg?: string;
   destructive?: boolean;
   onPress?: () => void;
@@ -26,8 +29,9 @@ type Props = {
 };
 
 /**
- * Standard iOS list row: leading icon or avatar, title + optional subtitle,
- * trailing content (switch, value, chevron). 44pt minimum hit target.
+ * Grouped-list row: a tinted icon tile, a title with optional subtitle, and
+ * trailing content (switch, value, chevron). The tile is what gives the rows
+ * their rhythm — every row on a screen shares its column.
  */
 export function ListRow({
   title,
@@ -44,27 +48,32 @@ export function ListRow({
   onPress,
   onLongPress,
   chevron,
-  minHeight = 44,
+  minHeight = 52,
   style
 }: Props) {
-  const { colors } = useTheme();
+  const { colors, ov } = useTheme();
   const titleColor = destructive ? colors.destructive : colors.label;
 
   const leadingNode =
     leading ??
     (icon ? (
-      <View
-        style={{
-          width: 28,
-          height: 28,
-          borderRadius: radius.sm,
-          backgroundColor: iconBg ?? colors.accent,
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}
-      >
-        <SymbolView name={icon} size={18} tintColor={iconTint ?? '#FFFFFF'} />
-      </View>
+      iconBg ? (
+        <View
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: 11,
+            borderCurve: 'continuous',
+            backgroundColor: iconBg,
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          <SymbolView name={icon} size={18} tintColor={iconTint ?? '#FFFFFF'} />
+        </View>
+      ) : (
+        <IconTile icon={icon} size={38} color={destructive ? colors.destructive : iconTint} />
+      )
     ) : null);
 
   const content = (
@@ -75,20 +84,20 @@ export function ListRow({
           alignItems: 'center',
           minHeight,
           paddingHorizontal: spacing.lg,
-          paddingVertical: spacing.md,
-          gap: spacing.md
+          paddingVertical: spacing.md + 1,
+          gap: 13
         },
         style
       ]}
     >
       {leadingNode}
       <View style={{ flex: 1, justifyContent: 'center' }}>
-        <Text style={{ ...type.body, color: titleColor }} numberOfLines={1}>
+        <Text style={{ ...type.callout, fontWeight: '600', color: titleColor }} numberOfLines={1}>
           {title}
         </Text>
         {!!subtitle && (
           <Text
-            style={{ ...type.subhead, color: colors.secondaryLabel, marginTop: 1 }}
+            style={{ ...type.footnote, color: colors.secondaryLabel, marginTop: 2 }}
             numberOfLines={2}
             selectable={subtitleSelectable}
           >
@@ -106,7 +115,7 @@ export function ListRow({
         )}
       </View>
       {trailing}
-      {chevron && <SymbolView name="chevron.right" size={14} tintColor={colors.tertiaryLabel} />}
+      {chevron && <SymbolView name="chevron.right" size={13} tintColor={colors.tertiaryLabel} />}
     </View>
   );
 
@@ -121,7 +130,7 @@ export function ListRow({
       onLongPress={onLongPress}
       android_ripple={{ color: colors.cellHighlight }}
       style={({ pressed }) => ({
-        backgroundColor: pressed ? colors.cellHighlight : 'transparent'
+        backgroundColor: pressed ? ov(0.05) : 'transparent'
       })}
     >
       {content}

@@ -15,6 +15,8 @@ import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { useAction, useConvexAuth, useMutation, useQuery } from 'convex/react';
 import { api } from '@pushr/backend/_generated/api';
 import { Button } from '@/components/Button';
+import { Card } from '@/components/Card';
+import { IconTile } from '@/components/IconTile';
 import { DrawerHeader } from '@/components/DrawerHeader';
 import { useIsSelfHosted } from '@/components/Pro';
 import { useTheme, spacing, radius, type } from '@/lib/theme';
@@ -24,7 +26,11 @@ import { pickPackages, useRevenueCat } from '@/lib/revenuecat';
 
 type BillingCycle = 'monthly' | 'yearly';
 
-const HERO_BG = '#0A0F16';
+// Deep end of the drawer ramp — the hero has to fade into the surface below
+// it, and that surface is now gray.
+const HERO_BG = '#1F1F1F';
+// Same color as an rgba ramp, for the hero's bottom fade.
+const HERO_FADE = (a: number) => `rgba(31,31,31,${a})`;
 
 const PERKS: { icon: SFSymbol; title: string; body: string }[] = [
   {
@@ -55,7 +61,7 @@ const PERKS: { icon: SFSymbol; title: string; body: string }[] = [
 ];
 
 export default function Upgrade() {
-  const { colors, tintBg } = useTheme();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { isAuthenticated } = useConvexAuth();
   const plan = useQuery(api.tiers.getMyPlan, isAuthenticated ? {} : 'skip');
@@ -77,7 +83,12 @@ export default function Upgrade() {
   //   - loading: RC is fetching customer info / offerings → skeleton UI
   //   - ready: prices come from the App Store offering, never hardcoded
   const rcUnconfigured = rc.status.kind === 'unconfigured';
-  const pricesLoading = !rcUnconfigured && !activePackage;
+  const pricesLoading = rc.status.kind === 'loading';
+  // RevenueCat answered, but its current offering has no package we can quote —
+  // products missing from the dashboard offering, or none approved in App Store
+  // Connect yet. Distinct from `pricesLoading` on purpose: waiting doesn't fix
+  // it, so the paywall says so instead of showing a skeleton forever.
+  const pricesUnavailable = rc.status.kind === 'ready' && !activePackage;
 
   // Self-hosters get Pro automatically — no paywall. Detected client-side
   // from `backendConfig().custom`: if the user has saved a custom Convex
@@ -85,6 +96,17 @@ export default function Upgrade() {
   // gated features unlock.
   const selfHosted = useIsSelfHosted();
   const isPro = selfHosted || plan?.tier === 'pro';
+
+  const [retrying, setRetrying] = useState(false);
+  async function retryPrices() {
+    if (retrying) return;
+    setRetrying(true);
+    try {
+      await rc.refresh();
+    } finally {
+      setRetrying(false);
+    }
+  }
 
   async function startUpgrade() {
     if (busy) return;
@@ -190,7 +212,7 @@ export default function Upgrade() {
     : null;
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.grouped }}>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
       <View style={{ flex: 1 }}>
         <Hero insetTop={insets.top} accent={colors.accent} />
 
@@ -204,16 +226,12 @@ export default function Upgrade() {
             paddingBottom: spacing.sm
           }}
         >
-          <View
-            style={{
-              backgroundColor: colors.cell,
-              borderRadius: radius.xl,
-              borderCurve: 'continuous',
-              paddingVertical: spacing.sm + 2,
-              paddingHorizontal: spacing.md,
-              gap: spacing.sm,
-              boxShadow: '0px 6px 14px rgba(0, 0, 0, 0.18)'
-            }}
+          <Card
+            tint={colors.accent}
+            strength={0.14}
+            elevated
+            padding={spacing.md}
+            style={{ gap: spacing.md }}
           >
             {PERKS.map((p) => (
               <View
@@ -226,22 +244,11 @@ export default function Upgrade() {
                   alignItems: 'center'
                 }}
               >
-                <View
-                  style={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: 15,
-                    backgroundColor: tintBg(colors.accent),
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                >
-                  <SymbolView name={p.icon} size={15} tintColor={colors.accent} />
-                </View>
+                <IconTile icon={p.icon} size={31} />
                 <View style={{ flex: 1 }}>
                   <Text
                     style={{
-                      ...type.footnote,
+                      ...type.subhead,
                       color: colors.label,
                       fontWeight: '600'
                     }}
@@ -261,15 +268,12 @@ export default function Upgrade() {
                 </View>
               </View>
             ))}
-          </View>
+          </Card>
 
           {selfHosted ? (
-            <View
+            <Card
+              tint={colors.success}
               style={{
-                padding: spacing.lg,
-                borderRadius: radius.lg,
-                borderCurve: 'continuous',
-                backgroundColor: tintBg(colors.success, '18'),
                 flexDirection: 'row',
                 alignItems: 'center',
                 gap: spacing.md
@@ -297,7 +301,7 @@ export default function Upgrade() {
                   features are active, no subscription required.
                 </Text>
               </View>
-            </View>
+            </Card>
           ) : !isPro ? (
             <View style={{ flexDirection: 'row', gap: spacing.sm }}>
               <PricingCard
@@ -310,6 +314,7 @@ export default function Upgrade() {
                   setCycle('monthly');
                 }}
                 loading={pricesLoading && !monthly}
+                unavailable={pricesUnavailable}
               />
               <PricingCard
                 label="Yearly"
@@ -327,33 +332,32 @@ export default function Upgrade() {
                   setCycle('yearly');
                 }}
                 loading={pricesLoading && !yearly}
+                unavailable={pricesUnavailable}
               />
             </View>
           ) : (
-            <View
+            <Card
+              tint={colors.success}
+              padding={spacing.md}
               style={{
-                padding: spacing.md,
-                borderRadius: radius.md,
-                borderCurve: 'continuous',
-                backgroundColor: tintBg(colors.success, '18'),
                 flexDirection: 'row',
                 alignItems: 'center',
-                gap: spacing.sm
+                gap: spacing.md
               }}
             >
-              <SymbolView name="checkmark.circle.fill" size={20} tintColor={colors.success} />
+              <SymbolView name="checkmark.circle.fill" size={22} tintColor={colors.success} />
               <Text
                 style={{
-                  ...type.footnote,
+                  ...type.subhead,
                   color: colors.success,
-                  fontWeight: '600',
+                  fontWeight: '700',
                   flex: 1
                 }}
               >
                 You're on Pro
                 {plan?.proUntil ? ` until ${new Date(plan.proUntil).toLocaleDateString()}` : ''}.
               </Text>
-            </View>
+            </Card>
           )}
         </View>
       </View>
@@ -363,7 +367,7 @@ export default function Upgrade() {
           paddingHorizontal: spacing.xl,
           paddingTop: spacing.sm,
           paddingBottom: Math.max(insets.bottom, spacing.md),
-          gap: 4,
+          gap: spacing.sm,
           backgroundColor: colors.background
         }}
       >
@@ -375,31 +379,66 @@ export default function Upgrade() {
           <>
             <Button
               title={
-                busy ? 'Working…' : pricesLoading ? 'Loading prices…' : 'Start 7-day free trial'
+                busy
+                  ? 'Working…'
+                  : pricesLoading
+                    ? 'Loading prices…'
+                    : pricesUnavailable
+                      ? 'Pricing unavailable'
+                      : 'Start 7-day free trial'
               }
               onPress={startUpgrade}
-              disabled={busy || pricesLoading}
+              disabled={busy || pricesLoading || pricesUnavailable}
             />
-            <Pressable
-              onPress={restorePurchases}
-              hitSlop={8}
-              disabled={busy}
-              accessibilityRole="button"
-              accessibilityLabel="Restore purchases"
-              accessibilityHint="Re-links a previously purchased subscription"
-              accessibilityState={{ disabled: busy }}
-              style={{ alignSelf: 'center', paddingVertical: 4 }}
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'center',
+                gap: spacing.lg
+              }}
             >
-              <Text
-                style={{
-                  ...type.caption1,
-                  color: colors.accent,
-                  fontWeight: '600'
-                }}
+              {pricesUnavailable && (
+                <Pressable
+                  onPress={retryPrices}
+                  hitSlop={8}
+                  disabled={retrying}
+                  accessibilityRole="button"
+                  accessibilityLabel="Retry loading prices"
+                  accessibilityState={{ disabled: retrying, busy: retrying }}
+                  style={{ paddingVertical: 4 }}
+                >
+                  <Text
+                    style={{
+                      ...type.caption1,
+                      color: colors.accent,
+                      fontWeight: '600'
+                    }}
+                  >
+                    {retrying ? 'Retrying…' : 'Retry'}
+                  </Text>
+                </Pressable>
+              )}
+              <Pressable
+                onPress={restorePurchases}
+                hitSlop={8}
+                disabled={busy}
+                accessibilityRole="button"
+                accessibilityLabel="Restore purchases"
+                accessibilityHint="Re-links a previously purchased subscription"
+                accessibilityState={{ disabled: busy }}
+                style={{ paddingVertical: 4 }}
               >
-                Restore purchases
-              </Text>
-            </Pressable>
+                <Text
+                  style={{
+                    ...type.caption1,
+                    color: colors.accent,
+                    fontWeight: '600'
+                  }}
+                >
+                  Restore purchases
+                </Text>
+              </Pressable>
+            </View>
           </>
         )}
         <Text
@@ -413,9 +452,11 @@ export default function Upgrade() {
             ? 'Thanks for self-hosting pushr.'
             : isPro
               ? 'Cancel anytime.'
-              : price
-                ? `7 days free, then ${price.caption}. Cancel anytime. Self-hosted pushr stays free forever.`
-                : 'Cancel anytime. Self-hosted pushr stays free forever.'}
+              : pricesUnavailable
+                ? "The App Store isn't returning subscription products for this build yet. Self-hosted pushr stays free forever."
+                : price
+                  ? `7 days free, then ${price.caption}. Cancel anytime. Self-hosted pushr stays free forever.`
+                  : 'Cancel anytime. Self-hosted pushr stays free forever.'}
         </Text>
       </View>
 
@@ -487,7 +528,7 @@ function Hero({ insetTop, accent }: { insetTop: number; accent: string }) {
       </Svg>
       <LinearGradient
         pointerEvents="none"
-        colors={['rgba(10,15,22,0)', 'rgba(10,15,22,0.4)', HERO_BG]}
+        colors={[HERO_FADE(0), HERO_FADE(0.4), HERO_BG]}
         locations={[0.5, 0.85, 1]}
         style={StyleSheet.absoluteFill}
       />
@@ -547,6 +588,7 @@ function PricingCard({
   badge,
   active,
   loading,
+  unavailable,
   onPress
 }: {
   label: string;
@@ -556,9 +598,11 @@ function PricingCard({
   badge?: string;
   active: boolean;
   loading?: boolean;
+  /** Prices couldn't be fetched — show a placeholder, not a loading skeleton. */
+  unavailable?: boolean;
   onPress: () => void;
 }) {
-  const { colors, tintBg } = useTheme();
+  const { colors, ov, tint } = useTheme();
   return (
     <Pressable
       onPress={onPress}
@@ -567,25 +611,27 @@ function PricingCard({
       accessibilityState={{ selected: active }}
       style={({ pressed }) => ({
         flex: 1,
-        backgroundColor: colors.cell,
-        borderRadius: radius.lg,
+        // The chosen plan is washed in the accent rather than merely outlined,
+        // so which one you're buying is legible at a glance.
+        backgroundColor: active ? tint(0.12) : colors.cell,
+        borderRadius: radius.button,
         borderCurve: 'continuous',
         borderWidth: 1.5,
-        borderColor: active ? colors.accent : 'transparent',
+        borderColor: active ? tint(0.55) : ov(0.08),
         padding: spacing.md,
         gap: 2,
         opacity: pressed ? 0.85 : 1
       })}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        <Text style={{ ...type.footnote, color: colors.label, fontWeight: '600' }}>{label}</Text>
+        <Text style={{ ...type.subhead, color: colors.label, fontWeight: '600' }}>{label}</Text>
         {badge && (
           <View
             style={{
-              backgroundColor: tintBg(colors.success),
-              paddingHorizontal: 6,
+              backgroundColor: tint(0.18, colors.success),
+              paddingHorizontal: 7,
               paddingVertical: 2,
-              borderRadius: radius.xs
+              borderRadius: radius.xs + 2
             }}
           >
             <Text
@@ -601,7 +647,9 @@ function PricingCard({
           </View>
         )}
       </View>
-      {loading || !price ? (
+      {!price && unavailable ? (
+        <Text style={{ ...type.title3, color: colors.tertiaryLabel }}>—</Text>
+      ) : loading || !price ? (
         <View
           style={{
             width: 72,
@@ -615,8 +663,7 @@ function PricingCard({
         <Text
           style={{
             ...type.title3,
-            color: colors.label,
-            fontWeight: '700',
+            color: colors.strongLabel,
             fontVariant: ['tabular-nums']
           }}
           numberOfLines={1}

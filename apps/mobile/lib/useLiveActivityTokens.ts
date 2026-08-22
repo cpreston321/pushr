@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
+import { AppState } from 'react-native';
 import { useMutation } from 'convex/react';
 import { api } from '@pushr/backend/_generated/api';
 import type { Id } from '@pushr/backend/_generated/dataModel';
@@ -18,10 +19,25 @@ type UpdateTokenCache = {
  * may be undefined early in the app lifecycle — we cache the most recent
  * token and flush it once the id arrives, so we never drop a token on the
  * devices-query race.
+ *
+ * Everything the native listeners touch is read through a ref. The listeners
+ * are subscribed once and live for the whole session, so anything captured
+ * directly would be frozen at its first-render value — and `deviceId` is
+ * `undefined` on first render, which is exactly the value that makes a flush
+ * bail out.
  */
 export function useLiveActivityTokens(deviceId: Id<'devices'> | undefined): void {
   const registerStart = useMutation(api.devices.registerLiveActivityPushToStartToken);
   const registerUpdate = useMutation(api.liveActivities.registerUpdateToken);
+
+  // Latest-value refs, assigned during render so a token event firing between
+  // render and effect still sees the current values.
+  const deviceIdRef = useRef(deviceId);
+  deviceIdRef.current = deviceId;
+  const registerStartRef = useRef(registerStart);
+  registerStartRef.current = registerStart;
+  const registerUpdateRef = useRef(registerUpdate);
+  registerUpdateRef.current = registerUpdate;
 
   // Buffers for tokens that arrived before we knew the deviceId. We also
   // remember the last registered token so we don't spam the backend with
@@ -30,6 +46,60 @@ export function useLiveActivityTokens(deviceId: Id<'devices'> | undefined): void
   const lastRegisteredStart = useRef<string | null>(null);
   const pendingUpdateTokens = useRef<Map<string, UpdateTokenCache>>(new Map());
   const lastRegisteredUpdate = useRef<Map<string, string>>(new Map());
+
+  const flushStart = useCallback(() => {
+    const currentDeviceId = deviceIdRef.current;
+    const token = pendingStartToken.current;
+    if (!currentDeviceId || !token) return;
+    if (lastRegisteredStart.current === token) return;
+    void registerStartRef
+      .current({ deviceId: currentDeviceId, token })
+      .then(() => {
+        lastRegisteredStart.current = token;
+      })
+      .catch(() => {
+        // Retry on the next flush trigger — a new token, the deviceId
+        // resolving, or the app coming back to the foreground.
+      });
+  }, []);
+
+  const flushUpdates = useCallback(() => {
+    const currentDeviceId = deviceIdRef.current;
+    if (!currentDeviceId) {
+      if (pendingUpdateTokens.current.size > 0) {
+        console.log(
+          '[la] update tokens waiting on deviceId; queued=',
+          pendingUpdateTokens.current.size
+        );
+      }
+      return;
+    }
+    for (const cached of pendingUpdateTokens.current.values()) {
+      if (lastRegisteredUpdate.current.get(cached.activityId) === cached.token) {
+        continue;
+      }
+      console.log(
+        '[la] registering update token:',
+        cached.activityId,
+        'token=',
+        cached.token.slice(-12)
+      );
+      void registerUpdateRef
+        .current({
+          activityId: cached.activityId,
+          nativeActivityId: cached.nativeActivityId,
+          pushUpdateToken: cached.token,
+          deviceId: currentDeviceId
+        })
+        .then(() => {
+          console.log('[la] registered update token:', cached.activityId);
+          lastRegisteredUpdate.current.set(cached.activityId, cached.token);
+        })
+        .catch((err) => {
+          console.log('[la] register update token failed:', cached.activityId, String(err));
+        });
+    }
+  }, []);
 
   // Subscribe to events exactly once.
   useEffect(() => {
@@ -74,62 +144,25 @@ export function useLiveActivityTokens(deviceId: Id<'devices'> | undefined): void
       startSub.remove();
       updateSub.remove();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [flushStart, flushUpdates]);
 
   // Flush whenever a fresh deviceId becomes available.
   useEffect(() => {
     flushStart();
     flushUpdates();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deviceId]);
+  }, [deviceId, flushStart, flushUpdates]);
 
-  function flushStart() {
-    const token = pendingStartToken.current;
-    if (!deviceId || !token) return;
-    if (lastRegisteredStart.current === token) return;
-    void registerStart({ deviceId, token })
-      .then(() => {
-        lastRegisteredStart.current = token;
-      })
-      .catch(() => {
-        // Retry on next flush trigger.
-      });
-  }
-
-  function flushUpdates() {
-    if (!deviceId) {
-      if (pendingUpdateTokens.current.size > 0) {
-        console.log(
-          '[la] update tokens waiting on deviceId; queued=',
-          pendingUpdateTokens.current.size
-        );
+  // And on foreground. A token can arrive while the app is backgrounded (the
+  // activity was started from a push), and a registration that failed on a
+  // dead network has no other retry — without this, one missed call means the
+  // activity is unreachable for the rest of its life.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') {
+        flushStart();
+        flushUpdates();
       }
-      return;
-    }
-    for (const cached of pendingUpdateTokens.current.values()) {
-      if (lastRegisteredUpdate.current.get(cached.activityId) === cached.token) {
-        continue;
-      }
-      console.log(
-        '[la] registering update token:',
-        cached.activityId,
-        'token=',
-        cached.token.slice(-12)
-      );
-      void registerUpdate({
-        activityId: cached.activityId,
-        nativeActivityId: cached.nativeActivityId,
-        pushUpdateToken: cached.token,
-        deviceId
-      })
-        .then(() => {
-          console.log('[la] registered update token:', cached.activityId);
-          lastRegisteredUpdate.current.set(cached.activityId, cached.token);
-        })
-        .catch((err) => {
-          console.log('[la] register update token failed:', cached.activityId, String(err));
-        });
-    }
-  }
+    });
+    return () => sub.remove();
+  }, [flushStart, flushUpdates]);
 }

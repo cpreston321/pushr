@@ -1,7 +1,8 @@
 import { useMemo, type ReactNode } from "react";
-import { Dimensions, View } from "react-native";
+import { Dimensions } from "react-native";
 import { ModalBottomSheet } from "@swmansion/react-native-bottom-sheet";
-import { useTheme, radius } from "@/lib/theme";
+import { radius } from "@/lib/theme";
+import { DrawerSurface } from "@/components/Sheet";
 
 export function AppBottomSheet({
   index,
@@ -12,7 +13,6 @@ export function AppBottomSheet({
   onIndexChange: (i: number) => void;
   children: ReactNode;
 }) {
-  const { colors } = useTheme();
   const openHeight = useMemo(
     () => Math.round(Dimensions.get("window").height * 0.85),
     [],
@@ -26,17 +26,15 @@ export function AppBottomSheet({
       onIndexChange={onIndexChange}
       scrimColor="rgba(0,0,0,0.4)"
     >
-      <View
+      <DrawerSurface
         style={{
-          flex: 1,
-          backgroundColor: colors.sheet,
           borderTopLeftRadius: radius.xl,
           borderTopRightRadius: radius.xl,
           overflow: "hidden",
         }}
       >
         {children}
-      </View>
+      </DrawerSurface>
     </ModalBottomSheet>
   );
 }

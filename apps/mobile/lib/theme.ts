@@ -9,17 +9,33 @@ import React, {
 } from 'react';
 import { useColorScheme } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
+import { alpha, mix } from './color';
 
 /**
- * iOS system colors + iOS-native grouped list tokens. Accent is user-selectable
- * from a small palette of presets, defaulting to system blue.
+ * pushr design tokens. The palette is a neutral gray canvas — near-black in
+ * dark, near-white in light — carrying a single accent-tinted bloom, with cards
+ * floating on it as distinct 20pt surfaces. Accent is user-selectable from a
+ * six-color palette.
+ *
+ * Surface ladder, ground → nearest the viewer (both modes read the same way,
+ * light mode inverted):
+ *   canvas < background < backgroundLift < sheet < cell
  */
 export type Palette = {
+  /** Deepest surface — auth, onboarding, splash. */
+  canvas: string;
+  /** Default screen background. */
   background: string;
+  /** One step lighter than `background`; the accent bloom mixes into this. */
+  backgroundLift: string;
   grouped: string;
   sheet: string;
+  /** Bottom of the sheet's own top-to-bottom gradient. */
+  sheetDeep: string;
   cell: string;
   cellHighlight: string;
+  /** Maximum-contrast text — screen titles, card headlines. */
+  strongLabel: string;
   label: string;
   secondaryLabel: string;
   tertiaryLabel: string;
@@ -38,13 +54,21 @@ export type AccentKey = 'blue' | 'purple' | 'pink' | 'green' | 'orange' | 'indig
 
 type AccentPair = { light: string; dark: string };
 
+/**
+ * The design's accent palette, used verbatim in both modes so an accent looks
+ * like the same color whichever appearance you're in.
+ *
+ * Label contrast on top of these is handled at the point of use by
+ * `readableOn()`, which flips to ink on the lighter accents (orange, green)
+ * rather than forcing white through at ~2:1.
+ */
 export const ACCENT_PRESETS: Record<AccentKey, AccentPair> = {
-  indigo: { light: '#5856D6', dark: '#5E5CE6' },
-  blue: { light: '#007AFF', dark: '#0A84FF' },
-  purple: { light: '#AF52DE', dark: '#BF5AF2' },
-  pink: { light: '#FF2D55', dark: '#FF375F' },
-  green: { light: '#34C759', dark: '#30D158' },
-  orange: { light: '#FF9500', dark: '#FF9F0A' }
+  blue: { light: '#3E7BFA', dark: '#3E7BFA' },
+  purple: { light: '#C15CF0', dark: '#C15CF0' },
+  pink: { light: '#F0355A', dark: '#F0355A' },
+  green: { light: '#2FB566', dark: '#2FB566' },
+  orange: { light: '#F5A623', dark: '#F5A623' },
+  indigo: { light: '#6558F5', dark: '#6558F5' }
 };
 
 export const ACCENT_ORDER: AccentKey[] = ['blue', 'purple', 'pink', 'green', 'orange', 'indigo'];
@@ -55,47 +79,63 @@ const STORAGE_KEY_ACCENT = 'pushr.accentKey';
 
 const basePalettes: { light: Palette; dark: Palette } = {
   light: {
-    background: '#FFFFFF',
-    grouped: '#F2F2F7',
-    sheet: '#E9E9ED',
+    // The mirror of the dark ramp: same neutral grays, same steps, inverted.
+    // Ground at `#F0F0F0`, sheets lifted toward white, cards white on top.
+    canvas: '#EAEAEA',
+    background: '#F0F0F0',
+    backgroundLift: '#F5F5F5',
+    grouped: '#F0F0F0',
+    // A step toward white, the way dark's sheet is a step toward light — and
+    // below `cell`, so a card inside a sheet still reads as a card.
+    sheet: '#F7F7F7',
+    sheetDeep: '#F0F0F0',
     cell: '#FFFFFF',
-    cellHighlight: '#E5E5EA',
-    label: '#000000',
-    secondaryLabel: 'rgba(60,60,67,0.65)',
-    tertiaryLabel: 'rgba(60,60,67,0.45)',
-    separator: 'rgba(60,60,67,0.4)',
+    cellHighlight: '#F2F2F2',
+    strongLabel: '#0A0A0A',
+    label: '#1C1C1C',
+    // 6.7:1 and 4.5:1 on the white card — t3 is the de-emphasized tier
+    // (timestamps, captions) and still clears AA for small text.
+    secondaryLabel: '#5C5C5C',
+    tertiaryLabel: '#767676',
+    separator: 'rgba(0,0,0,0.09)',
     accent: ACCENT_PRESETS[DEFAULT_ACCENT].light,
     accentContrast: '#FFFFFF',
-    destructive: '#FF3B30',
-    success: '#248A3D',
-    warning: '#C76C00',
-    fill: 'rgba(120,120,128,0.2)',
-    placeholder: 'rgba(60,60,67,0.45)'
+    destructive: '#D92544',
+    success: '#1F9954',
+    warning: '#B8760A',
+    fill: 'rgba(0,0,0,0.06)',
+    placeholder: '#949494'
   },
   dark: {
-    background: '#000000',
-    grouped: '#000000',
-    sheet: '#141416',
-    // Lifted above Apple's stock #1C1C1E so cards read as distinct surfaces
-    // floating on the pure-black (OLED) canvas instead of melting into it. A
-    // faint cool tint ties them to the blue hero header.
-    cell: '#202127',
-    cellHighlight: '#2C2E36',
-    label: '#FFFFFF',
-    // Bumped above Apple's stock dark label alphas (0.6 / 0.3) — those sit
-    // around 2–2.5:1 on our #1C1C1E cells for timestamps and captions, well
-    // under the WCAG AA 4.5:1 target. These lift secondary/tertiary text to a
-    // legible level while preserving the label > secondary > tertiary hierarchy.
-    secondaryLabel: 'rgba(235,235,245,0.75)',
-    tertiaryLabel: 'rgba(235,235,245,0.5)',
-    separator: 'rgba(84,84,88,0.65)',
+    // A neutral gray ramp rather than the blue-tinted near-black this started
+    // as: `#242424` is the ground everything stands on, cards one step up at
+    // `#2E2E2E`, text `#E8E8E8`.
+    canvas: '#1C1C1C',
+    background: '#242424',
+    backgroundLift: '#2A2A2A',
+    grouped: '#242424',
+    // One step above the ground so a sheet reads as a surface over the screen
+    // by value, not only by scrim, corner radius and shadow.
+    sheet: '#2A2A2A',
+    sheetDeep: '#242424',
+    cell: '#2E2E2E',
+    cellHighlight: '#383838',
+    strongLabel: '#F5F5F5',
+    label: '#E8E8E8',
+    // 5.9:1 and 4.1:1 on the `#2E2E2E` card — t2 for supporting copy, t3 for
+    // genuinely de-emphasized text (timestamps, captions).
+    secondaryLabel: '#ABABAB',
+    tertiaryLabel: '#8E8E8E',
+    // A point more than the near-black palette needed: hairlines have to carry
+    // over a lighter ground.
+    separator: 'rgba(255,255,255,0.09)',
     accent: ACCENT_PRESETS[DEFAULT_ACCENT].dark,
     accentContrast: '#FFFFFF',
-    destructive: '#FF453A',
-    success: '#30D158',
-    warning: '#FF9F0A',
-    fill: 'rgba(120,120,128,0.24)',
-    placeholder: 'rgba(235,235,245,0.5)'
+    destructive: '#F0546A',
+    success: '#2FB566',
+    warning: '#F5B13D',
+    fill: 'rgba(255,255,255,0.08)',
+    placeholder: '#8E8E8E'
   }
 };
 
@@ -123,17 +163,34 @@ export const spacing = {
 export const radius = {
   xs: 4,
   sm: 8,
+  /** Inline icon tiles, inputs, small chips. */
   md: 12,
+  /** Primary buttons. */
+  button: 14,
   lg: 16,
+  /** Standing card / list-section corner — the design's signature radius. */
+  card: 20,
   xl: 20,
+  /** Bottom sheets and drawers. */
+  sheet: 26,
   pill: 9999
 } as const;
 
 export const type = {
-  largeTitle: { fontSize: 34, lineHeight: 41, fontWeight: '700' as const, letterSpacing: 0.37 },
-  title1: { fontSize: 28, lineHeight: 34, fontWeight: '700' as const, letterSpacing: 0.36 },
-  title2: { fontSize: 22, lineHeight: 28, fontWeight: '700' as const, letterSpacing: 0.35 },
-  title3: { fontSize: 20, lineHeight: 25, fontWeight: '600' as const, letterSpacing: 0.38 },
+  /**
+   * Display sizes carry negative tracking (the design's `-0.02em`) — tight
+   * letterforms are what make the headings read as one deliberate voice
+   * rather than stock system text.
+   */
+  display: { fontSize: 40, lineHeight: 42, fontWeight: '800' as const, letterSpacing: -0.8 },
+  largeTitle: { fontSize: 34, lineHeight: 38, fontWeight: '700' as const, letterSpacing: -0.7 },
+  title1: { fontSize: 28, lineHeight: 33, fontWeight: '700' as const, letterSpacing: -0.56 },
+  title2: { fontSize: 22, lineHeight: 27, fontWeight: '700' as const, letterSpacing: -0.44 },
+  title3: { fontSize: 20, lineHeight: 25, fontWeight: '700' as const, letterSpacing: -0.4 },
+  /** All-caps kicker above a hero title. Pair with `textTransform: 'uppercase'`. */
+  eyebrow: { fontSize: 13, lineHeight: 16, fontWeight: '700' as const, letterSpacing: 1.3 },
+  /** Grouped-list section header. Pair with `textTransform: 'uppercase'`. */
+  sectionLabel: { fontSize: 13, lineHeight: 16, fontWeight: '600' as const, letterSpacing: 0.55 },
   headline: { fontSize: 17, lineHeight: 22, fontWeight: '600' as const, letterSpacing: -0.43 },
   body: { fontSize: 17, lineHeight: 22, fontWeight: '400' as const, letterSpacing: -0.43 },
   callout: { fontSize: 16, lineHeight: 21, fontWeight: '400' as const, letterSpacing: -0.32 },
@@ -208,11 +265,68 @@ export function useTheme() {
 
   // Soft tinted background helper. Dark mode keeps the original alpha; light
   // mode roughly doubles it so tints on white surfaces don't look washed out.
-  const tintBg = (hex: string, alpha: string = '22'): string => {
-    if (isDark) return hex + alpha;
-    const boosted = Math.min(255, parseInt(alpha, 16) * 2);
+  const tintBg = (hex: string, a: string = '22'): string => {
+    if (isDark) return hex + a;
+    const boosted = Math.min(255, parseInt(a, 16) * 2);
     return hex + boosted.toString(16).padStart(2, '0').toUpperCase();
   };
 
-  return { isDark, colors, spacing, radius, type, mode, accentKey, tintBg };
+  /**
+   * Neutral overlay at `a` (0–1) — white over dark, black over light. Stands in
+   * for the design's `--ovNN` custom properties.
+   */
+  const ov = (a: number): string => (isDark ? `rgba(255,255,255,${a})` : `rgba(0,0,0,${a})`);
+
+  /**
+   * Translucent wash of `color` (defaults to the accent) for tinted chips,
+   * icon tiles and card blooms. Light mode gets a touch more so the tint
+   * survives against white.
+   */
+  const tint = (a: number, color: string = accent): string =>
+    alpha(color, isDark ? a : Math.min(1, a * 1.35));
+
+  /** Opaque blend of `color` into a surface — the `color-mix()` equivalent. */
+  const blend = (a: number, color: string = accent, surface: string = colors.cell): string =>
+    mix(color, a, surface);
+
+  /** Drop shadows sized to the surface they lift. */
+  const shadow = {
+    card: {
+      shadowColor: '#000000',
+      shadowOpacity: isDark ? 0.35 : 0.07,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 6 },
+      elevation: 4
+    },
+    floating: {
+      shadowColor: '#000000',
+      shadowOpacity: isDark ? 0.5 : 0.14,
+      shadowRadius: 24,
+      shadowOffset: { width: 0, height: 10 },
+      elevation: 10
+    },
+    /** Accent-colored bloom under a filled accent surface. */
+    glow: (color: string = accent) => ({
+      shadowColor: color,
+      shadowOpacity: isDark ? 0.4 : 0.28,
+      shadowRadius: 20,
+      shadowOffset: { width: 0, height: 8 },
+      elevation: 8
+    })
+  };
+
+  return {
+    isDark,
+    colors,
+    spacing,
+    radius,
+    type,
+    mode,
+    accentKey,
+    tintBg,
+    ov,
+    tint,
+    blend,
+    shadow
+  };
 }

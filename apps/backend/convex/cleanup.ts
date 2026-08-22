@@ -40,6 +40,13 @@ const INVALID_DEVICE_RETAIN_MS = 30 * DAY_MS;
 // unexpired invites are kept indefinitely.
 const INVITE_RETAIN_MS = 30 * DAY_MS;
 
+/**
+ * How long a `/notify` idempotency key stays honoured. Past this a retry with
+ * the same key creates a new notification — the standard trade for not keeping
+ * every key ever issued.
+ */
+const IDEMPOTENCY_RETAIN_MS = DAY_MS;
+
 // region: tier-features
 // RevenueCat events are an audit log; keep ~6 months for debugging /
 // duplicate-event detection, then drop the raw payload.
@@ -220,6 +227,33 @@ export const sweepOrphanActionEvents = internalMutation({
   }
 });
 
+/**
+ * `/notify` replay guards. 24h is the conventional window: long enough to
+ * cover a retrying cron or webhook receiver, short enough that the table
+ * doesn't grow with every push forever.
+ */
+export const sweepIdempotencyKeys = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const cutoff = Date.now() - IDEMPOTENCY_RETAIN_MS;
+    const batch = await ctx.db.query('idempotencyKeys').take(BATCH_SIZE);
+    let deleted = 0;
+    let allStale = true;
+    for (const row of batch) {
+      if (row.createdAt >= cutoff) {
+        allStale = false;
+        continue;
+      }
+      await ctx.db.delete(row._id);
+      deleted++;
+    }
+    if (allStale && deleted > 0 && batch.length === BATCH_SIZE) {
+      await ctx.scheduler.runAfter(0, internal.cleanup.sweepIdempotencyKeys, {});
+    }
+    return deleted;
+  }
+});
+
 export const sweepInvites = internalMutation({
   args: {},
   handler: async (ctx) => {
@@ -247,6 +281,7 @@ export const sweepInvites = internalMutation({
     }
     if (allStale && deleted > 0 && batch.length === BATCH_SIZE) {
       await ctx.scheduler.runAfter(0, internal.cleanup.sweepInvites, {});
+    await ctx.scheduler.runAfter(0, internal.cleanup.sweepIdempotencyKeys, {});
     }
     return deleted;
   }
@@ -310,6 +345,7 @@ export const runAll = internalMutation({
     await ctx.scheduler.runAfter(0, internal.cleanup.sweepLiveActivities, {});
     await ctx.scheduler.runAfter(0, internal.cleanup.sweepInvalidDevices, {});
     await ctx.scheduler.runAfter(0, internal.cleanup.sweepInvites, {});
+    await ctx.scheduler.runAfter(0, internal.cleanup.sweepIdempotencyKeys, {});
     // region: tier-features
     await ctx.scheduler.runAfter(0, internal.cleanup.sweepUsageCounters, {});
     await ctx.scheduler.runAfter(0, internal.cleanup.sweepIapEvents, {});

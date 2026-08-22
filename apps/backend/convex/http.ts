@@ -33,7 +33,15 @@ authComponent.registerRoutes(http, createAuth);
  *            seconds (ignoring quiet hours) until the user taps the
  *            notification or `maxAttempts` re-pushes have been sent.
  *
+ *            `Idempotency-Key: <opaque string>` (optional header): retrying
+ *            with the same key returns the original notification id instead
+ *            of pushing again, and doesn't spend quota. Keys are scoped to
+ *            the source app and retained for 24h. Reusing a key with a
+ *            different payload is a 409 — that's a client bug, not a retry.
+ *
  * Response:  202 { id } on success. 401 / 400 on auth / validation.
+ *            A replay answers 200 with the original body and
+ *            `Idempotent-Replay: true`.
  */
 const notifyHandler = httpAction(async (ctx, req) => {
   const auth = req.headers.get('authorization') ?? '';
@@ -42,6 +50,13 @@ const notifyHandler = httpAction(async (ctx, req) => {
     return json({ error: 'Missing bearer token' }, 401);
   }
   const token = match[1].trim();
+  const idempotencyKey = req.headers.get('idempotency-key')?.trim() || undefined;
+  if (idempotencyKey !== undefined && idempotencyKey.length > IDEMPOTENCY_KEY_MAX_LENGTH) {
+    return json(
+      { error: `Idempotency-Key must be at most ${IDEMPOTENCY_KEY_MAX_LENGTH} characters` },
+      400
+    );
+  }
 
   let payload: Record<string, unknown>;
   try {
@@ -108,9 +123,13 @@ const notifyHandler = httpAction(async (ctx, req) => {
     },
     ack: ack ?? undefined,
     liveActivity: liveActivity ?? undefined,
-    deliverAt
+    deliverAt,
+    idempotencyKey
   });
 });
+
+/** Long enough for a UUID or a caller's own composite key; short enough to index. */
+const IDEMPOTENCY_KEY_MAX_LENGTH = 255;
 
 /**
  * Shared dispatcher for both /notify and the provider hook endpoints.
@@ -140,26 +159,41 @@ async function dispatchNotification(
     deliverAt?: number;
     webhookProvider?: string;
     webhookEventType?: string;
+    idempotencyKey?: string;
   }
 ): Promise<Response> {
   try {
     const priority = args.normalized.priority !== undefined ? args.normalized.priority : undefined;
-    const { notificationId } = await ctx.runMutation(internal.notifyInternal.ingest, {
-      token: args.token,
-      title: args.normalized.title,
-      body: args.normalized.body,
-      priority,
-      url: args.normalized.url,
-      appUrl: args.normalized.appUrl,
-      data: args.normalized.data,
-      image: args.normalized.image,
-      action: args.normalized.action,
-      actions: args.normalized.actions,
-      ack: args.ack,
-      liveActivity: args.liveActivity,
-      webhookProvider: args.webhookProvider,
-      webhookEventType: args.webhookEventType ?? args.normalized.eventType
-    });
+    const { notificationId, replayed, scheduledFor } = await ctx.runMutation(
+      internal.notifyInternal.ingest,
+      {
+        token: args.token,
+        title: args.normalized.title,
+        body: args.normalized.body,
+        priority,
+        url: args.normalized.url,
+        appUrl: args.normalized.appUrl,
+        data: args.normalized.data,
+        image: args.normalized.image,
+        action: args.normalized.action,
+        actions: args.normalized.actions,
+        ack: args.ack,
+        liveActivity: args.liveActivity,
+        webhookProvider: args.webhookProvider,
+        webhookEventType: args.webhookEventType ?? args.normalized.eventType,
+        idempotencyKey: args.idempotencyKey,
+        deliverAt: args.deliverAt
+      }
+    );
+
+    // A replay must not schedule anything: the original request already
+    // enqueued delivery, forwarders and the ack check. Scheduling again is
+    // exactly the double-push the key exists to prevent.
+    if (replayed) {
+      return json({ id: notificationId, scheduledFor: scheduledFor ?? null }, 200, {
+        'Idempotent-Replay': 'true'
+      });
+    }
 
     if (args.deliverAt && args.deliverAt > Date.now() + 1_000) {
       await ctx.scheduler.runAt(args.deliverAt, internal.expoPush.deliver, {
@@ -206,6 +240,9 @@ async function dispatchNotification(
     const code = err?.data?.code;
     if (code === 'INVALID_TOKEN') return json({ error: 'Invalid token' }, 401);
     if (code === 'APP_DISABLED') return json({ error: 'Source app disabled' }, 403);
+    if (code === 'IDEMPOTENCY_KEY_REUSED') {
+      return json({ error: err.data?.message, code }, 409);
+    }
     // region: tier-features
     if (code === 'QUOTA_EXCEEDED') {
       return json(
@@ -574,10 +611,10 @@ http.route({
   handler: httpAction(async () => json({ ok: true }, 200))
 });
 
-function json(body: unknown, status: number) {
+function json(body: unknown, status: number, extraHeaders?: Record<string, string>) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json' }
+    headers: { 'Content-Type': 'application/json', ...extraHeaders }
   });
 }
 

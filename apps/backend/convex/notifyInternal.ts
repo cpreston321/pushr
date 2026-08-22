@@ -1,14 +1,8 @@
 import { v, ConvexError } from 'convex/values';
 import { internalMutation, internalQuery } from './_generated/server';
-import { hashToken } from './lib/tokens';
+import { hashToken, sha256Hex } from './lib/tokens';
 // region: tier-features
-import {
-  getEffectiveTier,
-  getMonthlyUsage,
-  incrementMonthlyUsage,
-  quotaExceeded,
-  TIER_LIMITS
-} from './tiers';
+import { chargeUsage, getEffectiveTier, touchLastUsed } from './tiers';
 // endregion: tier-features
 
 const liveActivityValidator = v.object({
@@ -84,7 +78,11 @@ export const ingest = internalMutation({
     ),
     liveActivity: v.optional(liveActivityValidator),
     webhookProvider: v.optional(v.string()),
-    webhookEventType: v.optional(v.string())
+    webhookEventType: v.optional(v.string()),
+    /** Caller-supplied replay guard, from the `Idempotency-Key` header. */
+    idempotencyKey: v.optional(v.string()),
+    /** Only stored, so a replay can echo the original response exactly. */
+    deliverAt: v.optional(v.number())
   },
   returns: v.object({
     notificationId: v.id('notifications'),
@@ -94,7 +92,11 @@ export const ingest = internalMutation({
         timeoutSec: v.number(),
         maxAttempts: v.number()
       })
-    )
+    ),
+    /** True when this call matched an existing key — nothing was written. */
+    replayed: v.optional(v.boolean()),
+    /** The original request's `deliverAt`, on a replay. */
+    scheduledFor: v.optional(v.number())
   }),
   handler: async (ctx, args) => {
     const tokenHash = await hashToken(args.token);
@@ -109,19 +111,62 @@ export const ingest = internalMutation({
       throw new ConvexError({ code: 'APP_DISABLED', message: 'Source app is disabled' });
     }
 
+    // Replay guard first: before quota (a retry shouldn't spend the caller's
+    // monthly allowance) and before any write. Convex mutations are
+    // transactional, so two simultaneous retries can't both pass this — the
+    // loser conflicts and re-runs, then sees the winner's row.
+    const requestHash = args.idempotencyKey
+      ? await sha256Hex(
+          JSON.stringify([
+            args.title,
+            args.body,
+            args.priority ?? null,
+            args.url ?? null,
+            args.appUrl ?? null,
+            args.data ?? null,
+            args.image ?? null,
+            args.action ?? null,
+            args.actions ?? null,
+            args.ack ?? null,
+            args.liveActivity ?? null,
+            args.deliverAt ?? null
+          ])
+        )
+      : null;
+    if (args.idempotencyKey && requestHash) {
+      const prior = await ctx.db
+        .query('idempotencyKeys')
+        .withIndex('by_app_key', (q) =>
+          q.eq('sourceAppId', app._id).eq('key', args.idempotencyKey!)
+        )
+        .unique();
+      if (prior) {
+        if (prior.requestHash !== requestHash) {
+          throw new ConvexError({
+            code: 'IDEMPOTENCY_KEY_REUSED',
+            message:
+              'This Idempotency-Key was already used with a different payload. Use a new key for a new message.'
+          });
+        }
+        return {
+          notificationId: prior.notificationId,
+          ownerId: app.ownerId,
+          ack: args.ack,
+          replayed: true,
+          scheduledFor: prior.scheduledFor
+        };
+      }
+    }
+
     // region: tier-features
     // Tier enforcement: check quota BEFORE writing the notification row so we
-    // don't clutter the feed with rows we refused to deliver.
+    // don't clutter the feed with rows we refused to deliver. Check and
+    // increment share one read of the counter row.
     const tier = await getEffectiveTier(ctx, app.ownerId);
-    const limit = TIER_LIMITS[tier].pushesPerMonth;
-    const current = await getMonthlyUsage(ctx, app.ownerId);
-    if (current >= limit) {
-      throw quotaExceeded(tier, current, limit);
-    }
-    await incrementMonthlyUsage(ctx, app.ownerId);
+    await chargeUsage(ctx, app.ownerId, tier);
     // endregion: tier-features
 
-    await ctx.db.patch(app._id, { lastUsedAt: Date.now() });
+    await touchLastUsed(ctx, app);
 
     const notificationId = await ctx.db.insert('notifications', {
       ownerId: app.ownerId,
@@ -181,6 +226,17 @@ export const ingest = internalMutation({
       // `update`/`end` for an unknown activityId: ignore — the device either
       // never saw the start or already ended it. Payload still flows through
       // to the push so the device can decide what to do.
+    }
+
+    if (args.idempotencyKey && requestHash) {
+      await ctx.db.insert('idempotencyKeys', {
+        sourceAppId: app._id,
+        key: args.idempotencyKey,
+        notificationId,
+        scheduledFor: args.deliverAt,
+        requestHash,
+        createdAt: Date.now()
+      });
     }
 
     return { notificationId, ownerId: app.ownerId, ack: args.ack };

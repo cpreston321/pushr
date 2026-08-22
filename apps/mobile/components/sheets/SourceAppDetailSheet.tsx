@@ -12,13 +12,13 @@ import {
   Alert,
   Pressable,
   ScrollView,
-  Switch,
   Text,
   View,
 } from "react-native";
 import { SymbolView } from "expo-symbols";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppBottomSheet } from "@/components/sheets/AppBottomSheet";
+import { Toggle } from "@/components/Toggle";
 import {
   SheetNavigator,
   useSheetNav,
@@ -439,8 +439,7 @@ function Body({ appId }: { appId: Id<"sourceApps"> }) {
             app.enabled ? "Accepting pushes from this app" : "All pushes rejected"
           }
           trailing={
-            <Switch
-              style={{ alignSelf: "center" }}
+            <Toggle
               value={app.enabled}
               disabled={!canEdit}
               onValueChange={(v) => {

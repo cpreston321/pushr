@@ -1,17 +1,17 @@
-import { useCallback, type ReactNode } from 'react';
-import type { StyleProp, ViewStyle } from 'react-native';
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming
-} from 'react-native-reanimated';
-import { useFocusEffect } from 'expo-router';
+import { type ReactNode } from 'react';
+import { View, type StyleProp, type ViewStyle } from 'react-native';
 
 /**
- * Wrap a tab screen's root so its content fades + eases up every time the tab
- * gains focus. NativeTabs doesn't animate transitions natively, so this adds a
- * subtle entrance animation on each tab switch.
+ * A tab screen's root container.
+ *
+ * This used to fade + ease the content up on every focus, since NativeTabs
+ * doesn't animate tab switches itself. That animation is gone deliberately:
+ * replaying it on each tab change made switching feel slower than the instant
+ * native swap it's wrapping, and re-running on every focus meant returning to a
+ * tab you'd already seen animated as if it were new.
+ *
+ * Kept as the screen root so the tab screens still have one place to hang
+ * layout (and to bring an entrance animation back, if a better one shows up).
  */
 export function ScreenTransition({
   children,
@@ -20,28 +20,5 @@ export function ScreenTransition({
   children: ReactNode;
   style?: StyleProp<ViewStyle>;
 }) {
-  const opacity = useSharedValue(0);
-  const translateY = useSharedValue(6);
-
-  useFocusEffect(
-    useCallback(() => {
-      opacity.value = 0;
-      translateY.value = 6;
-      opacity.value = withTiming(1, {
-        duration: 220,
-        easing: Easing.out(Easing.cubic)
-      });
-      translateY.value = withTiming(0, {
-        duration: 260,
-        easing: Easing.out(Easing.cubic)
-      });
-    }, [opacity, translateY])
-  );
-
-  const animated = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [{ translateY: translateY.value }]
-  }));
-
-  return <Animated.View style={[{ flex: 1 }, style, animated]}>{children}</Animated.View>;
+  return <View style={[{ flex: 1 }, style]}>{children}</View>;
 }

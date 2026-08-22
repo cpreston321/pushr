@@ -5,7 +5,7 @@ import { useConvexAuth, useQuery } from 'convex/react';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { api } from '@pushr/backend/_generated/api';
 import { DrawerHeader } from '@/components/DrawerHeader';
-import { ScreenTransition } from '@/components/ScreenTransition';
+import { DrawerScreen } from '@/components/Sheet';
 import { ListSection } from '@/components/ListSection';
 import { ListRow } from '@/components/ListRow';
 import { useTheme, spacing, radius, type } from '@/lib/theme';
@@ -29,7 +29,7 @@ export default function SoundsScreen() {
   }
 
   return (
-    <ScreenTransition style={{ backgroundColor: colors.grouped }}>
+    <DrawerScreen>
       <DrawerHeader title="Notification sounds" leading="back" safeAreaTop={insets.top} />
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
@@ -43,7 +43,6 @@ export default function SoundsScreen() {
             title="Low priority"
             subtitle={'priority ≤ 4  /  "low"'}
             icon="bell.slash"
-            tint={colors.secondaryLabel}
             value={prefs ? soundLabel(prefs.soundLow) : '—'}
             onPress={() => open('low')}
           />
@@ -65,7 +64,7 @@ export default function SoundsScreen() {
           />
         </ListSection>
       </ScrollView>
-    </ScreenTransition>
+    </DrawerScreen>
   );
 }
 
@@ -80,11 +79,13 @@ function SoundRow({
   icon: SFSymbol;
   title: string;
   subtitle: string;
-  tint: string;
+  /** Omit for the muted treatment — resolved here so it reads the drawer ramp. */
+  tint?: string;
   value: string;
   onPress: () => void;
 }) {
   const { colors, tintBg } = useTheme();
+  const rowTint = tint ?? colors.secondaryLabel;
   return (
     <ListRow
       title={title}
@@ -98,12 +99,12 @@ function SoundRow({
             width: 32,
             height: 32,
             borderRadius: radius.lg,
-            backgroundColor: tintBg(tint),
+            backgroundColor: tintBg(rowTint),
             alignItems: 'center',
             justifyContent: 'center'
           }}
         >
-          <SymbolView name={icon} size={18} tintColor={tint} />
+          <SymbolView name={icon} size={18} tintColor={rowTint} />
         </View>
       }
     />

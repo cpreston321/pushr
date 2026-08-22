@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { DrawerHeader } from '@/components/DrawerHeader';
-import { ScreenTransition } from '@/components/ScreenTransition';
+import { DrawerScreen } from '@/components/Sheet';
 import { ListSection } from '@/components/ListSection';
 import { ListRow } from '@/components/ListRow';
 import { useTheme, spacing, radius, type } from '@/lib/theme';
@@ -11,11 +11,10 @@ import { haptic } from '@/lib/haptics';
 import { currentServerLabel } from '@/lib/backend';
 
 export default function AdvancedScreen() {
-  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
 
   return (
-    <ScreenTransition style={{ backgroundColor: colors.grouped }}>
+    <DrawerScreen>
       <DrawerHeader title="Advanced" leading="back" safeAreaTop={insets.top} />
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
@@ -29,7 +28,6 @@ export default function AdvancedScreen() {
             icon="server.rack"
             title="Backend"
             trailing={currentServerLabel()}
-            tint={colors.accent}
             onPress={() => {
               haptic.selection();
               router.push('/server-config');
@@ -37,7 +35,7 @@ export default function AdvancedScreen() {
           />
         </ListSection>
       </ScrollView>
-    </ScreenTransition>
+    </DrawerScreen>
   );
 }
 
@@ -45,16 +43,17 @@ function TintedRow({
   icon,
   title,
   trailing,
-  tint,
   onPress
 }: {
   icon: SFSymbol;
   title: string;
   trailing?: string;
-  tint: string;
   onPress?: () => void;
 }) {
+  // Read inside the row so the tint comes from the drawer's ramp, not the
+  // screen's — the route root sits above the provider.
   const { colors, tintBg } = useTheme();
+  const tint = colors.accent;
   return (
     <ListRow
       title={title}

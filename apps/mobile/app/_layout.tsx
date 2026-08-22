@@ -166,8 +166,13 @@ function AppShell({ isDark, bg }: { isDark: boolean; bg: string }) {
             presentation: "formSheet",
             headerShown: false,
             title: "",
-            sheetGrabberVisible: true,
-            sheetAllowedDetents: [0.85, 1.0],
+            // `SheetHeader` provides the X — a grabber on top of it gives the
+            // sheet two dismiss affordances stacked in the same corner.
+            sheetGrabberVisible: false,
+            // Opens at half height, which is about what the content needs now
+            // that the custom-deployment form is behind a flag. Still draggable
+            // to near-full for large text sizes, or for when that form returns.
+            sheetAllowedDetents: [0.5, 0.95],
             contentStyle: { backgroundColor: "transparent" },
           }}
         />

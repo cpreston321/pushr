@@ -7,7 +7,7 @@ import { SymbolView } from 'expo-symbols';
 import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
 import { api } from '@pushr/backend/_generated/api';
 import { DrawerHeader } from '@/components/DrawerHeader';
-import { ScreenTransition } from '@/components/ScreenTransition';
+import { DrawerScreen } from '@/components/Sheet';
 import { ListSection } from '@/components/ListSection';
 import { ListRow } from '@/components/ListRow';
 import { useTheme, spacing, radius } from '@/lib/theme';
@@ -108,7 +108,7 @@ export default function SoundPickerScreen() {
   }
 
   return (
-    <ScreenTransition style={{ backgroundColor: colors.grouped }}>
+    <DrawerScreen>
       <DrawerHeader title={title} leading="back" safeAreaTop={insets.top} />
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
@@ -136,7 +136,7 @@ export default function SoundPickerScreen() {
           })}
         </ListSection>
       </ScrollView>
-    </ScreenTransition>
+    </DrawerScreen>
   );
 }
 

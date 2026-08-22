@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { Button } from '@/components/Button';
+import { DrawerSurface } from '@/components/Sheet';
 import { SheetContainer } from '@/components/SheetContainer';
 import { SheetHeader } from '@/components/SheetHeader';
 import { useTheme, spacing, radius, type } from '@/lib/theme';
@@ -26,13 +27,12 @@ function curlExample(appName: string, token = '<your_token>') {
  * so a stray dismiss doesn't lose the only chance to capture the token.
  */
 export default function TokenRevealScreen() {
-  const { colors } = useTheme();
   const params = useLocalSearchParams<{ id?: string; name?: string; token?: string }>();
   const name = params.name ?? '';
   const token = params.token ?? '';
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.sheet }}>
+    <DrawerSurface>
       <SheetHeader title="Your token" />
       <SheetContainer
         scrollView
@@ -41,7 +41,7 @@ export default function TokenRevealScreen() {
       >
         <Body name={name} token={token} />
       </SheetContainer>
-    </View>
+    </DrawerSurface>
   );
 }
 

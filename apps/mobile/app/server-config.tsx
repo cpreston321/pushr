@@ -5,10 +5,22 @@ import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { authClient, backendConfig, resetBackend, saveBackend } from '@/lib/backend';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
+import { DrawerSurface } from '@/components/Sheet';
 import { SheetContainer } from '@/components/SheetContainer';
 import { SheetHeader } from '@/components/SheetHeader';
-import { useTheme, spacing, type, radius } from '@/lib/theme';
+import { Card } from '@/components/Card';
+import { Chip } from '@/components/Chip';
+import { useTheme, spacing, type } from '@/lib/theme';
 import { haptic } from '@/lib/haptics';
+
+/**
+ * Custom deployments aren't shipped yet. Rather than render the form as four
+ * dead controls — the tallest, busiest block in the sheet, none of it
+ * pressable — the section shows the pitch and its "Coming Soon" badge, and the
+ * form below waits behind this flag. Flip it to ship: the wiring (test, save,
+ * sign out, restart prompt) is all here and live.
+ */
+const CUSTOM_DEPLOYMENT_ENABLED: boolean = false;
 
 type TestState =
   | { kind: 'idle' }
@@ -22,9 +34,8 @@ type TestState =
  * `ServerConfigDrawer` ref API. Dismiss via swipe down / grabber.
  */
 export default function ServerConfigScreen() {
-  const { colors } = useTheme();
   return (
-    <View style={{ flex: 1, backgroundColor: colors.sheet }}>
+    <DrawerSurface>
       <SheetHeader title="Server" />
       <SheetContainer
         scrollView
@@ -33,7 +44,7 @@ export default function ServerConfigScreen() {
       >
         <Body />
       </SheetContainer>
-    </View>
+    </DrawerSurface>
   );
 }
 
@@ -51,6 +62,7 @@ function Body() {
   const [siteUrl, setSiteUrl] = useState(current?.custom ? current.siteUrl : '');
   const [test, setTest] = useState<TestState>({ kind: 'idle' });
   const [busy, setBusy] = useState(false);
+  const onPushrCloud = !!current && !current.custom;
 
   function onChangeUrls(nextConvex: string, nextSite: string) {
     setConvexUrl(nextConvex);
@@ -134,13 +146,29 @@ function Body() {
         <Text style={{ ...type.footnote, color: colors.secondaryLabel }}>
           The hosted deployment maintained by the project author. Easiest — no setup needed.
         </Text>
-        <Button
-          title={current && !current.custom ? 'Currently in use' : 'Use pushr cloud'}
-          variant="secondary"
-          onPress={useDefault}
-          loading={busy && !convexUrl}
-          disabled={!!(current && !current.custom)}
-        />
+        {onPushrCloud ? (
+          // A state, not an action — a disabled button invites a press that
+          // can't happen, so this says it as status instead.
+          <Chip
+            label="Currently in use"
+            variant="tint"
+            color={colors.success}
+            leading={
+              <SymbolView
+                name="checkmark.circle.fill"
+                size={13}
+                tintColor={colors.success}
+              />
+            }
+          />
+        ) : (
+          <Button
+            title="Use pushr cloud"
+            variant="secondary"
+            onPress={useDefault}
+            loading={busy && !convexUrl}
+          />
+        )}
       </Section>
 
       <Section title="Custom Convex Deployment" badge="Coming Soon">
@@ -148,35 +176,46 @@ function Body() {
           Point at your own Convex deployment. Both URLs come from the Convex dashboard — .cloud for
           the client, .site for auth.
         </Text>
-        <Input
-          label="Convex URL"
-          placeholder="https://example-name-123.convex.cloud"
-          value={convexUrl}
-          onChangeText={(v) => onChangeUrls(v, siteUrl)}
-          autoCapitalize="none"
-          keyboardType="url"
-          editable={false}
-        />
-        <Input
-          label="Site URL"
-          placeholder="https://example-name-123.convex.site"
-          value={siteUrl}
-          onChangeText={(v) => onChangeUrls(convexUrl, v)}
-          autoCapitalize="none"
-          keyboardType="url"
-          editable={false}
-        />
+        {CUSTOM_DEPLOYMENT_ENABLED && (
+          <>
+            <Input
+              label="Convex URL"
+              placeholder="https://example-name-123.convex.cloud"
+              value={convexUrl}
+              onChangeText={(v) => onChangeUrls(v, siteUrl)}
+              autoCapitalize="none"
+              keyboardType="url"
+            />
+            <Input
+              label="Site URL"
+              placeholder="https://example-name-123.convex.site"
+              value={siteUrl}
+              onChangeText={(v) => onChangeUrls(convexUrl, v)}
+              autoCapitalize="none"
+              keyboardType="url"
+            />
 
-        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          <View style={{ flex: 1 }}>
-            <Button title="Test connection" variant="secondary" onPress={runTest} disabled />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Button title="Save & sign out" onPress={saveCustom} disabled />
-          </View>
-        </View>
+            {/* Stacked, not side by side: at half the sheet's width these
+                labels wrap onto two lines. */}
+            <View style={{ gap: spacing.sm }}>
+              <Button
+                title="Test connection"
+                variant="secondary"
+                onPress={runTest}
+                loading={test.kind === 'testing'}
+                disabled={busy || !convexUrl.trim() || !siteUrl.trim()}
+              />
+              <Button
+                title="Save & sign out"
+                onPress={saveCustom}
+                loading={busy && !!convexUrl}
+                disabled={test.kind !== 'ok'}
+              />
+            </View>
 
-        <TestPanel state={test} />
+            <TestPanel state={test} />
+          </>
+        )}
       </Section>
     </>
   );
@@ -193,47 +232,21 @@ function Section({
 }) {
   const { colors } = useTheme();
   return (
-    <View
-      style={{
-        backgroundColor: colors.cell,
-        borderRadius: radius.lg,
-        borderCurve: 'continuous',
-        padding: spacing.lg,
-        gap: spacing.md
-      }}
-    >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-        <Text style={{ ...type.headline, color: colors.label }}>{title}</Text>
-        {badge && (
-          <View
-            style={{
-              paddingHorizontal: spacing.sm,
-              paddingVertical: 2,
-              borderRadius: radius.sm,
-              borderCurve: 'continuous',
-              backgroundColor: colors.fill
-            }}
-          >
-            <Text
-              style={{
-                ...type.caption2,
-                color: colors.secondaryLabel,
-                fontWeight: '600',
-                textTransform: 'uppercase'
-              }}
-            >
-              {badge}
-            </Text>
-          </View>
-        )}
+    <Card style={{ gap: spacing.md }}>
+      <View style={{ gap: spacing.sm }}>
+        {/* Badge above rather than beside: sharing the line forced the title to
+            wrap, which left the chip floating against a ragged two-line
+            heading. On its own row the title gets the full width. */}
+        {badge && <Chip label={badge} size="sm" variant="ghost" />}
+        <Text style={{ ...type.title3, fontSize: 19, color: colors.strongLabel }}>{title}</Text>
       </View>
       {children}
-    </View>
+    </Card>
   );
 }
 
 function TestPanel({ state }: { state: TestState }) {
-  const { colors, tintBg } = useTheme();
+  const { colors } = useTheme();
   if (state.kind === 'idle') return null;
 
   const cfg: { icon: SFSymbol; tint: string; label: string; detail?: string } =
@@ -260,15 +273,13 @@ function TestPanel({ state }: { state: TestState }) {
           };
 
   return (
-    <View
+    <Card
+      tint={cfg.tint}
+      padding={spacing.md}
       style={{
         flexDirection: 'row',
         alignItems: 'flex-start',
-        gap: spacing.sm,
-        padding: spacing.md,
-        borderRadius: radius.md,
-        borderCurve: 'continuous',
-        backgroundColor: tintBg(cfg.tint, '18')
+        gap: spacing.md
       }}
     >
       <SymbolView name={cfg.icon} size={18} tintColor={cfg.tint} />
@@ -286,6 +297,6 @@ function TestPanel({ state }: { state: TestState }) {
           </Text>
         )}
       </View>
-    </View>
+    </Card>
   );
 }

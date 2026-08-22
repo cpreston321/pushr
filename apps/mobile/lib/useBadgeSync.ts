@@ -12,15 +12,17 @@ import { setBadge } from './push';
  */
 export function useBadgeSync(): void {
   const { isAuthenticated } = useConvexAuth();
-  const items = useQuery(api.notifications.listMine, isAuthenticated ? { limit: 100 } : 'skip');
+  // Counted server-side off the `by_sourceApp_read` index. Pulling 100 feed
+  // rows to count the unread ones in JS read the whole prefix of every
+  // accessible app for a single number.
+  const unread = useQuery(api.notifications.unreadCount, isAuthenticated ? {} : 'skip');
 
   useEffect(() => {
     if (!isAuthenticated) {
       void setBadge(0);
       return;
     }
-    if (items === undefined) return;
-    const unread = items.filter((n) => !n.readAt).length;
+    if (unread === undefined) return;
     void setBadge(unread);
-  }, [items, isAuthenticated]);
+  }, [unread, isAuthenticated]);
 }

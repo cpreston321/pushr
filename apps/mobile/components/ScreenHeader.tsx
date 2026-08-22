@@ -1,137 +1,140 @@
 import { ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
+import { Pressable, Text, View } from 'react-native';
+import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme, spacing, type } from '@/lib/theme';
+import { useTheme, spacing, radius, type } from '@/lib/theme';
+import { haptic } from '@/lib/haptics';
+import { ScreenGlow } from './Glow';
 
 type Props = {
   title: string;
+  /** Quiet line of context above the title — a count, an email, a status. */
   eyebrow?: string;
   accessory?: ReactNode;
   children?: ReactNode;
 };
 
-const HERO_BG = '#0A0F16';
-
 /**
- * Hero header: dark ink background with a soft accent bloom rendered as a true
- * SVG radial gradient, fading into solid at the bottom so a rounded-top sheet
- * can sit flush against it. Always dark regardless of system theme.
+ * Top-level screen title block. Sits directly on the glowing canvas — no
+ * separate dark hero, no rounded sheet seam — so the accent bloom behind it
+ * carries continuously from the status bar down through the content.
+ *
+ * Pair with `<ScreenShell>`, which paints the bloom.
  */
 export function ScreenHeader({ title, eyebrow, accessory, children }: Props) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const bloom = colors.accent;
 
   return (
-    <View style={{ backgroundColor: HERO_BG }}>
+    <View
+      style={{
+        paddingTop: insets.top + spacing.md,
+        paddingHorizontal: spacing.xl,
+        paddingBottom: spacing.lg
+      }}
+    >
       <View
         style={{
-          paddingTop: insets.top + spacing.lg,
-          paddingHorizontal: spacing.xl,
-          paddingBottom: spacing.xxl + 24,
-          overflow: 'hidden'
+          flexDirection: 'row',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: spacing.md
         }}
       >
-        <Svg
-          style={StyleSheet.absoluteFill}
-          pointerEvents="none"
-          preserveAspectRatio="none"
-          viewBox="0 0 100 100"
-        >
-          <Defs>
-            <RadialGradient
-              id="bloom"
-              cx="20"
-              cy="10"
-              rx="80"
-              ry="95"
-              fx="20"
-              fy="10"
-              gradientUnits="userSpaceOnUse"
-            >
-              <Stop offset="0" stopColor={bloom} stopOpacity={0.75} />
-              <Stop offset="0.45" stopColor={bloom} stopOpacity={0.25} />
-              <Stop offset="1" stopColor={bloom} stopOpacity={0} />
-            </RadialGradient>
-          </Defs>
-          <Rect x="0" y="0" width="100" height="100" fill="url(#bloom)" />
-        </Svg>
-        <LinearGradient
-          pointerEvents="none"
-          colors={['rgba(10,15,22,0)', 'rgba(10,15,22,0.7)', HERO_BG]}
-          locations={[0.4, 0.8, 1]}
-          style={StyleSheet.absoluteFill}
-        />
-
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'flex-end',
-            justifyContent: 'space-between',
-            gap: spacing.md
-          }}
-        >
-          <View style={{ flex: 1 }}>
-            {!!eyebrow && (
-              <Text
-                style={{
-                  ...type.subhead,
-                  color: 'rgba(255,255,255,0.85)',
-                  fontWeight: '600',
-                  marginBottom: spacing.xs,
-                  // Soft ink shadow keeps the eyebrow legible wherever the
-                  // accent bloom is brightest.
-                  textShadowColor: 'rgba(0,0,0,0.35)',
-                  textShadowOffset: { width: 0, height: 1 },
-                  textShadowRadius: 6
-                }}
-              >
-                {eyebrow}
-              </Text>
-            )}
-            <Text
-              style={{
-                ...type.largeTitle,
-                color: '#FFFFFF',
-                fontSize: 38,
-                lineHeight: 44,
-                textShadowColor: 'rgba(0,0,0,0.3)',
-                textShadowOffset: { width: 0, height: 1 },
-                textShadowRadius: 12
-              }}
-            >
-              {title}
+        <View style={{ flex: 1, gap: spacing.xs + 2 }}>
+          {!!eyebrow && (
+            <Text style={{ ...type.subhead, fontWeight: '500', color: colors.secondaryLabel }}>
+              {eyebrow}
             </Text>
-          </View>
-          {accessory ? <View>{accessory}</View> : null}
+          )}
+          <Text style={{ ...type.largeTitle, color: colors.strongLabel }}>{title}</Text>
         </View>
-
-        {children ? <View style={{ marginTop: spacing.xl }}>{children}</View> : null}
+        {accessory ? <View style={{ marginTop: spacing.sm }}>{accessory}</View> : null}
       </View>
+
+      {children ? <View style={{ marginTop: spacing.md }}>{children}</View> : null}
     </View>
   );
 }
 
 /**
- * Rounded-top sheet that lifts up off a ScreenHeader. Uses the system grouped
- * background so it naturally follows light/dark mode.
+ * Screen root: flat canvas with the accent bloom painted behind everything.
+ * Replaces the old header/body split — content scrolls over one continuous
+ * surface, which is what makes the app feel like a single lit space.
  */
-export function ScreenBody({ children }: { children: ReactNode }) {
+export function ScreenShell({
+  children,
+  /** Shrink or grow the bloom. Detail screens want less. */
+  glowExtent
+}: {
+  children: ReactNode;
+  glowExtent?: number;
+}) {
   const { colors } = useTheme();
   return (
-    <View
-      style={{
-        flex: 1,
-        backgroundColor: colors.grouped,
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        marginTop: -20,
-        overflow: 'hidden'
-      }}
-    >
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <ScreenGlow extent={glowExtent} />
       {children}
     </View>
+  );
+}
+
+/**
+ * Kept for call-site compatibility with the previous header/body split. It no
+ * longer draws its own background or rounded lift — the canvas is continuous
+ * now — so it's just the flexing content region below the title.
+ */
+export function ScreenBody({ children }: { children: ReactNode }) {
+  return <View style={{ flex: 1 }}>{children}</View>;
+}
+
+/**
+ * Square glyph button for a header's trailing slot (overflow menu, add). Two
+ * weights: `ghost` for secondary affordances, `accent` for the one that
+ * creates something.
+ */
+export function HeaderButton({
+  icon,
+  onPress,
+  variant = 'ghost',
+  accessibilityLabel
+}: {
+  icon: SFSymbol;
+  onPress: () => void;
+  variant?: 'ghost' | 'accent';
+  accessibilityLabel: string;
+}) {
+  const { colors, ov, tint } = useTheme();
+  const accent = variant === 'accent';
+
+  return (
+    <Pressable
+      onPress={() => {
+        haptic.selection();
+        onPress();
+      }}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      style={({ pressed }) => ({
+        width: 40,
+        height: 40,
+        borderRadius: accent ? radius.pill : radius.md,
+        borderCurve: 'continuous',
+        backgroundColor: accent ? tint(0.16) : ov(0.06),
+        borderWidth: 1,
+        borderColor: accent ? tint(0.3) : ov(0.06),
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity: pressed ? 0.6 : 1
+      })}
+    >
+      <SymbolView
+        name={icon}
+        size={20}
+        weight="semibold"
+        tintColor={accent ? colors.accent : colors.secondaryLabel}
+      />
+    </Pressable>
   );
 }

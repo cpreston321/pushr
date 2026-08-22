@@ -20,12 +20,17 @@ export function generateToken(): string {
   return PREFIX + b64;
 }
 
-export async function hashToken(token: string): Promise<string> {
-  const data = new TextEncoder().encode(token);
+/** Hex SHA-256 of an arbitrary string. */
+export async function sha256Hex(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
   const digest = await crypto.subtle.digest('SHA-256', data);
   return Array.from(new Uint8Array(digest))
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
+}
+
+export async function hashToken(token: string): Promise<string> {
+  return await sha256Hex(token);
 }
 
 export function tokenDisplayPrefix(token: string): string {

@@ -4,8 +4,15 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "convex/react";
 import { api } from "@pushr/backend/_generated/api";
 import { authClient } from "@/lib/auth-client";
-import { ScreenHeader, ScreenBody } from "@/components/ScreenHeader";
+import {
+  ScreenHeader,
+  ScreenBody,
+  ScreenShell,
+} from "@/components/ScreenHeader";
 import { ScreenTransition } from "@/components/ScreenTransition";
+import { Card } from "@/components/Card";
+import { IconTile } from "@/components/IconTile";
+import { SectionLabel } from "@/components/Chip";
 import { currentServerLabel } from "@/lib/backend";
 import { ListSection } from "@/components/ListSection";
 import { ListRow } from "@/components/ListRow";
@@ -21,8 +28,6 @@ import {
   type AccentKey,
 } from "@/lib/theme";
 import { SymbolView, type SFSymbol } from "expo-symbols";
-import { Gauge, Host } from "@expo/ui/swift-ui";
-import { gaugeStyle, tint as uiTint } from "@expo/ui/swift-ui/modifiers";
 import { haptic } from "@/lib/haptics";
 import { showActionSheet } from "@/lib/actionSheet";
 
@@ -49,7 +54,8 @@ export default function Settings() {
   }
 
   return (
-    <ScreenTransition style={{ backgroundColor: colors.background }}>
+    <ScreenTransition>
+      <ScreenShell>
       <ScreenHeader
         eyebrow={user?.email ?? undefined}
         title={user?.name ?? "Settings"}
@@ -58,18 +64,16 @@ export default function Settings() {
         <ScrollView
           contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={{
-            marginTop: spacing.md,
-            gap: spacing.xl,
             paddingBottom: Math.max(120, insets.bottom),
           }}
         >
           <View>
-            <SectionHeader label="Plan" />
+            <SectionLabel>Plan</SectionLabel>
             <PlanCard />
           </View>
 
           <View>
-            <SectionHeader label="Appearance" />
+            <SectionLabel>Appearance</SectionLabel>
             <AppearanceCard isDark={isDark} />
           </View>
 
@@ -116,7 +120,10 @@ export default function Settings() {
             />
           </ListSection>
 
-          <ListSection>
+          {/* Headerless, so it needs the section rhythm the `SectionLabel`
+              above each other group supplies — otherwise sign out reads as
+              another row of "More". */}
+          <ListSection style={{ marginTop: spacing.xl }}>
             <TintedRow
               icon="rectangle.portrait.and.arrow.right"
               title="Sign out"
@@ -126,53 +133,27 @@ export default function Settings() {
             />
           </ListSection>
 
-          <View style={{ alignItems: "center" }}>
+          <View style={{ alignItems: "center", marginTop: spacing.xl }}>
             <Text style={{ ...type.footnote, color: colors.tertiaryLabel }}>
               pushr · v1.0.0
             </Text>
           </View>
         </ScrollView>
       </ScreenBody>
+      </ScreenShell>
     </ScreenTransition>
   );
 }
 
-function SectionHeader({ label }: { label: string }) {
-  const { colors } = useTheme();
-  return (
-    <Text
-      style={{
-        ...type.footnote,
-        color: colors.secondaryLabel,
-        textTransform: "uppercase",
-        letterSpacing: 0.5,
-        marginHorizontal: spacing.xl,
-        marginBottom: spacing.sm,
-      }}
-    >
-      {label}
-    </Text>
-  );
-}
-
 function AppearanceCard({ isDark }: { isDark: boolean }) {
-  const { colors } = useTheme();
+  const { colors, ov } = useTheme();
   const { mode, setMode, accentKey, setAccent } = useThemePreferences();
 
   return (
-    <View
-      style={{
-        marginHorizontal: spacing.lg,
-        backgroundColor: colors.cell,
-        borderRadius: radius.lg,
-        borderCurve: "continuous",
-        overflow: "hidden",
-      }}
-    >
+    <Card padding={spacing.md + 2} style={{ marginHorizontal: spacing.lg }}>
       <View
         style={{
           flexDirection: "row",
-          padding: spacing.md,
           gap: spacing.sm,
         }}
       >
@@ -207,23 +188,21 @@ function AppearanceCard({ isDark }: { isDark: boolean }) {
 
       <View
         style={{
-          height: 0.5,
-          backgroundColor: colors.separator,
-          marginHorizontal: spacing.md,
-        }}
-      />
-
-      <View
-        style={{
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
-          paddingHorizontal: spacing.lg,
-          paddingVertical: spacing.md,
+          marginTop: spacing.md + 2,
+          paddingTop: spacing.md + 2,
+          borderTopWidth: 1,
+          borderTopColor: ov(0.06),
         }}
       >
-        <Text style={{ ...type.body, color: colors.label }}>Theme</Text>
-        <View style={{ flexDirection: "row", gap: spacing.md }}>
+        <Text
+          style={{ ...type.callout, fontWeight: "500", color: colors.label }}
+        >
+          Accent
+        </Text>
+        <View style={{ flexDirection: "row", gap: 11 }}>
           {ACCENT_ORDER.map((key) => (
             <AccentDot
               key={key}
@@ -238,7 +217,7 @@ function AppearanceCard({ isDark }: { isDark: boolean }) {
           ))}
         </View>
       </View>
-    </View>
+    </Card>
   );
 }
 
@@ -253,27 +232,30 @@ function ModeCard({
   selected: boolean;
   onPress: () => void;
 }) {
-  const { colors, tintBg } = useTheme();
+  const { colors, ov, tint } = useTheme();
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${label} appearance`}
+      accessibilityState={{ selected }}
       style={({ pressed }) => ({
         flex: 1,
-        aspectRatio: 1.0,
-        borderRadius: radius.md,
+        paddingVertical: spacing.lg - 2,
+        borderRadius: radius.button,
         borderCurve: "continuous",
-        backgroundColor: selected ? tintBg(colors.accent) : colors.fill,
-        borderWidth: 1.5,
-        borderColor: selected ? colors.accent : "transparent",
+        backgroundColor: selected ? tint(0.18) : ov(0.05),
+        borderWidth: 1,
+        borderColor: selected ? tint(0.55) : ov(0.05),
         alignItems: "center",
         justifyContent: "center",
-        gap: spacing.xs,
+        gap: spacing.sm,
         opacity: pressed ? 0.8 : 1,
       })}
     >
       <SymbolView
         name={icon}
-        size={28}
+        size={22}
         tintColor={selected ? colors.accent : colors.secondaryLabel}
       />
       <Text
@@ -302,25 +284,34 @@ function AccentDot({
 }) {
   const color = ACCENT_PRESETS[value][isDark ? "dark" : "light"];
   return (
-    <Pressable onPress={onPress} hitSlop={6}>
+    <Pressable
+      onPress={onPress}
+      hitSlop={6}
+      accessibilityRole="button"
+      accessibilityLabel={`${value} accent`}
+      accessibilityState={{ selected }}
+    >
+      {/* Selection reads as a ring floating clear of the swatch — the card
+          color shows through the gap, so the dot stays a full circle. */}
       <View
         style={{
-          width: 26,
-          height: 26,
-          borderRadius: 13,
-          borderWidth: selected ? 2 : 0,
-          borderColor: color,
-          padding: selected ? 3 : 0,
+          width: 30,
+          height: 30,
+          borderRadius: 15,
+          backgroundColor: color,
+          ...(selected
+            ? {
+                shadowColor: color,
+                shadowOpacity: 0.55,
+                shadowRadius: 7,
+                shadowOffset: { width: 0, height: 0 },
+                borderWidth: 2,
+                borderColor: color,
+                transform: [{ scale: 1.06 }],
+              }
+            : null),
         }}
-      >
-        <View
-          style={{
-            flex: 1,
-            borderRadius: radius.pill,
-            backgroundColor: color,
-          }}
-        />
-      </View>
+      />
     </Pressable>
   );
 }
@@ -340,7 +331,7 @@ function TintedRow({
   destructive?: boolean;
   onPress?: () => void;
 }) {
-  const { colors, tintBg } = useTheme();
+  const { colors } = useTheme();
   return (
     <ListRow
       title={title}
@@ -349,38 +340,30 @@ function TintedRow({
       chevron={!!onPress && !trailing}
       trailing={
         trailing ? (
-          <Text style={{ ...type.body, color: colors.secondaryLabel }}>
+          <Text style={{ ...type.callout, color: colors.secondaryLabel }}>
             {trailing}
           </Text>
         ) : undefined
       }
-      leading={
-        <View
-          style={{
-            width: 32,
-            height: 32,
-            borderRadius: radius.lg,
-            backgroundColor: tintBg(tint),
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <SymbolView name={icon} size={18} tintColor={tint} />
-        </View>
-      }
+      leading={<IconTile icon={icon} size={38} color={tint} />}
     />
   );
 }
 
 function PlanCard() {
-  const { colors, tintBg } = useTheme();
+  const { colors, ov } = useTheme();
   const { plan, isPro, selfHosted } = useProState();
 
   const pct =
     plan && plan.pushesPerMonth > 0
       ? Math.min(1, plan.pushesThisMonth / plan.pushesPerMonth)
       : 0;
-  const tint = isPro ? colors.accent : colors.secondaryLabel;
+  // A paid or unlocked plan is worth lighting up; a free one shouldn't
+  // masquerade as the hero of the screen.
+  const unlocked = isPro || selfHosted;
+  const tint = unlocked ? colors.accent : colors.secondaryLabel;
+  const meterColor =
+    pct >= 1 ? colors.destructive : pct >= 0.8 ? colors.warning : colors.accent;
 
   return (
     <Pressable
@@ -388,34 +371,24 @@ function PlanCard() {
         haptic.selection();
         router.push("/upgrade");
       }}
-      style={({ pressed }) => ({
-        marginHorizontal: spacing.lg,
-        backgroundColor: pressed ? colors.cellHighlight : colors.cell,
-        borderRadius: radius.lg,
-        borderCurve: "continuous",
-        padding: spacing.lg,
-        gap: spacing.md,
-      })}
+      accessibilityRole="button"
+      accessibilityLabel="Plan and usage"
+      style={({ pressed }) => ({ opacity: pressed ? 0.72 : 1 })}
+    >
+    <Card
+      tint={unlocked ? colors.accent : null}
+      strength={0.15}
+      style={{ marginHorizontal: spacing.lg, gap: spacing.md }}
     >
       <View
-        style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}
+        style={{ flexDirection: "row", alignItems: "center", gap: 13 }}
       >
-        <View
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: radius.xl,
-            backgroundColor: tintBg(tint),
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <SymbolView
-            name={selfHosted ? "server.rack" : isPro ? "sparkles" : "person.fill"}
-            size={20}
-            tintColor={tint}
-          />
-        </View>
+        <IconTile
+          icon={selfHosted ? "server.rack" : isPro ? "sparkles" : "person.fill"}
+          size={44}
+          color={tint}
+          variant={unlocked ? "solid" : "wash"}
+        />
         <View style={{ flex: 1 }}>
           <View
             style={{
@@ -424,7 +397,7 @@ function PlanCard() {
               gap: spacing.xs,
             }}
           >
-            <Text style={{ ...type.headline, color: colors.label }}>
+            <Text style={{ ...type.title3, fontSize: 18, color: colors.strongLabel }}>
               {selfHosted ? "Self-hosted" : isPro ? "pushr" : "Free plan"}
             </Text>
             {isPro && !selfHosted && <ProBadge />}
@@ -464,14 +437,14 @@ function PlanCard() {
               alignItems: "baseline",
             }}
           >
-            <Text style={{ ...type.footnote, color: colors.secondaryLabel }}>
+            <Text style={{ ...type.subhead, color: colors.secondaryLabel }}>
               Pushes this month
             </Text>
             <Text
               style={{
-                ...type.footnote,
-                color: colors.label,
-                fontWeight: "600",
+                ...type.subhead,
+                color: colors.strongLabel,
+                fontWeight: "700",
                 fontVariant: ["tabular-nums"],
               }}
             >
@@ -479,21 +452,26 @@ function PlanCard() {
               {plan.pushesPerMonth.toLocaleString()}
             </Text>
           </View>
-          <Host matchContents={{ vertical: true }} style={{ width: "100%" }}>
-            <Gauge
-              value={pct}
-              modifiers={[
-                gaugeStyle("linearCapacity"),
-                uiTint(
-                  pct >= 1
-                    ? colors.destructive
-                    : pct >= 0.8
-                      ? colors.warning
-                      : colors.accent,
-                ),
-              ]}
+          <View
+            style={{
+              height: 6,
+              borderRadius: radius.pill,
+              backgroundColor: ov(0.1),
+              overflow: "hidden",
+              marginTop: spacing.xs,
+            }}
+          >
+            <View
+              style={{
+                // Always show a sliver once anything has been sent, so "1 of
+                // 10,000" doesn't render as a visually empty bar.
+                width: `${pct > 0 ? Math.max(2, pct * 100) : 0}%`,
+                height: "100%",
+                borderRadius: radius.pill,
+                backgroundColor: meterColor,
+              }}
             />
-          </Host>
+          </View>
           <Text style={{ ...type.caption1, color: colors.tertiaryLabel }}>
             {plan.sourceAppLimit === null
               ? `${plan.sourceAppCount} source app${plan.sourceAppCount === 1 ? "" : "s"} · unlimited`
@@ -503,6 +481,7 @@ function PlanCard() {
           </Text>
         </View>
       )}
+    </Card>
     </Pressable>
   );
 }

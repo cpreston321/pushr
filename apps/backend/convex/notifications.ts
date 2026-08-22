@@ -1,33 +1,110 @@
 import { v, ConvexError } from 'convex/values';
-import { query, mutation, internalMutation, type MutationCtx } from './_generated/server';
+import { paginationOptsValidator } from 'convex/server';
+import { mergedStream, stream } from 'convex-helpers/server/stream';
+import schema from './schema';
+import {
+  query,
+  mutation,
+  internalMutation,
+  type MutationCtx,
+  type QueryCtx
+} from './_generated/server';
 import { internal } from './_generated/api';
 import { requireAuth } from './lib/auth';
 import { getSourceAppRole, listAccessibleSourceApps } from './lib/sharing';
 // region: tier-features
-import {
-  getEffectiveTier,
-  getMonthlyUsage,
-  incrementMonthlyUsage,
-  quotaExceeded,
-  TIER_LIMITS
-} from './tiers';
+import { chargeUsage, getEffectiveTier, touchLastUsed } from './tiers';
 // endregion: tier-features
-import type { Id } from './_generated/dataModel';
+import type { Doc, Id } from './_generated/dataModel';
 
 /**
- * Feed for the mobile app. Newest first. Includes notifications from apps
- * the user owns AND apps shared with them.
+ * Decorate raw notification rows with their source app's display fields.
  *
- * Implementation: merge per-source-app queries via `by_sourceApp_created`
- * since `notifications.ownerId` is the bill-paying owner, not the viewer.
- * Each query is bounded by `limit` to keep total reads bounded by
- * `limit × accessible-app-count` (small in practice).
+ * Logo URLs are resolved only for the apps actually present in `rows` — the
+ * feed's page is a handful of apps even when the user can see dozens, and each
+ * unresolved logo is a storage lookup on every re-run of a reactive query.
+ */
+async function withSourceApp(
+  ctx: QueryCtx,
+  rows: Doc<'notifications'>[],
+  apps: Doc<'sourceApps'>[]
+) {
+  const appMap = new Map(apps.map((a) => [a._id, a]));
+  const present = new Set(rows.map((r) => r.sourceAppId));
+  const logoUrlCache = new Map<string, string | null>();
+  for (const app of apps) {
+    if (!present.has(app._id)) continue;
+    if (app.logoStorageId && !logoUrlCache.has(app.logoStorageId)) {
+      logoUrlCache.set(app.logoStorageId, await ctx.storage.getUrl(app.logoStorageId));
+    }
+  }
+  return rows.map((r) => {
+    const app = appMap.get(r.sourceAppId);
+    return {
+      ...r,
+      sourceAppName: app?.name ?? 'unknown',
+      sourceAppLogoUrl: app?.logoStorageId ? (logoUrlCache.get(app.logoStorageId) ?? null) : null,
+      sourceAppLogoColor: app?.logoColor ?? null
+    };
+  });
+}
+
+/**
+ * Feed for the mobile app. Newest first, paginated. Includes notifications
+ * from apps the user owns AND apps shared with them.
+ *
+ * There's no single index over "notifications visible to this viewer" —
+ * `notifications.ownerId` is the bill-paying owner, not the viewer — so the
+ * feed is a merge across one indexed stream per accessible app.
+ *
+ * This used to `take(limit)` from every app and slice the merged result, which
+ * read `limit × accessible-app-count` documents to return `limit`: ten apps at
+ * a 100-row page read 1,000 rows to show 100, and "load older" re-read the
+ * whole prefix at a larger limit. `mergedStream` walks the same per-app indexes
+ * lazily, pulling only as far into each as the page actually needs, and gives
+ * real cursors so a second page starts where the first stopped.
  */
 export const listMine = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    const userId = await requireAuth(ctx);
+    const accessible = await listAccessibleSourceApps(ctx, userId);
+    if (accessible.length === 0) {
+      return { page: [], isDone: true, continueCursor: '' };
+    }
+
+    const streams = accessible.map(({ app }) =>
+      stream(ctx.db, schema)
+        .query('notifications')
+        .withIndex('by_sourceApp_created', (q) => q.eq('sourceAppId', app._id))
+        .order('desc')
+    );
+    const result = await mergedStream(streams, ['createdAt']).paginate(args.paginationOpts);
+
+    return {
+      ...result,
+      page: await withSourceApp(
+        ctx,
+        result.page,
+        accessible.map(({ app }) => app)
+      )
+    };
+  }
+});
+
+/**
+ * The newest notifications across every accessible app, bounded and
+ * unpaginated — for consumers that want a small fixed window rather than a
+ * scrollable feed (the home-screen widget snapshot).
+ *
+ * Keeps the merge-and-slice shape on purpose: at this size the read is
+ * `limit × app-count` with a small limit, and a cursor would buy nothing.
+ */
+export const listRecent = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, args) => {
     const userId = await requireAuth(ctx);
-    const limit = Math.min(args.limit ?? 100, 500);
+    const limit = Math.min(args.limit ?? 20, LIST_RECENT_MAX);
     const accessible = await listAccessibleSourceApps(ctx, userId);
     if (accessible.length === 0) return [];
 
@@ -44,26 +121,16 @@ export const listMine = query({
       .flat()
       .toSorted((a, b) => b.createdAt - a.createdAt)
       .slice(0, limit);
-
-    const apps = accessible.map(({ app }) => app);
-    const appMap = new Map(apps.map((a) => [a._id, a]));
-    // Resolve each distinct logo URL once.
-    const logoUrlCache = new Map<string, string | null>();
-    for (const app of apps) {
-      if (app.logoStorageId && !logoUrlCache.has(app.logoStorageId)) {
-        logoUrlCache.set(app.logoStorageId, await ctx.storage.getUrl(app.logoStorageId));
-      }
-    }
-    return rows.map((r) => {
-      const app = appMap.get(r.sourceAppId);
-      return {
-        ...r,
-        sourceAppName: app?.name ?? 'unknown',
-        sourceAppLogoUrl: app?.logoStorageId ? (logoUrlCache.get(app.logoStorageId) ?? null) : null
-      };
-    });
+    return await withSourceApp(
+      ctx,
+      rows,
+      accessible.map(({ app }) => app)
+    );
   }
 });
+
+/** Hard ceiling for `listRecent`, which reads this many rows per app. */
+const LIST_RECENT_MAX = 50;
 
 export const markRead = mutation({
   args: {
@@ -121,18 +188,28 @@ export const setRead = mutation({
   }
 });
 
+/**
+ * Mark the feed read. Covers every app the caller can see — owned and shared —
+ * since `readAt` is per-notification, not per-viewer.
+ *
+ * Pass `sourceAppId` to mark a single app read; the mobile feed sends the app
+ * it's filtered to so the button acts on exactly what's on screen. An id the
+ * caller has no access to marks nothing.
+ */
 export const markAllRead = mutation({
-  args: {},
-  handler: async (ctx) => {
+  args: { sourceAppId: v.optional(v.id('sourceApps')) },
+  handler: async (ctx, args) => {
     const userId = await requireAuth(ctx);
-    const accessible = await listAccessibleSourceApps(ctx, userId);
+    const all = await listAccessibleSourceApps(ctx, userId);
+    const accessible = args.sourceAppId
+      ? all.filter(({ app }) => app._id === args.sourceAppId)
+      : all;
     const now = Date.now();
     let total = 0;
     for (const { app } of accessible) {
       const unread = await ctx.db
         .query('notifications')
-        .withIndex('by_sourceApp_created', (q) => q.eq('sourceAppId', app._id))
-        .filter((q) => q.eq(q.field('readAt'), undefined))
+        .withIndex('by_sourceApp_read', (q) => q.eq('sourceAppId', app._id).eq('readAt', undefined))
         .take(500);
       for (const n of unread) {
         await ctx.db.patch(n._id, { readAt: now });
@@ -179,17 +256,28 @@ export const deleteOne = mutation({
 /**
  * Clear the feed. Only deletes notifications from apps the caller owns —
  * shared apps stay visible because clearing them would affect other members.
+ *
+ * Pass `sourceAppId` to clear a single app — the mobile feed sends the app
+ * it's filtered to, so Clear wipes exactly what's on screen and nothing else.
  */
 export const clearAll = mutation({
-  args: {},
-  handler: async (ctx) => {
+  args: { sourceAppId: v.optional(v.id('sourceApps')) },
+  handler: async (ctx, args) => {
     const ownerId = await requireAuth(ctx);
     let deleted = 0;
     while (true) {
-      const batch = await ctx.db
-        .query('notifications')
-        .withIndex('by_owner_created', (q) => q.eq('ownerId', ownerId))
-        .take(200);
+      const batch = args.sourceAppId
+        ? await ctx.db
+            .query('notifications')
+            .withIndex('by_sourceApp_created', (q) => q.eq('sourceAppId', args.sourceAppId!))
+            // The by-app index isn't scoped to the caller, so drop anything
+            // they don't own — same rule the unfiltered path gets for free.
+            .filter((q) => q.eq(q.field('ownerId'), ownerId))
+            .take(200)
+        : await ctx.db
+            .query('notifications')
+            .withIndex('by_owner_created', (q) => q.eq('ownerId', ownerId))
+            .take(200);
       if (batch.length === 0) break;
       for (const n of batch) {
         await deleteNotificationCascade(ctx, n._id);
@@ -210,8 +298,7 @@ export const unreadCount = query({
     for (const { app } of accessible) {
       const unread = await ctx.db
         .query('notifications')
-        .withIndex('by_sourceApp_created', (q) => q.eq('sourceAppId', app._id))
-        .filter((q) => q.eq(q.field('readAt'), undefined))
+        .withIndex('by_sourceApp_read', (q) => q.eq('sourceAppId', app._id).eq('readAt', undefined))
         .take(500);
       total += unread.length;
     }
@@ -245,14 +332,9 @@ export const sendTest = mutation({
     // allowance, mirroring the HTTP /notify path. Stripped from the public
     // build so self-hosters get unlimited sends with no billing surface.
     const tier = await getEffectiveTier(ctx, app.ownerId);
-    const limit = TIER_LIMITS[tier].pushesPerMonth;
-    const current = await getMonthlyUsage(ctx, app.ownerId);
-    if (current >= limit) {
-      throw quotaExceeded(tier, current, limit);
-    }
-    await incrementMonthlyUsage(ctx, app.ownerId);
+    await chargeUsage(ctx, app.ownerId, tier);
     // endregion: tier-features
-    await ctx.db.patch(app._id, { lastUsedAt: Date.now() });
+    await touchLastUsed(ctx, app);
 
     const notificationId = await ctx.db.insert('notifications', {
       ownerId: app.ownerId,

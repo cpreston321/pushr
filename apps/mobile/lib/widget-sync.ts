@@ -24,7 +24,7 @@ const SNAPSHOT_LIMIT = 50;
  * the app.
  */
 export function useSyncWidget() {
-  const items = useQuery(api.notifications.listMine, { limit: SNAPSHOT_LIMIT });
+  const items = useQuery(api.notifications.listRecent, { limit: SNAPSHOT_LIMIT });
   const sourceApps = useQuery(api.sourceApps.listMine, {});
   const { colors } = useTheme();
   const lastJSONRef = useRef<string | null>(null);
