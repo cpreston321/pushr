@@ -29,6 +29,8 @@
     "unicorn/consistent-function-scoping": "warn",
     "react/react-in-jsx-scope": "off",
     "react/no-array-index-key": "warn",
+    "react/immutability": "off",
+    "react/exhaustive-effect-dependencies": "off",
     "promise/always-return": "off",
     "vitest/require-mock-type-parameters": "off",
     "vitest/no-conditional-expect": "warn",

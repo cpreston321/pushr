@@ -23,15 +23,15 @@
     "format:check": "oxfmt --check ."
   },
   "dependencies": {
-    "@convex-dev/better-auth": "^0.12.2",
-    "@convex-dev/workpool": "^0.4.6",
-    "better-auth": "1.6.9",
-    "convex": "^1.38.0",
-    "convex-helpers": "^0.1.116",
+    "@convex-dev/better-auth": "^0.12.5",
+    "@convex-dev/workpool": "^0.4.10",
+    "better-auth": "1.6.11",
+    "convex": "^1.45.0",
+    "convex-helpers": "^0.1.123",
     "fast-png": "^8.0.0",
     "jpeg-js": "^0.4.4"
   },
   "devDependencies": {
-    "convex-test": "^0.0.51"
+    "convex-test": "^0.0.56"
   }
 }

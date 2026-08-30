@@ -30,14 +30,18 @@ export function useLiveActivityTokens(deviceId: Id<'devices'> | undefined): void
   const registerStart = useMutation(api.devices.registerLiveActivityPushToStartToken);
   const registerUpdate = useMutation(api.liveActivities.registerUpdateToken);
 
-  // Latest-value refs, assigned during render so a token event firing between
-  // render and effect still sees the current values.
+  // Latest-value refs. Written in an effect rather than during render (React
+  // forbids the latter), and declared *before* every effect that reads them —
+  // effects run in declaration order, so this one has already refreshed the
+  // refs by the time the flush effects below fire on the same commit.
   const deviceIdRef = useRef(deviceId);
-  deviceIdRef.current = deviceId;
   const registerStartRef = useRef(registerStart);
-  registerStartRef.current = registerStart;
   const registerUpdateRef = useRef(registerUpdate);
-  registerUpdateRef.current = registerUpdate;
+  useEffect(() => {
+    deviceIdRef.current = deviceId;
+    registerStartRef.current = registerStart;
+    registerUpdateRef.current = registerUpdate;
+  });
 
   // Buffers for tokens that arrived before we knew the deviceId. We also
   // remember the last registered token so we don't spam the backend with

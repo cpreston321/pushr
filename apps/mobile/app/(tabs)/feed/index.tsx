@@ -500,37 +500,37 @@ function FloatingBar({
   // tap commits. Reverts automatically after a short window if the user walks
   // away. Mark-all-read is disabled while we're confirming so a stray tap
   // doesn't dismiss the confirmation by accident.
-  const [confirming, setConfirming] = useState(false);
+  //
+  // What's armed is a *scope*, not a boolean. Switching the filter mid-confirm
+  // has to disarm — "Confirm clear X" must never commit against Y — and
+  // deriving that from the stored scope makes it fall out of a render instead
+  // of needing an effect to chase the prop and set state after the fact.
+  const [armedScope, setArmedScope] = useState<{ scope: string | null } | null>(
+    null,
+  );
+  const confirming = armedScope !== null && armedScope.scope === scope;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, []);
-  // Switching the filter mid-confirm would leave "Confirm clear X" armed over
-  // a different scope — drop back to idle instead.
-  useEffect(() => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = null;
-    setConfirming(false);
-  }, [scope]);
 
   const handleClearTap = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = null;
     if (confirming) {
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = null;
-      setConfirming(false);
+      setArmedScope(null);
       onClear();
       return;
     }
-    setConfirming(true);
+    setArmedScope({ scope });
     haptic.warning();
-    if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
-      setConfirming(false);
+      setArmedScope(null);
       timerRef.current = null;
     }, CLEAR_CONFIRM_TIMEOUT_MS);
-  }, [confirming, onClear]);
+  }, [confirming, onClear, scope]);
 
   const markRead = (
     <BarAction
